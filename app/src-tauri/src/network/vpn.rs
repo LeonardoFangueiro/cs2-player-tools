@@ -226,11 +226,19 @@ pub fn activate_vpn(profile: &VpnProfile) -> Result<VpnActionResult, String> {
     std::fs::write(&config_path, &config_content)
         .map_err(|e| format!("Failed to write config: {}", e))?;
 
+    // Set restrictive permissions on config file (contains private key)
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(&config_path, std::fs::Permissions::from_mode(0o600)).ok();
+    }
+
     #[cfg(target_os = "windows")]
     {
         let wg_exe = find_wireguard_exe()?;
+        let config_path_str = config_path.to_str().ok_or("Invalid config path")?;
         let output = Command::new(&wg_exe)
-            .args(["/installtunnelservice", config_path.to_str().unwrap()])
+            .args(["/installtunnelservice", config_path_str])
             .output()
             .map_err(|e| format!("Failed to start tunnel: {}", e))?;
 
@@ -246,8 +254,9 @@ pub fn activate_vpn(profile: &VpnProfile) -> Result<VpnActionResult, String> {
 
     #[cfg(not(target_os = "windows"))]
     {
+        let config_path_str = config_path.to_str().ok_or("Invalid config path")?;
         let output = Command::new("sudo")
-            .args(["wg-quick", "up", config_path.to_str().unwrap()])
+            .args(["wg-quick", "up", config_path_str])
             .output()
             .map_err(|e| format!("Failed to start tunnel: {}", e))?;
         Ok(VpnActionResult {
@@ -276,8 +285,9 @@ pub fn deactivate_vpn(profile_name: &str) -> Result<VpnActionResult, String> {
     {
         let config_dir = get_config_dir()?;
         let config_path = config_dir.join(format!("{}.conf", profile_name));
+        let config_path_str = config_path.to_str().ok_or("Invalid config path")?;
         let output = Command::new("sudo")
-            .args(["wg-quick", "down", config_path.to_str().unwrap()])
+            .args(["wg-quick", "down", config_path_str])
             .output()
             .map_err(|e| format!("Failed to stop tunnel: {}", e))?;
         Ok(VpnActionResult {
@@ -356,12 +366,14 @@ pub fn check_wireguard_available() -> WireGuardStatus {
     {
         let wg = find_wg_exe();
         let wireguard = find_wireguard_exe();
+        let available = wg.is_ok() && wireguard.is_ok();
+        let source = if wg.as_ref().map_or(false, |p| p.contains("CS2PlayerTools") || p.contains("resources"))
+            { "bundled".to_string() } else if wg.is_ok() { "system".to_string() } else { "not_found".to_string() };
         WireGuardStatus {
-            available: wg.is_ok() && wireguard.is_ok(),
-            wg_path: wg.ok(),
-            wireguard_path: wireguard.ok(),
-            source: if wg.as_ref().map_or(false, |p| p.contains("CS2PlayerTools") || p.contains("resources"))
-                { "bundled".to_string() } else if wg.is_ok() { "system".to_string() } else { "not_found".to_string() },
+            available,
+            wg_path: wg.as_ref().ok().cloned(),
+            wireguard_path: wireguard.as_ref().ok().cloned(),
+            source,
         }
     }
     #[cfg(not(target_os = "windows"))]

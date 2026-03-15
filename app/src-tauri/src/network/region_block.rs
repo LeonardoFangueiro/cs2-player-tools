@@ -17,6 +17,17 @@ pub struct BlockedRegion {
 
 /// Block a Valve PoP by adding firewall rules to drop its relay IPs
 pub fn block_pop(pop_code: String, relay_ips: Vec<String>) -> RegionBlockResult {
+    // Validate pop_code: only allow alphanumeric 2-6 chars
+    if !pop_code.chars().all(|c| c.is_alphanumeric()) || pop_code.len() > 6 || pop_code.is_empty() {
+        return RegionBlockResult { success: false, message: "Invalid PoP code".into() };
+    }
+    // Validate IPs
+    for ip in &relay_ips {
+        if !ip.chars().all(|c| c.is_ascii_digit() || c == '.') {
+            return RegionBlockResult { success: false, message: format!("Invalid IP: {}", ip) };
+        }
+    }
+
     #[cfg(target_os = "windows")]
     {
         let rule_name = format!("CS2PT Block - {}", pop_code.to_uppercase());

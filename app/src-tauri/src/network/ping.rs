@@ -114,7 +114,14 @@ pub async fn ping_all_pops() -> Result<Vec<(String, f64)>, String> {
         }
     }
 
-    results.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal));
+    results.sort_by(|a, b| {
+        match (a.1 < 0.0, b.1 < 0.0) {
+            (true, true) => std::cmp::Ordering::Equal,
+            (true, false) => std::cmp::Ordering::Greater, // unreachable (-1) goes LAST
+            (false, true) => std::cmp::Ordering::Less,
+            (false, false) => a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal),
+        }
+    });
 
     Ok(results)
 }

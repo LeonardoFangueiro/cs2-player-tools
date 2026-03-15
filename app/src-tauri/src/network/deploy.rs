@@ -51,22 +51,40 @@ fn ssh_connect(creds: &VpsCredentials) -> Result<Session, String> {
         }
         "key" => {
             if let Some(key_content) = &creds.private_key {
-                let key_path = std::env::temp_dir().join(format!("cs2pt_ssh_{}", std::process::id()));
-                std::fs::write(&key_path, key_content)
-                    .map_err(|e| format!("Failed to write SSH key: {}", e))?;
+                // Use in-memory auth on Unix (avoids writing key to disk)
                 #[cfg(unix)]
                 {
-                    use std::os::unix::fs::PermissionsExt;
-                    std::fs::set_permissions(&key_path, std::fs::Permissions::from_mode(0o600)).ok();
+                    session.userauth_pubkey_memory(
+                        &creds.username,
+                        None,
+                        key_content,
+                        None,
+                    ).map_err(|e| format!("Key auth failed: {}", e))?;
                 }
-                let result = session.userauth_pubkey_file(
-                    &creds.username,
-                    None,
-                    &key_path,
-                    None,
-                );
-                let _ = std::fs::remove_file(&key_path); // Clean up
-                result.map_err(|e| format!("Key auth failed: {}", e))?;
+                // On non-Unix, fall back to temp file with secure handling
+                #[cfg(not(unix))]
+                {
+                    use rand::Rng;
+                    let random_suffix: u64 = rand::thread_rng().gen();
+                    let key_path = std::env::temp_dir().join(format!("cs2pt_ssh_{:016x}", random_suffix));
+                    std::fs::write(&key_path, key_content)
+                        .map_err(|e| format!("Failed to write SSH key: {}", e))?;
+                    // Ensure cleanup even on panic
+                    struct CleanupGuard(std::path::PathBuf);
+                    impl Drop for CleanupGuard {
+                        fn drop(&mut self) {
+                            let _ = std::fs::remove_file(&self.0);
+                        }
+                    }
+                    let _guard = CleanupGuard(key_path.clone());
+                    let result = session.userauth_pubkey_file(
+                        &creds.username,
+                        None,
+                        &key_path,
+                        None,
+                    );
+                    result.map_err(|e| format!("Key auth failed: {}", e))?;
+                }
             } else {
                 return Err("Private key content is required for key auth".to_string());
             }
@@ -97,11 +115,14 @@ fn ssh_exec(session: &Session, cmd: &str) -> Result<String, String> {
     channel.wait_close().ok();
     let exit = channel.exit_status().unwrap_or(-1);
 
-    if exit != 0 && !stderr.is_empty() {
-        // Some commands write to stderr but still succeed (apt, etc.)
-        // Only fail if exit code is non-zero AND output is empty
+    if exit != 0 {
+        if !stderr.is_empty() {
+            return Err(format!("Command failed (exit {}): {}", exit, stderr.trim()));
+        }
+        // Some commands write useful output even on non-zero exit
+        // Only fail if output is also empty
         if output.trim().is_empty() {
-            return Err(format!("Command '{}' failed (exit {}): {}", cmd, exit, stderr.trim()));
+            return Err(format!("Command failed with exit code {}", exit));
         }
     }
 
@@ -122,8 +143,21 @@ pub async fn test_connection(creds: VpsCredentials) -> Result<TestConnectionResu
 }
 
 pub async fn deploy_wireguard(creds: VpsCredentials, client_address: String) -> Result<DeployResult, String> {
+    // Validate client_address (must be IP/CIDR format)
+    if !client_address.chars().all(|c| c.is_ascii_digit() || c == '.' || c == '/' || c == ':') {
+        return Err("Invalid client address format".to_string());
+    }
+    if client_address.len() > 50 {
+        return Err("Client address too long".to_string());
+    }
+
+    // Generate client keypair LOCALLY (before SSH) — never expose private key to VPS
+    let (client_privkey, client_pubkey) = super::generate_keypair()
+        .map_err(|e| format!("Failed to generate local keypair: {}", e))?;
+
     tokio::task::spawn_blocking(move || {
         let mut log = Vec::new();
+        log.push("Client keypair generated locally".to_string());
 
         // Connect
         log.push("Connecting to VPS...".to_string());
@@ -149,7 +183,7 @@ pub async fn deploy_wireguard(creds: VpsCredentials, client_address: String) -> 
         ssh_exec(&session, "sysctl -w net.ipv4.ip_forward=1")?;
         ssh_exec(&session, "grep -q 'net.ipv4.ip_forward=1' /etc/sysctl.conf || echo 'net.ipv4.ip_forward=1' >> /etc/sysctl.conf")?;
 
-        // Generate server keypair
+        // Generate server keypair on VPS (server private key stays on server)
         log.push("Generating server keypair...".to_string());
         let keypair_out = ssh_exec(&session, "privkey=$(wg genkey) && echo $privkey && echo $privkey | wg pubkey")?;
         let lines: Vec<&str> = keypair_out.trim().lines().collect();
@@ -162,15 +196,6 @@ pub async fn deploy_wireguard(creds: VpsCredentials, client_address: String) -> 
         let short_server_key_end = if server_pubkey.len() >= 4 { &server_pubkey[server_pubkey.len()-4..] } else { &server_pubkey };
         log.push(format!("Server public key: {}...{}", short_server_key, short_server_key_end));
 
-        // Generate client keypair (via the VPS since it has wg tools)
-        log.push("Generating client keypair...".to_string());
-        let client_keypair_out = ssh_exec(&session, "privkey=$(wg genkey) && echo $privkey && echo $privkey | wg pubkey")?;
-        let client_lines: Vec<&str> = client_keypair_out.trim().lines().collect();
-        if client_lines.len() < 2 {
-            return Err("Failed to generate client keypair".to_string());
-        }
-        let client_privkey = client_lines[0].trim().to_string();
-        let client_pubkey = client_lines[1].trim().to_string();
         let short_client_key = if client_pubkey.len() >= 8 { &client_pubkey[..8] } else { &client_pubkey };
         let short_client_key_end = if client_pubkey.len() >= 4 { &client_pubkey[client_pubkey.len()-4..] } else { &client_pubkey };
         log.push(format!("Client public key: {}...{}", short_client_key, short_client_key_end));

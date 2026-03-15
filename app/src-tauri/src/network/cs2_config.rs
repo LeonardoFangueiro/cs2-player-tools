@@ -133,7 +133,7 @@ pub fn scan_cs2_config() -> Cs2Config {
             .lines()
             .find(|l| {
                 let trimmed = l.trim();
-                !trimmed.starts_with("//") && trimmed.starts_with(key)
+                !trimmed.starts_with("//") && trimmed.split_whitespace().next() == Some(key)
             })
             .and_then(|l| l.split_whitespace().nth(1))
             .map(|v| v.trim_matches('"').to_string());
@@ -183,7 +183,7 @@ pub fn apply_cs2_config(settings: Vec<(String, String)>) -> Cs2ConfigResult {
         let line_to_add = format!("{} {}", key, value);
         let exists = content.lines().any(|l| {
             let t = l.trim();
-            !t.starts_with("//") && t.starts_with(key.as_str())
+            !t.starts_with("//") && t.split_whitespace().next() == Some(key.as_str())
         });
 
         if exists {
@@ -191,7 +191,7 @@ pub fn apply_cs2_config(settings: Vec<(String, String)>) -> Cs2ConfigResult {
             let mut new_content = String::new();
             for line in content.lines() {
                 let t = line.trim();
-                if !t.starts_with("//") && t.starts_with(key.as_str()) {
+                if !t.starts_with("//") && t.split_whitespace().next() == Some(key.as_str()) {
                     new_content.push_str(&line_to_add);
                 } else {
                     new_content.push_str(line);

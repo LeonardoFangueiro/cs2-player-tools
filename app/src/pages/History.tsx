@@ -28,12 +28,12 @@ import {
 interface ConnectionSession {
   timestamp: string;
   duration_secs: number;
-  avg_ping: number;
-  min_ping: number;
-  max_ping: number;
-  jitter: number;
+  avg_ping_ms: number;
+  min_ping_ms: number;
+  max_ping_ms: number;
+  jitter_ms: number;
   loss_percent: number;
-  region: string;
+  server_region: string;
   vpn_active: boolean;
 }
 
@@ -150,12 +150,12 @@ export default function History() {
       return { total: 0, avgPing: 0, bestIdx: -1, worstIdx: -1 };
     }
     const total = sessions.length;
-    const avgPing = sessions.reduce((sum, s) => sum + s.avg_ping, 0) / total;
+    const avgPing = sessions.reduce((sum, s) => sum + s.avg_ping_ms, 0) / total;
     let bestIdx = 0;
     let worstIdx = 0;
     for (let i = 1; i < sessions.length; i++) {
-      if (sessions[i].avg_ping < sessions[bestIdx].avg_ping) bestIdx = i;
-      if (sessions[i].avg_ping > sessions[worstIdx].avg_ping) worstIdx = i;
+      if (sessions[i].avg_ping_ms < sessions[bestIdx].avg_ping_ms) bestIdx = i;
+      if (sessions[i].avg_ping_ms > sessions[worstIdx].avg_ping_ms) worstIdx = i;
     }
     return { total, avgPing, bestIdx, worstIdx };
   }, [sessions]);
@@ -166,7 +166,7 @@ export default function History() {
       sessions.map((s, i) => ({
         idx: i + 1,
         label: formatDate(s.timestamp),
-        avg_ping: Math.round(s.avg_ping * 10) / 10,
+        avg_ping_ms: Math.round(s.avg_ping_ms * 10) / 10,
       })),
     [sessions]
   );
@@ -234,7 +234,7 @@ export default function History() {
           </div>
           <span className="text-2xl font-bold text-success">
             {stats.bestIdx >= 0
-              ? `${sessions[stats.bestIdx].avg_ping.toFixed(1)}ms`
+              ? `${sessions[stats.bestIdx].avg_ping_ms.toFixed(1)}ms`
               : "--"}
           </span>
         </div>
@@ -245,7 +245,7 @@ export default function History() {
           </div>
           <span className="text-2xl font-bold text-danger">
             {stats.worstIdx >= 0
-              ? `${sessions[stats.worstIdx].avg_ping.toFixed(1)}ms`
+              ? `${sessions[stats.worstIdx].avg_ping_ms.toFixed(1)}ms`
               : "--"}
           </span>
         </div>
@@ -318,7 +318,7 @@ export default function History() {
                 />
                 <Line
                   type="monotone"
-                  dataKey="avg_ping"
+                  dataKey="avg_ping_ms"
                   stroke="#6c5ce7"
                   strokeWidth={2}
                   dot={{ fill: "#6c5ce7", r: 3 }}
@@ -364,23 +364,23 @@ export default function History() {
                     <td className="py-2 px-3 font-mono text-text-muted">
                       {formatDuration(session.duration_secs)}
                     </td>
-                    <td className={`py-2 px-3 font-mono font-semibold ${getPingColor(session.avg_ping)}`}>
-                      {session.avg_ping.toFixed(1)}ms
+                    <td className={`py-2 px-3 font-mono font-semibold ${getPingColor(session.avg_ping_ms)}`}>
+                      {session.avg_ping_ms.toFixed(1)}ms
                     </td>
                     <td className="py-2 px-3 font-mono text-success">
-                      {session.min_ping.toFixed(1)}ms
+                      {session.min_ping_ms.toFixed(1)}ms
                     </td>
                     <td className="py-2 px-3 font-mono text-danger">
-                      {session.max_ping.toFixed(1)}ms
+                      {session.max_ping_ms.toFixed(1)}ms
                     </td>
                     <td className="py-2 px-3 font-mono text-orange">
-                      {session.jitter.toFixed(1)}ms
+                      {session.jitter_ms.toFixed(1)}ms
                     </td>
                     <td className={`py-2 px-3 font-mono ${session.loss_percent > 0 ? "text-danger" : "text-success"}`}>
                       {session.loss_percent.toFixed(1)}%
                     </td>
                     <td className="py-2 px-3 font-mono text-accent2 uppercase">
-                      {session.region || "--"}
+                      {session.server_region || "--"}
                     </td>
                     <td className="py-2 px-3">
                       {session.vpn_active ? (

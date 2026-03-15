@@ -4,3 +4,8 @@ target/
 *.log
 .DS_Store
 Thumbs.db
+.env*
+*.pem
+*.key
+app/src-tauri/resources/wireguard/*.exe
+app/src-tauri/resources/wireguard/*.dll

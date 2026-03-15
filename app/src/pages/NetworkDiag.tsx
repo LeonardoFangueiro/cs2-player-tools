@@ -113,6 +113,7 @@ export default function NetworkDiag() {
   // DNS state
   const [dnsHost, setDnsHost] = useState("steamcommunity.com");
   const [dnsResults, setDnsResults] = useState<string[]>([]);
+  const [dnsLoading, setDnsLoading] = useState(false);
 
   // Buffer Bloat state
   const [bloatHost, setBloatHost] = useState("1.1.1.1");
@@ -229,11 +230,14 @@ export default function NetworkDiag() {
   }
 
   async function runDns() {
+    setDnsLoading(true);
     try {
       const res = await invoke<string[]>("resolve_dns", { hostname: dnsHost });
       setDnsResults(res);
     } catch (e) {
       console.error(e);
+    } finally {
+      setDnsLoading(false);
     }
   }
 
@@ -241,7 +245,7 @@ export default function NetworkDiag() {
     try {
       setBloatRunning(true);
       setBloatResult(null);
-      const res = await invoke<BufferBloatResult>("test_buffer_bloat", { host: bloatHost });
+      const res = await invoke<BufferBloatResult>("test_buffer_bloat", { targetHost: bloatHost });
       setBloatResult(res);
     } catch (e) {
       console.error(e);
@@ -658,9 +662,10 @@ export default function NetworkDiag() {
           />
           <button
             onClick={runDns}
-            className="px-5 py-2 bg-accent text-white text-sm rounded-md hover:bg-accent/80 transition"
+            disabled={dnsLoading}
+            className="px-5 py-2 bg-accent text-white text-sm rounded-md hover:bg-accent/80 transition disabled:opacity-50"
           >
-            Resolve
+            {dnsLoading ? "Resolving..." : "Resolve"}
           </button>
         </div>
         {dnsResults.length > 0 && (

@@ -134,7 +134,6 @@ export default function SmartVPN() {
   const [loading, setLoading] = useState(true);
   const [vpnStatus, setVpnStatus] = useState<VpnStatus | null>(null);
   const [activeProfile, setActiveProfile] = useState<string | null>(null);
-  const [connectingProfile, _setConnectingProfile] = useState<string | null>(null);
   const [previewConfig, setPreviewConfig] = useState<string | null>(null);
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
   const [showHowItWorks, setShowHowItWorks] = useState(false);
@@ -329,6 +328,15 @@ export default function SmartVPN() {
   function copyToClipboard(text: string) {
     navigator.clipboard.writeText(text);
     setToast({ message: "Copied to clipboard", type: "success" });
+  }
+
+  async function showPreview(profileName: string) {
+    try {
+      const config = await invoke<string>("vpn_generate_config", { profile: profileName });
+      setPreviewConfig(config);
+    } catch (e) {
+      setToast({ message: `Preview failed: ${String(e)}`, type: "error" });
+    }
   }
 
   // ── Step indicator helper ──
@@ -968,7 +976,6 @@ export default function SmartVPN() {
           <div className="grid grid-cols-1 gap-3">
             {profiles.map((name) => {
               const isActive = activeProfile === name;
-              const isConnecting = connectingProfile === name;
               return (
                 <div key={name} className={`bg-bg-card border rounded-lg p-4 transition flex items-center justify-between ${isActive ? "border-success/40 bg-success/5" : "border-border hover:border-accent/20"}`}>
                   <div className="flex items-center gap-3">
@@ -986,10 +993,11 @@ export default function SmartVPN() {
                         <WifiOff size={12} /> Disconnect
                       </button>
                     ) : (
-                      <button onClick={() => connectProfile(name)} disabled={isConnecting} className="flex items-center gap-1.5 px-3 py-1.5 bg-success/15 text-success text-xs rounded-md border border-success/30 hover:bg-success/25 transition disabled:opacity-50">
-                        {isConnecting ? <Loader size={12} className="animate-spin" /> : <Wifi size={12} />} Connect
+                      <button onClick={() => connectProfile(name)} className="flex items-center gap-1.5 px-3 py-1.5 bg-success/15 text-success text-xs rounded-md border border-success/30 hover:bg-success/25 transition">
+                        <Wifi size={12} /> Connect
                       </button>
                     )}
+                    <button onClick={() => showPreview(name)} className="flex items-center gap-1.5 px-3 py-1.5 text-text-muted text-xs rounded-md border border-border hover:text-text transition"><FileCode size={12} /> Preview</button>
                     <button onClick={() => setToast({ message: "Profile deletion coming in next update", type: "error" })} className="p-1.5 text-text-muted hover:text-danger transition"><Trash2 size={14} /></button>
                   </div>
                 </div>

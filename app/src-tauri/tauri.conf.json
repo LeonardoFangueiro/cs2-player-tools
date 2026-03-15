@@ -22,7 +22,7 @@
       }
     ],
     "security": {
-      "csp": null
+      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self' https://api.steampowered.com https://speed.cloudflare.com https://cloudflare-dns.com ipc: http://tauri.localhost; img-src 'self' data: http:"
     }
   },
   "bundle": {

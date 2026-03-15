@@ -1,5 +1,6 @@
 import { Outlet } from "react-router-dom";
 import Sidebar from "./Sidebar";
+import DevTools from "./DevTools";
 
 export default function Layout() {
   return (
@@ -8,6 +9,7 @@ export default function Layout() {
       <main className="flex-1 overflow-y-auto p-6">
         <Outlet />
       </main>
+      <DevTools />
     </div>
   );
 }

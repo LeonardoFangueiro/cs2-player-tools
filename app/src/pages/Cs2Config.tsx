@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { invoke } from "../lib/tauri";
 import {
   FileCode,
@@ -44,10 +44,12 @@ export default function Cs2Config() {
   const [applyingKey, setApplyingKey] = useState<string | null>(null);
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
 
-  function showToast(message: string, type: "success" | "error") {
-    setToast({ message, type });
-    setTimeout(() => setToast(null), 4000);
-  }
+  useEffect(() => {
+    if (toast) {
+      const timer = setTimeout(() => setToast(null), 4000);
+      return () => clearTimeout(timer);
+    }
+  }, [toast]);
 
   async function scanConfig() {
     try {
@@ -58,7 +60,7 @@ export default function Cs2Config() {
       const opts = await invoke<Array<[string, string]>>("get_launch_options");
       setLaunchOptions(opts);
     } catch (e) {
-      showToast(`Scan failed: ${String(e)}`, "error");
+      setToast({ message: `Scan failed: ${String(e)}`, type: "error" });
     } finally {
       setScanning(false);
     }
@@ -68,19 +70,17 @@ export default function Cs2Config() {
     if (!scanResult) return;
     setApplyingAll(true);
     try {
-      const settings: Record<string, string> = {};
-      for (const s of scanResult.current_settings) {
-        settings[s.key] = s.recommended_value;
-      }
-      const result = await invoke<ApplyResult>("apply_cs2_config", { settings });
+      const settingsArray = scanResult.current_settings
+        .map(s => [s.key, s.recommended_value] as [string, string]);
+      const result = await invoke<ApplyResult>("apply_cs2_config", { settings: settingsArray });
       if (result.success) {
-        showToast("All recommended settings applied", "success");
+        setToast({ message: "All recommended settings applied", type: "success" });
         await scanConfig();
       } else {
-        showToast(result.message, "error");
+        setToast({ message: result.message, type: "error" });
       }
     } catch (e) {
-      showToast(`Apply failed: ${String(e)}`, "error");
+      setToast({ message: `Apply failed: ${String(e)}`, type: "error" });
     } finally {
       setApplyingAll(false);
     }
@@ -89,18 +89,18 @@ export default function Cs2Config() {
   async function applySingle(setting: ConfigSetting) {
     setApplyingKey(setting.key);
     try {
-      const settings: Record<string, string> = {
-        [setting.key]: setting.recommended_value,
-      };
-      const result = await invoke<ApplyResult>("apply_cs2_config", { settings });
+      const settingsArray: [string, string][] = [
+        [setting.key, setting.recommended_value],
+      ];
+      const result = await invoke<ApplyResult>("apply_cs2_config", { settings: settingsArray });
       if (result.success) {
-        showToast(`${setting.key} applied`, "success");
+        setToast({ message: `${setting.key} applied`, type: "success" });
         await scanConfig();
       } else {
-        showToast(result.message, "error");
+        setToast({ message: result.message, type: "error" });
       }
     } catch (e) {
-      showToast(`Apply failed: ${String(e)}`, "error");
+      setToast({ message: `Apply failed: ${String(e)}`, type: "error" });
     } finally {
       setApplyingKey(null);
     }

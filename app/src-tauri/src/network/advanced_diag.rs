@@ -33,14 +33,11 @@ pub async fn test_buffer_bloat(target_host: String) -> Result<BufferBloatResult,
     // Step 2: Start a background download and measure ping simultaneously
     // We use a simple approach: fetch a large file while pinging
     let download_task = tokio::spawn(async {
-        // Download something to generate load
-        let _ = reqwest::get("https://speed.cloudflare.com/__down?bytes=10000000")
-            .await
-            .ok()
-            .map(|r| async { r.bytes().await.ok() });
-        // Keep downloading for a bit
-        for _ in 0..3 {
-            let _ = reqwest::get("https://speed.cloudflare.com/__down?bytes=5000000").await;
+        // Download something to generate load — must actually consume the body
+        for _ in 0..4 {
+            if let Ok(resp) = reqwest::get("https://speed.cloudflare.com/__down?bytes=5000000").await {
+                let _ = resp.bytes().await; // Actually consume the body
+            }
         }
     });
 

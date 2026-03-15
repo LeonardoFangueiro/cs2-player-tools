@@ -94,6 +94,14 @@ fn get_system_network_info() -> (Vec<String>, Option<String>) {
 }
 
 pub async fn traceroute(host: &str) -> Result<Vec<TraceHop>, String> {
+    // Validate: only allow alphanumeric, dots, colons, hyphens
+    if !host.chars().all(|c| c.is_alphanumeric() || c == '.' || c == ':' || c == '-') {
+        return Err("Invalid hostname".to_string());
+    }
+    if host.starts_with('-') {
+        return Err("Invalid hostname (cannot start with dash)".to_string());
+    }
+
     let output = tokio::task::spawn_blocking({
         let host = host.to_string();
         move || {
