@@ -2,6 +2,7 @@ import React from "react";
 import ReactDOM from "react-dom/client";
 import { BrowserRouter } from "react-router-dom";
 import App from "./App";
+import TokenGate from "./components/TokenGate";
 import { reportError, sendTelemetry, sendHeartbeat, reportCrash } from "./lib/hq";
 import { invoke } from "./lib/tauri";
 import "./index.css";
@@ -33,8 +34,10 @@ sendHeartbeat(invoke);
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
-    <BrowserRouter>
-      <App />
-    </BrowserRouter>
+    <TokenGate>
+      <BrowserRouter>
+        <App />
+      </BrowserRouter>
+    </TokenGate>
   </React.StrictMode>
 );

@@ -1,45 +1,45 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { invoke } from "../lib/tauri";
 import {
   Shield,
-  Key,
   Globe,
   Wifi,
   WifiOff,
-  Trash2,
   Loader,
   CheckCircle,
   XCircle,
-  Copy,
-  RefreshCw,
-  FileCode,
   Server,
-  ArrowRight,
   Zap,
-  Info,
-  ChevronDown,
-  ChevronUp,
-  ExternalLink,
-  Terminal,
-  Upload,
-  Link,
   Lock,
-  User,
-  Hash,
+  ArrowDownUp,
+  Timer,
+  MapPin,
+  Users,
+  Key,
+  RefreshCw,
 } from "lucide-react";
 
 // ── Types ──
 
-interface VpnProfile {
+interface VpnServer {
+  id: string;
   name: string;
-  server_endpoint: string;
+  location: string;
+  country: string;
+  flag: string;
+  endpoint: string;
+  public_key: string;
+  lat: number;
+  lng: number;
+  max_clients: number;
+}
+
+interface VpnConnectResponse {
+  endpoint: string;
   server_public_key: string;
-  client_private_key: string;
   client_address: string;
   dns: string;
-  mtu: number;
   allowed_ips: string;
-  persistent_keepalive: number;
 }
 
 interface VpnStatus {
@@ -52,339 +52,720 @@ interface VpnStatus {
   error: string | null;
 }
 
-interface VpsDeployResult {
+interface PingResult {
+  seq: number;
+  host: string;
+  latency_ms: number;
   success: boolean;
-  message: string;
-  server_public_key: string;
-  client_private_key: string;
-  client_public_key: string;
-  endpoint: string;
-  client_address: string;
-  log: string[];
+  error: string | null;
 }
 
-const DEFAULT_PROFILE: VpnProfile = {
-  name: "",
-  server_endpoint: "",
-  server_public_key: "",
-  client_private_key: "",
-  client_address: "10.66.66.2/32",
-  dns: "1.1.1.1",
-  mtu: 1420,
-  allowed_ips: "",
-  persistent_keepalive: 25,
-};
+type ConnectionState = "disconnected" | "connecting" | "connected" | "disconnecting";
 
-// ── VPN Server Recommendations ──
+// ── Helpers ──
 
-interface ServerRecommendation {
-  valveDc: string;
-  valveLocation: string;
-  vpnProvider: string;
-  vpnLocation: string;
-  price: string;
-  estPing: string;
-  setupUrl: string;
+function latLngToXY(lat: number, lng: number): { x: number; y: number } {
+  const x = (lng + 180) * (1000 / 360);
+  const y = (90 - lat) * (500 / 180);
+  return { x, y };
 }
 
-const SERVER_RECOMMENDATIONS: ServerRecommendation[] = [
-  { valveDc: "fra", valveLocation: "Frankfurt (EU West)", vpnProvider: "Hetzner", vpnLocation: "Falkenstein/Frankfurt, DE", price: "\u20AC3.79/m\u00EAs", estPing: "25-35ms", setupUrl: "https://www.hetzner.com/cloud" },
-  { valveDc: "mad", valveLocation: "Madrid (EU Spain)", vpnProvider: "Vultr", vpnLocation: "Madrid, ES", price: "$6/m\u00EAs", estPing: "5-15ms", setupUrl: "https://www.vultr.com/" },
-  { valveDc: "lhr", valveLocation: "London (EU West)", vpnProvider: "Vultr", vpnLocation: "London, UK", price: "$6/m\u00EAs", estPing: "35-45ms", setupUrl: "https://www.vultr.com/" },
-  { valveDc: "ams", valveLocation: "Amsterdam (EU)", vpnProvider: "Hetzner", vpnLocation: "Helsinki, FI", price: "\u20AC3.79/m\u00EAs", estPing: "30-40ms", setupUrl: "https://www.hetzner.com/cloud" },
-  { valveDc: "vie", valveLocation: "Vienna (EU East)", vpnProvider: "Vultr", vpnLocation: "Vienna, AT", price: "$6/m\u00EAs", estPing: "40-50ms", setupUrl: "https://www.vultr.com/" },
-  { valveDc: "waw", valveLocation: "Warsaw (EU)", vpnProvider: "OVH", vpnLocation: "Warsaw, PL", price: "\u20AC3.50/m\u00EAs", estPing: "45-55ms", setupUrl: "https://www.ovhcloud.com/en/vps/" },
-  { valveDc: "sto", valveLocation: "Stockholm (EU North)", vpnProvider: "Hetzner", vpnLocation: "Helsinki, FI", price: "\u20AC3.79/m\u00EAs", estPing: "50-70ms", setupUrl: "https://www.hetzner.com/cloud" },
-];
+function formatDuration(seconds: number): string {
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  const s = seconds % 60;
+  return `${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
+}
 
-// ── Wizard Step type ──
+function extractHost(endpoint: string): string {
+  return endpoint.split(":")[0];
+}
 
-type WizardStep = 1 | 2 | 3;
+// ── SVG World Map Path ──
+// Simplified world outline (continents)
+const WORLD_PATH = `
+M 150,85 L 155,80 165,82 170,78 180,80 185,78 195,82 205,80 215,85 220,82
+225,88 230,85 235,82 230,78 220,75 215,72 210,68 205,65 195,62 185,60
+175,58 165,60 155,62 150,65 148,70 145,75 148,80 Z
 
-// ── Component ──
+M 260,75 L 270,72 280,70 290,68 300,70 310,72 320,70 330,72 340,75
+350,78 360,80 370,78 380,82 390,85 400,82 410,85 420,88 430,90
+440,88 450,85 460,82 470,85 475,90 480,95 485,100 490,105 495,110
+500,115 505,120 510,125 515,130 518,135 515,140 510,145 505,148
+500,150 495,152 490,150 485,148 480,150 475,155 470,158 465,160
+460,162 455,165 450,168 445,172 440,178 435,180 430,185 425,190
+420,192 415,188 410,185 405,180 400,175 395,170 390,165 385,160
+380,155 378,150 375,145 372,140 370,135 368,130 365,125 360,120
+355,118 350,115 345,112 340,110 335,108 330,105 325,102 320,100
+315,98 310,96 305,95 300,92 295,90 290,88 285,85 280,82 275,80 270,78 Z
+
+M 520,78 L 530,75 540,72 550,70 560,68 570,65 580,62 590,60 600,58
+610,60 620,62 630,65 640,68 650,72 660,75 670,78 680,82 690,85
+700,82 710,85 720,88 730,92 735,98 738,105 740,110 738,115 735,118
+730,120 725,122 720,120 715,115 710,112 705,108 700,105 695,102
+690,100 685,105 680,110 678,115 680,120 685,125 690,128 695,130
+700,132 705,135 710,138 715,140 720,142 725,145 728,148 730,152
+728,155 725,158 720,160 715,158 710,155 705,150 700,148 695,145
+690,140 685,138 680,135 675,130 670,128 665,125 660,122 655,118
+650,115 645,110 640,108 635,105 630,102 625,100 620,98 615,95
+610,92 605,90 600,88 595,85 590,82 585,80 580,78 575,80 570,82
+565,85 560,82 555,80 550,78 545,80 540,82 535,80 Z
+
+M 640,170 L 645,165 655,162 665,160 675,158 685,155 695,152 705,155
+715,158 725,160 735,162 740,165 745,168 748,172 750,175 752,180
+755,185 758,190 760,195 758,200 755,205 750,210 745,215 740,220
+735,225 730,228 725,232 720,235 715,238 710,240 705,242 700,245
+695,248 690,250 685,252 680,255 675,258 670,260 665,262 660,265
+655,268 650,270 645,268 640,265 635,260 630,255 625,250 620,245
+622,240 625,235 628,230 632,225 635,220 638,215 640,210 638,205
+635,200 632,195 630,190 628,185 630,180 635,175 Z
+
+M 780,150 L 790,148 800,145 810,148 820,150 830,155 840,160 850,165
+860,168 870,172 880,178 890,185 895,192 898,200 895,208 890,215
+885,220 878,225 870,228 862,230 855,235 848,240 840,245 835,250
+830,255 828,260 830,265 835,270 840,275 845,280 848,285 845,290
+840,295 835,298 828,300 820,298 815,295 810,290 805,285 800,280
+795,275 790,268 785,262 780,255 778,248 775,240 772,232 770,225
+768,218 770,210 775,202 780,195 782,188 780,180 778,172 775,165
+778,158 Z
+
+M 255,230 L 265,225 275,220 285,218 295,220 305,225 315,228 325,232
+335,235 340,240 342,248 340,255 338,262 335,270 330,278 325,285
+320,292 315,298 310,305 305,310 298,315 290,320 282,325 275,328
+268,330 260,332 252,330 245,325 240,318 235,310 232,302 230,295
+228,288 230,280 232,272 235,265 238,258 242,250 248,242 Z
+
+M 385,220 L 395,218 405,220 415,225 425,230 435,235 445,240 450,248
+452,255 450,260 445,265 440,268 435,270 430,268 425,265 420,260
+415,255 410,250 405,245 400,240 395,235 390,230 388,225 Z
+`;
+
+// ── World Map Component ──
+
+function WorldMap({
+  servers,
+  selectedServer,
+  connectionState,
+  userLocation,
+}: {
+  servers: VpnServer[];
+  selectedServer: VpnServer | null;
+  connectionState: ConnectionState;
+  userLocation: { lat: number; lng: number } | null;
+}) {
+  const isConnected = connectionState === "connected";
+  const isConnecting = connectionState === "connecting";
+
+  const userXY = userLocation ? latLngToXY(userLocation.lat, userLocation.lng) : null;
+  const selectedXY = selectedServer ? latLngToXY(selectedServer.lat, selectedServer.lng) : null;
+
+  return (
+    <div className="bg-bg-card border border-border rounded-lg p-4 mb-6 overflow-hidden">
+      <svg viewBox="0 0 1000 500" className="w-full h-auto" style={{ maxHeight: 320 }}>
+        <defs>
+          {/* Glow filter for server dots */}
+          <filter id="glow-purple" x="-50%" y="-50%" width="200%" height="200%">
+            <feGaussianBlur stdDeviation="4" result="blur" />
+            <feFlood floodColor="#6c5ce7" floodOpacity="0.6" result="color" />
+            <feComposite in="color" in2="blur" operator="in" result="shadow" />
+            <feMerge>
+              <feMergeNode in="shadow" />
+              <feMergeNode in="SourceGraphic" />
+            </feMerge>
+          </filter>
+          <filter id="glow-teal" x="-50%" y="-50%" width="200%" height="200%">
+            <feGaussianBlur stdDeviation="4" result="blur" />
+            <feFlood floodColor="#00cec9" floodOpacity="0.6" result="color" />
+            <feComposite in="color" in2="blur" operator="in" result="shadow" />
+            <feMerge>
+              <feMergeNode in="shadow" />
+              <feMergeNode in="SourceGraphic" />
+            </feMerge>
+          </filter>
+          <filter id="glow-green" x="-50%" y="-50%" width="200%" height="200%">
+            <feGaussianBlur stdDeviation="6" result="blur" />
+            <feFlood floodColor="#55efc4" floodOpacity="0.8" result="color" />
+            <feComposite in="color" in2="blur" operator="in" result="shadow" />
+            <feMerge>
+              <feMergeNode in="shadow" />
+              <feMergeNode in="SourceGraphic" />
+            </feMerge>
+          </filter>
+          {/* Animated dash for connection line */}
+          <linearGradient id="line-gradient" x1="0%" y1="0%" x2="100%" y2="0%">
+            <stop offset="0%" stopColor="#00cec9" stopOpacity="0.3" />
+            <stop offset="50%" stopColor="#55efc4" stopOpacity="1" />
+            <stop offset="100%" stopColor="#6c5ce7" stopOpacity="0.3" />
+          </linearGradient>
+        </defs>
+
+        {/* Background grid */}
+        <rect width="1000" height="500" fill="#0a0a0f" rx="8" />
+        {Array.from({ length: 10 }, (_, i) => (
+          <line key={`vg-${i}`} x1={i * 100} y1="0" x2={i * 100} y2="500" stroke="#1a1a25" strokeWidth="0.5" />
+        ))}
+        {Array.from({ length: 5 }, (_, i) => (
+          <line key={`hg-${i}`} x1="0" y1={i * 100} x2="1000" y2={i * 100} stroke="#1a1a25" strokeWidth="0.5" />
+        ))}
+
+        {/* World outline */}
+        <path d={WORLD_PATH} fill="#1a1a25" stroke="#2a2a3a" strokeWidth="1" opacity="0.8" />
+
+        {/* Connection line */}
+        {(isConnected || isConnecting) && userXY && selectedXY && (
+          <line
+            x1={userXY.x}
+            y1={userXY.y}
+            x2={selectedXY.x}
+            y2={selectedXY.y}
+            stroke="url(#line-gradient)"
+            strokeWidth="2"
+            strokeDasharray={isConnecting ? "8 4" : "none"}
+            opacity={isConnecting ? 0.6 : 1}
+          >
+            {isConnecting && (
+              <animate attributeName="stroke-dashoffset" from="24" to="0" dur="1s" repeatCount="indefinite" />
+            )}
+          </line>
+        )}
+
+        {/* Server dots */}
+        {servers.map((s) => {
+          const { x, y } = latLngToXY(s.lat, s.lng);
+          const isSelected = selectedServer?.id === s.id;
+          const isActive = isSelected && isConnected;
+          return (
+            <g key={s.id}>
+              {/* Pulse ring for active server */}
+              {isActive && (
+                <circle cx={x} cy={y} r="8" fill="none" stroke="#55efc4" strokeWidth="1.5" opacity="0.4">
+                  <animate attributeName="r" from="8" to="20" dur="2s" repeatCount="indefinite" />
+                  <animate attributeName="opacity" from="0.6" to="0" dur="2s" repeatCount="indefinite" />
+                </circle>
+              )}
+              <circle
+                cx={x}
+                cy={y}
+                r={isSelected ? 6 : 4}
+                fill={isActive ? "#55efc4" : isSelected ? "#6c5ce7" : "#6c5ce7"}
+                filter={isActive ? "url(#glow-green)" : "url(#glow-purple)"}
+                opacity={isSelected ? 1 : 0.8}
+              />
+              {/* Label for selected server */}
+              {isSelected && (
+                <text x={x} y={y - 12} textAnchor="middle" fill="#e0e0e8" fontSize="11" fontWeight="600">
+                  {s.flag} {s.name}
+                </text>
+              )}
+            </g>
+          );
+        })}
+
+        {/* User location dot */}
+        {userXY && (
+          <g>
+            <circle cx={userXY.x} cy={userXY.y} r="5" fill="#00cec9" filter="url(#glow-teal)" />
+            <circle cx={userXY.x} cy={userXY.y} r="8" fill="none" stroke="#00cec9" strokeWidth="1" opacity="0.5">
+              <animate attributeName="r" from="8" to="16" dur="3s" repeatCount="indefinite" />
+              <animate attributeName="opacity" from="0.5" to="0" dur="3s" repeatCount="indefinite" />
+            </circle>
+            <text x={userXY.x} y={userXY.y - 12} textAnchor="middle" fill="#00cec9" fontSize="10" fontWeight="500">
+              You
+            </text>
+          </g>
+        )}
+
+        {/* Legend */}
+        <g transform="translate(20, 460)">
+          <circle cx="0" cy="0" r="4" fill="#00cec9" />
+          <text x="10" y="4" fill="#8888a0" fontSize="10">Your location</text>
+          <circle cx="120" cy="0" r="4" fill="#6c5ce7" />
+          <text x="130" y="4" fill="#8888a0" fontSize="10">VPN Server</text>
+          <circle cx="230" cy="0" r="4" fill="#55efc4" />
+          <text x="240" y="4" fill="#8888a0" fontSize="10">Connected</text>
+        </g>
+      </svg>
+    </div>
+  );
+}
+
+// ── Server Card Component ──
+
+function ServerCard({
+  server,
+  ping,
+  isConnected,
+  isSelected,
+  connectionState,
+  onConnect,
+  onDisconnect,
+}: {
+  server: VpnServer;
+  ping: number | null;
+  isConnected: boolean;
+  isSelected: boolean;
+  connectionState: ConnectionState;
+  onConnect: () => void;
+  onDisconnect: () => void;
+}) {
+  const isBusy = connectionState === "connecting" || connectionState === "disconnecting";
+
+  function getPingColor(ms: number): string {
+    if (ms < 40) return "text-success";
+    if (ms < 80) return "text-warning";
+    return "text-danger";
+  }
+
+  return (
+    <div
+      className={`bg-bg-card border rounded-lg p-4 transition-all ${
+        isConnected
+          ? "border-success/50 shadow-[0_0_20px_rgba(85,239,196,0.1)]"
+          : isSelected
+            ? "border-accent/50"
+            : "border-border hover:border-border/80"
+      }`}
+    >
+      {/* Header */}
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center gap-2">
+          <span className="text-xl">{server.flag}</span>
+          <div>
+            <div className="font-semibold text-sm">{server.name}</div>
+            <div className="text-xs text-text-muted flex items-center gap-1">
+              <MapPin size={10} />
+              {server.location}
+            </div>
+          </div>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <span className="w-2 h-2 rounded-full bg-success animate-pulse" />
+          <span className="text-[10px] text-text-muted uppercase">Online</span>
+        </div>
+      </div>
+
+      {/* Stats row */}
+      <div className="flex items-center gap-4 mb-3 text-xs text-text-muted">
+        <div className="flex items-center gap-1">
+          <Zap size={12} className={ping !== null ? getPingColor(ping) : ""} />
+          {ping !== null ? (
+            <span className={getPingColor(ping)}>{Math.round(ping)}ms</span>
+          ) : (
+            <span className="animate-pulse">...</span>
+          )}
+        </div>
+        <div className="flex items-center gap-1">
+          <Users size={12} />
+          <span>{server.max_clients} slots</span>
+        </div>
+        <div className="flex items-center gap-1">
+          <Globe size={12} />
+          <span>{server.country}</span>
+        </div>
+      </div>
+
+      {/* Action button */}
+      {isConnected ? (
+        <button
+          onClick={onDisconnect}
+          disabled={isBusy}
+          className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-danger/15 border border-danger/30 text-danger rounded-lg text-sm font-medium hover:bg-danger/25 transition disabled:opacity-50"
+        >
+          {connectionState === "disconnecting" ? (
+            <>
+              <Loader size={14} className="animate-spin" />
+              Disconnecting...
+            </>
+          ) : (
+            <>
+              <WifiOff size={14} />
+              Disconnect
+            </>
+          )}
+        </button>
+      ) : (
+        <button
+          onClick={onConnect}
+          disabled={isBusy}
+          className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-accent/15 border border-accent/30 text-accent rounded-lg text-sm font-medium hover:bg-accent/25 transition disabled:opacity-50"
+        >
+          {connectionState === "connecting" && isSelected ? (
+            <>
+              <Loader size={14} className="animate-spin" />
+              Connecting...
+            </>
+          ) : (
+            <>
+              <Shield size={14} />
+              Connect
+            </>
+          )}
+        </button>
+      )}
+    </div>
+  );
+}
+
+// ── Connected Status Banner ──
+
+function ConnectedBanner({
+  server,
+  vpnIp,
+  status,
+  duration,
+  onDisconnect,
+  connectionState,
+}: {
+  server: VpnServer;
+  vpnIp: string;
+  status: VpnStatus | null;
+  duration: number;
+  onDisconnect: () => void;
+  connectionState: ConnectionState;
+}) {
+  return (
+    <div className="bg-success/5 border border-success/20 rounded-lg p-5 mb-6">
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-full bg-success/20 flex items-center justify-center">
+            <Shield size={20} className="text-success" />
+          </div>
+          <div>
+            <div className="font-semibold flex items-center gap-2">
+              <span className="text-success">Connected</span>
+              <span className="text-xl">{server.flag}</span>
+              <span>{server.name}</span>
+            </div>
+            <div className="text-xs text-text-muted">{server.location} &mdash; {server.country}</div>
+          </div>
+        </div>
+        <button
+          onClick={onDisconnect}
+          disabled={connectionState === "disconnecting"}
+          className="flex items-center gap-2 px-4 py-2 bg-danger/15 border border-danger/30 text-danger rounded-lg text-sm font-medium hover:bg-danger/25 transition disabled:opacity-50"
+        >
+          {connectionState === "disconnecting" ? (
+            <Loader size={14} className="animate-spin" />
+          ) : (
+            <WifiOff size={14} />
+          )}
+          Disconnect
+        </button>
+      </div>
+
+      {/* Connection details grid */}
+      <div className="grid grid-cols-4 gap-4">
+        <div className="bg-bg-card/50 rounded-lg p-3">
+          <div className="text-[10px] text-text-muted uppercase tracking-wider mb-1 flex items-center gap-1">
+            <Globe size={10} /> VPN IP
+          </div>
+          <div className="text-sm font-mono text-accent2">{vpnIp}</div>
+        </div>
+        <div className="bg-bg-card/50 rounded-lg p-3">
+          <div className="text-[10px] text-text-muted uppercase tracking-wider mb-1 flex items-center gap-1">
+            <Timer size={10} /> Duration
+          </div>
+          <div className="text-sm font-mono text-success">{formatDuration(duration)}</div>
+        </div>
+        <div className="bg-bg-card/50 rounded-lg p-3">
+          <div className="text-[10px] text-text-muted uppercase tracking-wider mb-1 flex items-center gap-1">
+            <ArrowDownUp size={10} /> Transfer RX
+          </div>
+          <div className="text-sm font-mono text-accent">{status?.transfer_rx ?? "0 B"}</div>
+        </div>
+        <div className="bg-bg-card/50 rounded-lg p-3">
+          <div className="text-[10px] text-text-muted uppercase tracking-wider mb-1 flex items-center gap-1">
+            <ArrowDownUp size={10} /> Transfer TX
+          </div>
+          <div className="text-sm font-mono text-accent">{status?.transfer_tx ?? "0 B"}</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Main Page Component ──
 
 export default function SmartVPN() {
-  // Wizard state
-  const [wizardStep, setWizardStep] = useState<WizardStep>(1);
-  const [wizardCompleted, setWizardCompleted] = useState<Set<WizardStep>>(new Set());
-
-  // Step 1: VPS Connection
-  const [vpsIp, setVpsIp] = useState("");
-  const [sshPort, setSshPort] = useState("22");
-  const [sshUsername, setSshUsername] = useState("root");
-  const [authMethod, setAuthMethod] = useState<"password" | "key">("password");
-  const [sshPassword, setSshPassword] = useState("");
-  const [sshKey, setSshKey] = useState("");
-  const [testingConnection, setTestingConnection] = useState(false);
-  const [connectionStatus, setConnectionStatus] = useState<{ success: boolean; message: string } | null>(null);
-
-  // Step 2: Deploy
-  const [clientAddress, setClientAddress] = useState("10.66.66.2/32");
-  const [deploying, setDeploying] = useState(false);
-  const [deployLogs, setDeployLogs] = useState<string[]>([]);
-  const [deployResult, setDeployResult] = useState<VpsDeployResult | null>(null);
-
-  // Step 3: Connect
-  const [form, setForm] = useState<VpnProfile>({ ...DEFAULT_PROFILE });
-  const [loadingValveIps, setLoadingValveIps] = useState(false);
-  const [saving, setSaving] = useState(false);
-
-  // Shared state
-  const [profiles, setProfiles] = useState<string[]>([]);
+  const [token, setToken] = useState(localStorage.getItem("cs2pt_token") || "");
+  const [tokenInput, setTokenInput] = useState("");
+  const [servers, setServers] = useState<VpnServer[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [pings, setPings] = useState<Record<string, number>>({});
+  const [connectionState, setConnectionState] = useState<ConnectionState>("disconnected");
+  const [connectedServerId, setConnectedServerId] = useState<string | null>(null);
+  const [selectedServerId, setSelectedServerId] = useState<string | null>(null);
+  const [vpnIp, setVpnIp] = useState<string>("");
   const [vpnStatus, setVpnStatus] = useState<VpnStatus | null>(null);
-  const [activeProfile, setActiveProfile] = useState<string | null>(null);
-  const [previewConfig, setPreviewConfig] = useState<string | null>(null);
-  const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
-  const [showHowItWorks, setShowHowItWorks] = useState(false);
-  const [showRecommendations, setShowRecommendations] = useState(false);
+  const [connectDuration, setConnectDuration] = useState(0);
+  const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
 
+  const connectTimeRef = useRef<number>(0);
+  const statusIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const durationIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const connectedServer = servers.find((s) => s.id === connectedServerId) ?? null;
+  const selectedServer = servers.find((s) => s.id === selectedServerId) ?? connectedServer;
+
+  // ── Fetch user approximate location ──
   useEffect(() => {
-    loadProfiles();
+    fetch("https://ipapi.co/json/")
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.latitude && data.longitude) {
+          setUserLocation({ lat: data.latitude, lng: data.longitude });
+        }
+      })
+      .catch(() => {
+        // Default to Western Europe if geolocation fails
+        setUserLocation({ lat: 40.0, lng: -8.0 });
+      });
   }, []);
 
-  useEffect(() => {
-    if (toast) {
-      const timer = setTimeout(() => setToast(null), 4000);
-      return () => clearTimeout(timer);
-    }
-  }, [toast]);
-
-  // ── Step 1: Test VPS Connection ──
-
-  async function testConnection() {
-    if (!vpsIp.trim()) {
-      setToast({ message: "Enter the VPS IP address", type: "error" });
-      return;
-    }
-    try {
-      setTestingConnection(true);
-      setConnectionStatus(null);
-      const result = await invoke<{ success: boolean; message: string }>("vps_test_connection", {
-        host: vpsIp.trim(),
-        port: parseInt(sshPort) || 22,
-        username: sshUsername.trim() || "root",
-        authMethod: authMethod,
-        password: authMethod === "password" ? sshPassword : null,
-        privateKey: authMethod === "key" ? sshKey : null,
-      });
-      setConnectionStatus(result);
-      if (result.success) {
-        setWizardCompleted((prev) => new Set(prev).add(1));
-        // Auto-progress to step 2
-        setTimeout(() => setWizardStep(2), 600);
-      }
-    } catch (e) {
-      setConnectionStatus({ success: false, message: String(e) });
-    } finally {
-      setTestingConnection(false);
-    }
-  }
-
-  // ── Step 2: Deploy WireGuard ──
-
-  async function deployWireGuard() {
-    try {
-      setDeploying(true);
-      setDeployLogs([]);
-      setDeployResult(null);
-
-      // Simulate log messages for progress feedback
-      const logSteps = [
-        "Connecting to VPS via SSH...",
-        "Updating package lists...",
-        "Installing WireGuard...",
-        "Generating server keypair...",
-        "Generating client keypair...",
-        "Configuring WireGuard interface (wg0)...",
-        "Enabling IP forwarding...",
-        "Setting up NAT/masquerade rules...",
-        "Starting WireGuard service...",
-      ];
-
-      // Show logs progressively
-      for (const log of logSteps) {
-        setDeployLogs((prev) => [...prev, log]);
-        await new Promise((r) => setTimeout(r, 200));
-      }
-
-      const result = await invoke<VpsDeployResult>("vps_deploy_wireguard", {
-        host: vpsIp.trim(),
-        port: parseInt(sshPort) || 22,
-        username: sshUsername.trim() || "root",
-        authMethod: authMethod,
-        password: authMethod === "password" ? sshPassword : null,
-        privateKey: authMethod === "key" ? sshKey : null,
-        clientAddress: clientAddress.trim(),
-      });
-
-      if (result.success) {
-        setDeployLogs((prev) => [...prev, "WireGuard deployed successfully!"]);
-        setDeployResult(result);
-        setWizardCompleted((prev) => new Set(prev).add(2));
-
-        // Auto-fill the connect form
-        setForm((prev) => ({
-          ...prev,
-          name: `VPN ${vpsIp}`,
-          server_endpoint: result.endpoint || `${vpsIp}:51820`,
-          server_public_key: result.server_public_key,
-          client_private_key: result.client_private_key,
-          client_address: clientAddress,
-        }));
-
-        // Auto-progress to step 3
-        setTimeout(() => setWizardStep(3), 800);
-      } else {
-        setDeployLogs((prev) => [...prev, `ERROR: ${result.message}`]);
-        setToast({ message: result.message, type: "error" });
-      }
-    } catch (e) {
-      setDeployLogs((prev) => [...prev, `ERROR: ${String(e)}`]);
-      setToast({ message: String(e), type: "error" });
-    } finally {
-      setDeploying(false);
-    }
-  }
-
-  // ── Step 3: Connect ──
-
-  async function fetchValveIps() {
-    try {
-      setLoadingValveIps(true);
-      const ips = await invoke<string>("vpn_get_valve_ips");
-      setForm((prev) => ({ ...prev, allowed_ips: ips }));
-      setToast({ message: "Valve IPs loaded for split tunneling", type: "success" });
-    } catch (e) {
-      setToast({ message: String(e), type: "error" });
-    } finally {
-      setLoadingValveIps(false);
-    }
-  }
-
-  async function saveAndActivate() {
-    if (!form.name.trim() || !form.server_endpoint.trim() || !form.server_public_key.trim() || !form.client_private_key.trim()) {
-      setToast({ message: "Fill all required fields (name, endpoint, server key, client key)", type: "error" });
-      return;
-    }
-    try {
-      setSaving(true);
-      const result = await invoke<{ success: boolean; message: string }>("vpn_activate", { profile: form });
-      if (result.success) {
-        setActiveProfile(form.name);
-        setWizardCompleted((prev) => new Set(prev).add(3));
-        setToast({ message: `VPN "${form.name}" connected!`, type: "success" });
-        await loadProfiles();
-        await refreshStatus(form.name);
-      } else {
-        setToast({ message: result.message, type: "error" });
-      }
-    } catch (e) {
-      setToast({ message: String(e), type: "error" });
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  // ── Shared functions ──
-
-  async function loadProfiles() {
+  // ── Fetch server list ──
+  const fetchServers = useCallback(async () => {
     try {
       setLoading(true);
-      const result = await invoke<string[]>("vpn_list_profiles");
-      setProfiles(result);
-    } catch {
-      setProfiles([]);
+      setError(null);
+      const resp = await fetch("https://cs2-player-tools.maltinha.club/api/vpn-servers");
+      if (!resp.ok) throw new Error(`Server returned ${resp.status}`);
+      const data = await resp.json();
+      setServers(data.servers ?? []);
+    } catch (e) {
+      setError(`Failed to load servers: ${e instanceof Error ? e.message : String(e)}`);
     } finally {
       setLoading(false);
     }
+  }, []);
+
+  useEffect(() => {
+    fetchServers();
+  }, [fetchServers]);
+
+  // ── Ping servers ──
+  useEffect(() => {
+    if (servers.length === 0) return;
+
+    async function pingAll() {
+      for (const server of servers) {
+        const host = extractHost(server.endpoint);
+        try {
+          const results = await invoke<PingResult[]>("ping_host", { host, count: 1 });
+          const successful = results.filter((r) => r.success);
+          if (successful.length > 0) {
+            const avg = successful.reduce((s, r) => s + r.latency_ms, 0) / successful.length;
+            setPings((prev) => ({ ...prev, [server.id]: avg }));
+          }
+        } catch {
+          // ping failed, leave as null
+        }
+      }
+    }
+
+    pingAll();
+  }, [servers]);
+
+  // ── Poll VPN status when connected ──
+  useEffect(() => {
+    if (connectionState === "connected") {
+      const poll = async () => {
+        try {
+          const status = await invoke<VpnStatus>("vpn_get_status");
+          setVpnStatus(status);
+          // If tunnel went down unexpectedly
+          if (!status.active && connectionState === "connected") {
+            handleDisconnected();
+          }
+        } catch {
+          // ignore
+        }
+      };
+      poll();
+      statusIntervalRef.current = setInterval(poll, 2000);
+      return () => {
+        if (statusIntervalRef.current) clearInterval(statusIntervalRef.current);
+      };
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [connectionState]);
+
+  // ── Duration timer ──
+  useEffect(() => {
+    if (connectionState === "connected") {
+      durationIntervalRef.current = setInterval(() => {
+        setConnectDuration(Math.floor((Date.now() - connectTimeRef.current) / 1000));
+      }, 1000);
+      return () => {
+        if (durationIntervalRef.current) clearInterval(durationIntervalRef.current);
+      };
+    }
+  }, [connectionState]);
+
+  function handleDisconnected() {
+    setConnectionState("disconnected");
+    setConnectedServerId(null);
+    setVpnIp("");
+    setVpnStatus(null);
+    setConnectDuration(0);
+    if (statusIntervalRef.current) clearInterval(statusIntervalRef.current);
+    if (durationIntervalRef.current) clearInterval(durationIntervalRef.current);
   }
 
-  async function connectProfile(_name: string) {
-    setToast({ message: `Reconnect for saved profiles coming soon. Use the wizard to set up a new connection.`, type: "error" });
-  }
+  // ── Connect flow ──
+  async function handleConnect(serverId: string) {
+    if (!token) return;
 
-  async function disconnectProfile() {
+    setSelectedServerId(serverId);
+    setConnectionState("connecting");
+    setError(null);
+
     try {
-      const name = activeProfile ?? "";
-      await invoke<{ success: boolean; message: string }>("vpn_deactivate", { profileName: name });
-      setActiveProfile(null);
-      setVpnStatus(null);
-      setToast({ message: "VPN disconnected", type: "success" });
+      // Step 1: Request connection config from HQ
+      const configResp = await fetch(
+        `https://cs2-player-tools.maltinha.club/api/vpn-servers/${serverId}/connect`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      if (!configResp.ok) {
+        const errBody = await configResp.text();
+        throw new Error(errBody || `Server returned ${configResp.status}`);
+      }
+
+      const config: VpnConnectResponse = await configResp.json();
+
+      // Step 2: Generate client keypair locally
+      const keypair = await invoke<[string, string]>("vpn_generate_keypair");
+      const clientPrivateKey = keypair[0];
+      const clientPublicKey = keypair[1];
+
+      // Step 3: Register public key with HQ so the server knows us
+      await fetch(
+        `https://cs2-player-tools.maltinha.club/api/vpn-servers/${serverId}/register-key`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ public_key: clientPublicKey }),
+        }
+      );
+
+      // Step 4: Save VPN profile locally
+      const profileName = `smartvpn-${serverId}`;
+      await invoke("vpn_save_profile", {
+        profile: {
+          name: profileName,
+          server_endpoint: config.endpoint,
+          server_public_key: config.server_public_key,
+          client_private_key: clientPrivateKey,
+          client_address: config.client_address,
+          dns: config.dns,
+          mtu: 1420,
+          allowed_ips: config.allowed_ips,
+          persistent_keepalive: 25,
+        },
+      });
+
+      // Step 5: Activate the tunnel
+      const activateResult = await invoke<{ success: boolean; message: string }>("vpn_activate", {
+        profileName,
+      });
+
+      if (!activateResult.success) {
+        throw new Error(activateResult.message);
+      }
+
+      // Success
+      setConnectionState("connected");
+      setConnectedServerId(serverId);
+      setVpnIp(config.client_address.split("/")[0]);
+      connectTimeRef.current = Date.now();
+      setConnectDuration(0);
     } catch (e) {
-      setToast({ message: String(e), type: "error" });
+      setError(`Connection failed: ${e instanceof Error ? e.message : String(e)}`);
+      setConnectionState("disconnected");
     }
   }
 
-  async function refreshStatus(name: string) {
+  // ── Disconnect flow ──
+  async function handleDisconnect() {
+    setConnectionState("disconnecting");
     try {
-      const status = await invoke<VpnStatus>("vpn_get_status", { profileName: name });
-      setVpnStatus(status);
+      await invoke("vpn_deactivate", {});
     } catch {
-      // Status may not be available
+      // Ignore deactivation errors
+    }
+    handleDisconnected();
+  }
+
+  // ── Token management ──
+  function handleSaveToken() {
+    const trimmed = tokenInput.trim();
+    if (trimmed) {
+      localStorage.setItem("cs2pt_token", trimmed);
+      setToken(trimmed);
+      setTokenInput("");
     }
   }
 
-  function copyToClipboard(text: string) {
-    navigator.clipboard.writeText(text);
-    setToast({ message: "Copied to clipboard", type: "success" });
+  function handleClearToken() {
+    localStorage.removeItem("cs2pt_token");
+    setToken("");
   }
 
-  async function showPreview(profileName: string) {
-    try {
-      const config = await invoke<string>("vpn_generate_config", { profile: profileName });
-      setPreviewConfig(config);
-    } catch (e) {
-      setToast({ message: `Preview failed: ${String(e)}`, type: "error" });
-    }
-  }
+  // ── Render ──
 
-  // ── Step indicator helper ──
-
-  function StepIndicator() {
-    const steps: { num: WizardStep; label: string; icon: typeof Server }[] = [
-      { num: 1, label: "VPS Connection", icon: Server },
-      { num: 2, label: "Deploy", icon: Upload },
-      { num: 3, label: "Connect", icon: Wifi },
-    ];
-
+  // Token gate
+  if (!token) {
     return (
-      <div className="flex items-center justify-center gap-1 mb-6">
-        {steps.map((step, idx) => {
-          const isActive = wizardStep === step.num;
-          const isCompleted = wizardCompleted.has(step.num);
-          const StepIcon = step.icon;
+      <div>
+        <div className="flex items-center justify-between mb-6">
+          <div>
+            <h1 className="text-2xl font-bold">
+              <span className="text-accent">Smart</span> VPN
+            </h1>
+            <p className="text-text-muted text-sm mt-1">
+              One-click VPN for optimized CS2 routing
+            </p>
+          </div>
+        </div>
 
-          return (
-            <div key={step.num} className="flex items-center">
-              <button
-                onClick={() => setWizardStep(step.num)}
-                className={`flex items-center gap-2 px-4 py-2.5 rounded-lg transition text-sm font-medium ${
-                  isActive
-                    ? "bg-accent/15 border border-accent/40 text-accent"
-                    : isCompleted
-                    ? "bg-success/10 border border-success/30 text-success"
-                    : "bg-bg-card border border-border text-text-muted hover:border-accent/20"
-                }`}
-              >
-                <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${
-                  isActive
-                    ? "bg-accent/20 text-accent"
-                    : isCompleted
-                    ? "bg-success/20 text-success"
-                    : "bg-border/40 text-text-muted"
-                }`}>
-                  {isCompleted ? <CheckCircle size={14} /> : step.num}
-                </div>
-                <StepIcon size={14} />
-                <span className="hidden sm:inline">{step.label}</span>
-              </button>
-              {idx < steps.length - 1 && (
-                <ArrowRight size={16} className={`mx-1 shrink-0 ${isCompleted ? "text-success" : "text-border"}`} />
-              )}
+        <div className="bg-bg-card border border-border rounded-lg p-8 max-w-md mx-auto mt-12">
+          <div className="flex flex-col items-center gap-4 text-center">
+            <div className="w-16 h-16 rounded-full bg-accent/10 flex items-center justify-center">
+              <Lock size={28} className="text-accent" />
             </div>
-          );
-        })}
+            <h2 className="text-lg font-semibold">Access Token Required</h2>
+            <p className="text-sm text-text-muted">
+              Enter your access token to connect to VPN servers. Tokens are managed by the HQ admin.
+            </p>
+            <div className="w-full flex gap-2 mt-2">
+              <input
+                type="password"
+                value={tokenInput}
+                onChange={(e) => setTokenInput(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handleSaveToken()}
+                placeholder="Paste your token..."
+                className="flex-1 bg-bg border border-border rounded-lg px-3 py-2 text-sm text-text placeholder:text-text-muted/50 focus:outline-none focus:border-accent/50"
+              />
+              <button
+                onClick={handleSaveToken}
+                disabled={!tokenInput.trim()}
+                className="px-4 py-2 bg-accent text-white rounded-lg text-sm font-medium hover:bg-accent/90 transition disabled:opacity-50"
+              >
+                <Key size={14} />
+              </button>
+            </div>
+          </div>
+        </div>
       </div>
     );
   }
@@ -394,644 +775,143 @@ export default function SmartVPN() {
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-accent">Smart VPN</h1>
+          <h1 className="text-2xl font-bold">
+            <span className="text-accent">Smart</span> VPN
+          </h1>
           <p className="text-text-muted text-sm mt-1">
-            Automated WireGuard deployment — VPS to VPN in 3 steps
+            One-click VPN for optimized CS2 routing
           </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handleClearToken}
+            className="flex items-center gap-2 px-3 py-2 bg-bg-card border border-border rounded-lg text-xs text-text-muted hover:text-danger hover:border-danger/30 transition"
+            title="Clear token"
+          >
+            <Key size={12} />
+            Clear Token
+          </button>
+          <button
+            onClick={fetchServers}
+            disabled={loading}
+            className="flex items-center gap-2 px-4 py-2 bg-bg-card border border-border rounded-lg text-sm text-text-muted hover:text-text hover:border-accent/50 transition disabled:opacity-50"
+          >
+            <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
+            Refresh
+          </button>
         </div>
       </div>
 
-      {/* VPN Active Status Banner */}
-      {vpnStatus?.active && activeProfile && (
-        <div className="bg-success/10 border border-success/30 rounded-lg p-4 mb-6">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-success/20 flex items-center justify-center">
-                <Shield size={20} className="text-success" />
-              </div>
-              <div>
-                <div className="text-sm font-semibold text-success">VPN Connected — {activeProfile}</div>
-                <div className="text-xs text-text-muted font-mono">
-                  {vpnStatus.endpoint && `Endpoint: ${vpnStatus.endpoint}`}
-                  {vpnStatus.transfer_rx && ` | RX: ${vpnStatus.transfer_rx}`}
-                  {vpnStatus.transfer_tx && ` | TX: ${vpnStatus.transfer_tx}`}
-                  {vpnStatus.latest_handshake && ` | Handshake: ${vpnStatus.latest_handshake}`}
-                </div>
-              </div>
-            </div>
-            <div className="flex gap-2">
-              <button onClick={() => refreshStatus(activeProfile)} className="p-2 text-text-muted hover:text-text transition">
-                <RefreshCw size={14} />
-              </button>
-              <button onClick={disconnectProfile} className="flex items-center gap-1.5 px-3 py-1.5 bg-danger/15 text-danger text-xs rounded-md border border-danger/30 hover:bg-danger/25 transition">
-                <WifiOff size={12} /> Disconnect
-              </button>
+      {/* Connection status banner */}
+      {connectionState === "connected" && connectedServer && (
+        <ConnectedBanner
+          server={connectedServer}
+          vpnIp={vpnIp}
+          status={vpnStatus}
+          duration={connectDuration}
+          onDisconnect={handleDisconnect}
+          connectionState={connectionState}
+        />
+      )}
+
+      {/* Connecting overlay */}
+      {connectionState === "connecting" && (
+        <div className="bg-accent/5 border border-accent/20 rounded-lg p-5 mb-6 flex items-center gap-4">
+          <Loader size={24} className="text-accent animate-spin" />
+          <div>
+            <div className="font-semibold text-sm">Connecting to VPN...</div>
+            <div className="text-xs text-text-muted mt-1">
+              Generating keys and establishing secure tunnel
             </div>
           </div>
         </div>
       )}
 
-      {/* ══════════ WIZARD STEP INDICATOR ══════════ */}
-      <StepIndicator />
+      {/* Error banner */}
+      {error && (
+        <div className="bg-danger/10 border border-danger/30 rounded-lg p-4 mb-6 flex items-center gap-3">
+          <XCircle size={16} className="text-danger shrink-0" />
+          <span className="text-sm text-danger">{error}</span>
+        </div>
+      )}
 
-      {/* ══════════ STEP 1: VPS CONNECTION ══════════ */}
-      {wizardStep === 1 && (
-        <div className="bg-bg-card border border-accent/20 rounded-lg p-6 mb-6">
-          <h2 className="text-base font-semibold mb-4 flex items-center gap-2">
-            <Server size={18} className="text-accent" />
-            Step 1 — VPS Connection
-          </h2>
-          <p className="text-xs text-text-muted mb-5">
-            Enter your VPS SSH credentials. We'll test the connection before deploying WireGuard.
-          </p>
+      {/* World Map */}
+      <WorldMap
+        servers={servers}
+        selectedServer={selectedServer}
+        connectionState={connectionState}
+        userLocation={userLocation}
+      />
 
-          <div className="grid grid-cols-2 gap-4 mb-5">
-            {/* VPS IP */}
-            <div>
-              <label className="text-xs text-text-muted uppercase tracking-wider block mb-1 flex items-center gap-1">
-                <Globe size={11} /> VPS IP Address *
-              </label>
-              <input
-                type="text"
-                value={vpsIp}
-                onChange={(e) => setVpsIp(e.target.value)}
-                placeholder="ex: 5.161.100.50"
-                className="w-full bg-bg border border-border rounded-md px-3 py-2 text-sm text-text font-mono focus:outline-none focus:border-accent"
-              />
-            </div>
+      {/* Server List */}
+      <div className="mb-4 flex items-center gap-2">
+        <Server size={16} className="text-accent2" />
+        <h2 className="text-base font-semibold">Available Servers</h2>
+        <span className="text-xs text-text-muted ml-auto">
+          {servers.length} server{servers.length !== 1 ? "s" : ""}
+        </span>
+      </div>
 
-            {/* SSH Port */}
-            <div>
-              <label className="text-xs text-text-muted uppercase tracking-wider block mb-1 flex items-center gap-1">
-                <Hash size={11} /> SSH Port
-              </label>
-              <input
-                type="number"
-                value={sshPort}
-                onChange={(e) => setSshPort(e.target.value)}
-                placeholder="22"
-                min={1}
-                max={65535}
-                className="w-full bg-bg border border-border rounded-md px-3 py-2 text-sm text-text font-mono focus:outline-none focus:border-accent"
-              />
-            </div>
-
-            {/* Username */}
-            <div>
-              <label className="text-xs text-text-muted uppercase tracking-wider block mb-1 flex items-center gap-1">
-                <User size={11} /> Username
-              </label>
-              <input
-                type="text"
-                value={sshUsername}
-                onChange={(e) => setSshUsername(e.target.value)}
-                placeholder="root"
-                className="w-full bg-bg border border-border rounded-md px-3 py-2 text-sm text-text focus:outline-none focus:border-accent"
-              />
-            </div>
-
-            {/* Auth Method */}
-            <div>
-              <label className="text-xs text-text-muted uppercase tracking-wider block mb-1 flex items-center gap-1">
-                <Lock size={11} /> Auth Method
-              </label>
-              <div className="flex gap-2">
-                <button
-                  onClick={() => setAuthMethod("password")}
-                  className={`flex-1 px-3 py-2 text-sm rounded-md border transition ${
-                    authMethod === "password"
-                      ? "bg-accent/15 border-accent/40 text-accent"
-                      : "bg-bg border-border text-text-muted hover:border-accent/20"
-                  }`}
-                >
-                  Password
-                </button>
-                <button
-                  onClick={() => setAuthMethod("key")}
-                  className={`flex-1 px-3 py-2 text-sm rounded-md border transition ${
-                    authMethod === "key"
-                      ? "bg-accent/15 border-accent/40 text-accent"
-                      : "bg-bg border-border text-text-muted hover:border-accent/20"
-                  }`}
-                >
-                  SSH Key
-                </button>
+      {loading ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {[1, 2, 3].map((i) => (
+            <div key={i} className="bg-bg-card border border-border rounded-lg p-4">
+              <div className="animate-pulse space-y-3">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded bg-border/40" />
+                  <div className="flex-1 space-y-1">
+                    <div className="h-4 w-24 bg-border/40 rounded" />
+                    <div className="h-3 w-32 bg-border/40 rounded" />
+                  </div>
+                </div>
+                <div className="h-3 w-full bg-border/40 rounded" />
+                <div className="h-9 w-full bg-border/40 rounded" />
               </div>
             </div>
-
-            {/* Password or Key */}
-            <div className="col-span-2">
-              {authMethod === "password" ? (
-                <div>
-                  <label className="text-xs text-text-muted uppercase tracking-wider block mb-1 flex items-center gap-1">
-                    <Key size={11} /> SSH Password *
-                  </label>
-                  <input
-                    type="password"
-                    value={sshPassword}
-                    onChange={(e) => setSshPassword(e.target.value)}
-                    placeholder="Enter SSH password"
-                    className="w-full bg-bg border border-border rounded-md px-3 py-2 text-sm text-text focus:outline-none focus:border-accent"
-                  />
-                </div>
-              ) : (
-                <div>
-                  <label className="text-xs text-text-muted uppercase tracking-wider block mb-1 flex items-center gap-1">
-                    <Key size={11} /> SSH Private Key *
-                  </label>
-                  <textarea
-                    value={sshKey}
-                    onChange={(e) => setSshKey(e.target.value)}
-                    rows={4}
-                    placeholder="Paste your private key (-----BEGIN OPENSSH PRIVATE KEY-----...)"
-                    className="w-full bg-bg border border-border rounded-md px-3 py-2 text-sm text-text font-mono focus:outline-none focus:border-accent resize-none"
-                  />
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Connection Status */}
-          {connectionStatus && (
-            <div className={`flex items-center gap-2 p-3 rounded-lg mb-4 text-sm ${
-              connectionStatus.success
-                ? "bg-success/10 border border-success/30 text-success"
-                : "bg-danger/10 border border-danger/30 text-danger"
-            }`}>
-              {connectionStatus.success ? <CheckCircle size={16} /> : <XCircle size={16} />}
-              {connectionStatus.message}
-            </div>
-          )}
-
-          {/* Test Connection Button */}
-          <div className="flex justify-end">
+          ))}
+        </div>
+      ) : servers.length === 0 ? (
+        <div className="bg-bg-card border border-border rounded-lg p-8 text-center">
+          <div className="flex flex-col items-center gap-3">
+            <Wifi size={32} className="text-text-muted/30" />
+            <p className="text-text-muted text-sm">
+              No VPN servers available at the moment.
+            </p>
             <button
-              onClick={testConnection}
-              disabled={testingConnection || !vpsIp.trim()}
-              className="flex items-center gap-2 px-5 py-2.5 bg-accent text-white text-sm rounded-lg hover:bg-accent/80 transition disabled:opacity-50"
+              onClick={fetchServers}
+              className="flex items-center gap-2 px-4 py-2 bg-accent/15 border border-accent/30 text-accent rounded-lg text-sm hover:bg-accent/25 transition"
             >
-              {testingConnection ? (
-                <Loader size={14} className="animate-spin" />
-              ) : (
-                <Link size={14} />
-              )}
-              {testingConnection ? "Testing..." : "Test Connection"}
+              <RefreshCw size={14} />
+              Retry
             </button>
           </div>
         </div>
-      )}
-
-      {/* ══════════ STEP 2: DEPLOY ══════════ */}
-      {wizardStep === 2 && (
-        <div className="bg-bg-card border border-accent/20 rounded-lg p-6 mb-6">
-          <h2 className="text-base font-semibold mb-4 flex items-center gap-2">
-            <Upload size={18} className="text-accent" />
-            Step 2 — Deploy WireGuard
-          </h2>
-
-          {!wizardCompleted.has(1) ? (
-            <div className="bg-warning/10 border border-warning/30 rounded-lg p-4 text-sm text-warning flex items-center gap-2">
-              <Info size={16} />
-              Complete Step 1 first — test your VPS connection.
-            </div>
-          ) : (
-            <>
-              <p className="text-xs text-text-muted mb-4">
-                This will automatically install and configure WireGuard on your VPS ({vpsIp}).
-              </p>
-
-              {/* What will be done */}
-              <div className="bg-bg rounded-lg border border-border p-4 mb-5">
-                <h3 className="text-xs font-semibold uppercase tracking-wider text-text-muted mb-3">Deployment Steps</h3>
-                <div className="space-y-2 text-sm">
-                  {[
-                    "Install WireGuard package",
-                    "Generate server & client keypairs",
-                    "Configure wg0 interface (10.66.66.1/24)",
-                    "Enable IP forwarding & NAT",
-                    "Start & enable WireGuard service",
-                  ].map((step, i) => (
-                    <div key={i} className="flex items-center gap-2 text-text-muted">
-                      <div className="w-5 h-5 rounded-full bg-accent/10 text-accent text-xs flex items-center justify-center font-bold">{i + 1}</div>
-                      {step}
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Client Address */}
-              <div className="mb-5">
-                <label className="text-xs text-text-muted uppercase tracking-wider block mb-1">Client Address</label>
-                <input
-                  type="text"
-                  value={clientAddress}
-                  onChange={(e) => setClientAddress(e.target.value)}
-                  className="w-64 bg-bg border border-border rounded-md px-3 py-2 text-sm text-text font-mono focus:outline-none focus:border-accent"
-                />
-              </div>
-
-              {/* Deploy Logs */}
-              {deployLogs.length > 0 && (
-                <div className="bg-[#0d1117] rounded-lg border border-border p-4 mb-5 max-h-64 overflow-y-auto">
-                  <div className="flex items-center gap-2 mb-2">
-                    <Terminal size={14} className="text-accent2" />
-                    <span className="text-xs font-semibold text-accent2 uppercase tracking-wider">Deployment Log</span>
-                  </div>
-                  <div className="font-mono text-xs space-y-1">
-                    {deployLogs.map((log, i) => (
-                      <div key={i} className={`flex items-start gap-2 ${
-                        log.startsWith("ERROR") ? "text-danger" : log.includes("successfully") ? "text-success" : "text-text-muted"
-                      }`}>
-                        <span className="text-text-muted/50 select-none">{`>`}</span>
-                        {log}
-                      </div>
-                    ))}
-                    {deploying && (
-                      <div className="flex items-center gap-2 text-accent">
-                        <Loader size={12} className="animate-spin" />
-                        <span>Working...</span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {/* Deploy Result */}
-              {deployResult?.success && (
-                <div className="bg-success/5 border border-success/20 rounded-lg p-4 mb-5">
-                  <h3 className="text-sm font-semibold text-success mb-3 flex items-center gap-2">
-                    <CheckCircle size={16} /> Deployment Successful
-                  </h3>
-                  <div className="grid grid-cols-1 gap-2 text-xs font-mono">
-                    <div className="flex items-center justify-between bg-bg rounded-md px-3 py-2 border border-border">
-                      <span className="text-text-muted">Server Public Key:</span>
-                      <div className="flex items-center gap-2">
-                        <code className="text-accent2">{deployResult.server_public_key}</code>
-                        <button onClick={() => copyToClipboard(deployResult.server_public_key)} className="text-text-muted hover:text-text transition"><Copy size={12} /></button>
-                      </div>
-                    </div>
-                    <div className="flex items-center justify-between bg-bg rounded-md px-3 py-2 border border-border">
-                      <span className="text-text-muted">Client Public Key:</span>
-                      <div className="flex items-center gap-2">
-                        <code className="text-accent2">{deployResult.client_public_key}</code>
-                        <button onClick={() => copyToClipboard(deployResult.client_public_key)} className="text-text-muted hover:text-text transition"><Copy size={12} /></button>
-                      </div>
-                    </div>
-                    <div className="flex items-center justify-between bg-bg rounded-md px-3 py-2 border border-border">
-                      <span className="text-text-muted">Endpoint:</span>
-                      <code className="text-accent2">{deployResult.endpoint || `${vpsIp}:51820`}</code>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Deploy Button */}
-              <div className="flex justify-end">
-                <button
-                  onClick={deployWireGuard}
-                  disabled={deploying}
-                  className="flex items-center gap-2 px-5 py-2.5 bg-accent text-white text-sm rounded-lg hover:bg-accent/80 transition disabled:opacity-50"
-                >
-                  {deploying ? (
-                    <Loader size={14} className="animate-spin" />
-                  ) : (
-                    <Upload size={14} />
-                  )}
-                  {deploying ? "Deploying..." : "Deploy WireGuard"}
-                </button>
-              </div>
-            </>
-          )}
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {servers.map((server) => (
+            <ServerCard
+              key={server.id}
+              server={server}
+              ping={pings[server.id] ?? null}
+              isConnected={connectedServerId === server.id}
+              isSelected={selectedServerId === server.id}
+              connectionState={
+                connectedServerId === server.id || selectedServerId === server.id
+                  ? connectionState
+                  : "disconnected"
+              }
+              onConnect={() => handleConnect(server.id)}
+              onDisconnect={handleDisconnect}
+            />
+          ))}
         </div>
       )}
 
-      {/* ══════════ STEP 3: CONNECT ══════════ */}
-      {wizardStep === 3 && (
-        <div className="bg-bg-card border border-accent/20 rounded-lg p-6 mb-6">
-          <h2 className="text-base font-semibold mb-4 flex items-center gap-2">
-            <Wifi size={18} className="text-accent" />
-            Step 3 — Connect
-          </h2>
-
-          {!wizardCompleted.has(2) ? (
-            <div className="bg-warning/10 border border-warning/30 rounded-lg p-4 text-sm text-warning flex items-center gap-2">
-              <Info size={16} />
-              Complete Step 2 first — deploy WireGuard on your VPS.
-            </div>
-          ) : (
-            <>
-              <p className="text-xs text-text-muted mb-5">
-                Your VPN profile has been auto-filled from the deployment. Review the settings and connect.
-              </p>
-
-              <div className="grid grid-cols-2 gap-4 mb-5">
-                <div>
-                  <label className="text-xs text-text-muted uppercase tracking-wider block mb-1">Profile Name *</label>
-                  <input type="text" value={form.name} onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))} placeholder="ex: Gaming Frankfurt" className="w-full bg-bg border border-border rounded-md px-3 py-2 text-sm text-text focus:outline-none focus:border-accent" />
-                </div>
-                <div>
-                  <label className="text-xs text-text-muted uppercase tracking-wider block mb-1">Server Endpoint *</label>
-                  <input type="text" value={form.server_endpoint} onChange={(e) => setForm((p) => ({ ...p, server_endpoint: e.target.value }))} placeholder="ex: 5.161.100.50:51820" className="w-full bg-bg border border-border rounded-md px-3 py-2 text-sm text-text font-mono focus:outline-none focus:border-accent" />
-                </div>
-                <div className="col-span-2">
-                  <label className="text-xs text-text-muted uppercase tracking-wider block mb-1">Server Public Key *</label>
-                  <input type="text" value={form.server_public_key} onChange={(e) => setForm((p) => ({ ...p, server_public_key: e.target.value }))} placeholder="Base64 public key" className="w-full bg-bg border border-border rounded-md px-3 py-2 text-sm text-text font-mono focus:outline-none focus:border-accent" />
-                </div>
-                <div className="col-span-2">
-                  <label className="text-xs text-text-muted uppercase tracking-wider block mb-1">Client Private Key *</label>
-                  <input type="password" value={form.client_private_key} onChange={(e) => setForm((p) => ({ ...p, client_private_key: e.target.value }))} placeholder="Client private key" className="w-full bg-bg border border-border rounded-md px-3 py-2 text-sm text-text font-mono focus:outline-none focus:border-accent" />
-                </div>
-
-                <div>
-                  <label className="text-xs text-text-muted uppercase tracking-wider block mb-1">Client Address</label>
-                  <input type="text" value={form.client_address} onChange={(e) => setForm((p) => ({ ...p, client_address: e.target.value }))} className="w-full bg-bg border border-border rounded-md px-3 py-2 text-sm text-text font-mono focus:outline-none focus:border-accent" />
-                </div>
-                <div>
-                  <label className="text-xs text-text-muted uppercase tracking-wider block mb-1">DNS</label>
-                  <input type="text" value={form.dns} onChange={(e) => setForm((p) => ({ ...p, dns: e.target.value }))} className="w-full bg-bg border border-border rounded-md px-3 py-2 text-sm text-text font-mono focus:outline-none focus:border-accent" />
-                </div>
-                <div>
-                  <label className="text-xs text-text-muted uppercase tracking-wider block mb-1">MTU</label>
-                  <input type="number" value={form.mtu} onChange={(e) => setForm((p) => ({ ...p, mtu: Number(e.target.value) }))} min={1280} max={1500} className="w-full bg-bg border border-border rounded-md px-3 py-2 text-sm text-text font-mono focus:outline-none focus:border-accent" />
-                </div>
-                <div>
-                  <label className="text-xs text-text-muted uppercase tracking-wider block mb-1">Keepalive (sec)</label>
-                  <input type="number" value={form.persistent_keepalive} onChange={(e) => setForm((p) => ({ ...p, persistent_keepalive: Number(e.target.value) }))} min={0} max={300} className="w-full bg-bg border border-border rounded-md px-3 py-2 text-sm text-text font-mono focus:outline-none focus:border-accent" />
-                </div>
-
-                <div className="col-span-2">
-                  <label className="text-xs text-text-muted uppercase tracking-wider block mb-1">Allowed IPs (Split Tunnel)</label>
-                  <div className="flex gap-2">
-                    <textarea value={form.allowed_ips} onChange={(e) => setForm((p) => ({ ...p, allowed_ips: e.target.value }))} rows={2} placeholder="CIDRs separated by commas (or use Auto-fill)" className="flex-1 bg-bg border border-border rounded-md px-3 py-2 text-sm text-text font-mono focus:outline-none focus:border-accent resize-none" />
-                    <button onClick={fetchValveIps} disabled={loadingValveIps} className="self-start flex items-center gap-1.5 px-3 py-2 bg-accent2/15 text-accent2 text-sm rounded-md border border-accent2/30 hover:bg-accent2/25 transition disabled:opacity-50 whitespace-nowrap">
-                      {loadingValveIps ? <Loader size={14} className="animate-spin" /> : <Globe size={14} />} Auto-fill Valve IPs
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-              {/* Connect Button */}
-              <div className="flex justify-end">
-                <button
-                  onClick={saveAndActivate}
-                  disabled={saving}
-                  className="flex items-center gap-2 px-5 py-2.5 bg-success text-white text-sm rounded-lg hover:bg-success/80 transition disabled:opacity-50"
-                >
-                  {saving ? (
-                    <Loader size={14} className="animate-spin" />
-                  ) : (
-                    <Wifi size={14} />
-                  )}
-                  {saving ? "Connecting..." : "Connect"}
-                </button>
-              </div>
-            </>
-          )}
-        </div>
-      )}
-
-      {/* ══════════ HOW IT WORKS ══════════ */}
-      <div className="bg-bg-card border border-border rounded-lg mb-6">
-        <button
-          onClick={() => setShowHowItWorks(!showHowItWorks)}
-          className="w-full flex items-center justify-between p-5 text-left"
-        >
-          <h2 className="text-base font-semibold flex items-center gap-2">
-            <Info size={16} className="text-accent2" />
-            Como funciona o Smart VPN para CS2?
-          </h2>
-          {showHowItWorks ? <ChevronUp size={16} className="text-text-muted" /> : <ChevronDown size={16} className="text-text-muted" />}
-        </button>
-
-        {showHowItWorks && (
-          <div className="px-5 pb-5">
-            {/* Visual Diagram */}
-            <div className="bg-bg rounded-lg border border-border p-5 mb-4">
-              <div className="flex items-center justify-center gap-2 text-sm font-mono flex-wrap">
-                <div className="bg-accent/15 border border-accent/30 rounded-lg px-4 py-2 text-accent text-center">
-                  <div className="text-xs text-text-muted mb-1">O teu PC</div>
-                  <div className="font-bold">Windows 11</div>
-                  <div className="text-[10px] text-text-muted">WireGuard Client</div>
-                </div>
-                <ArrowRight size={20} className="text-accent2 shrink-0" />
-                <div className="bg-accent2/15 border border-accent2/30 rounded-lg px-4 py-2 text-accent2 text-center">
-                  <div className="text-xs text-text-muted mb-1">VPN Server</div>
-                  <div className="font-bold">VPS ({"\u20AC"}3-6/m{"\u00EA"}s)</div>
-                  <div className="text-[10px] text-text-muted">Frankfurt / Madrid</div>
-                </div>
-                <ArrowRight size={20} className="text-success shrink-0" />
-                <div className="bg-success/15 border border-success/30 rounded-lg px-4 py-2 text-success text-center">
-                  <div className="text-xs text-text-muted mb-1">Valve SDR Relay</div>
-                  <div className="font-bold">PoP (1-3ms)</div>
-                  <div className="text-[10px] text-text-muted">Mesmo datacenter</div>
-                </div>
-                <ArrowRight size={20} className="text-warning shrink-0" />
-                <div className="bg-warning/15 border border-warning/30 rounded-lg px-4 py-2 text-warning text-center">
-                  <div className="text-xs text-text-muted mb-1">Game Server</div>
-                  <div className="font-bold">CS2 Match</div>
-                  <div className="text-[10px] text-text-muted">Valve backbone</div>
-                </div>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4 mb-4">
-              <div className="space-y-3">
-                <h3 className="text-sm font-semibold text-accent2">O Problema</h3>
-                <p className="text-xs text-text-muted leading-relaxed">
-                  O teu ISP (MEO, NOS, Vodafone) encaminha o tr{"\u00E1"}fego para os servidores Valve pelo caminho mais <strong className="text-text">barato</strong>, n{"\u00E3"}o pelo mais r{"\u00E1"}pido.
-                  Isto causa routing ineficiente — por exemplo, tr{"\u00E1"}fego de Lisboa para Madrid pode ir via Londres e Frankfurt, adicionando 30-50ms desnecess{"\u00E1"}rios.
-                </p>
-                <div className="bg-danger/8 border border-danger/20 rounded p-3">
-                  <div className="text-xs font-mono text-danger">
-                    Sem VPN: Lisboa {"\u2192"} Londres {"\u2192"} Frankfurt {"\u2192"} Madrid
-                  </div>
-                  <div className="text-[10px] text-text-muted mt-1">~60-80ms (routing do ISP)</div>
-                </div>
-              </div>
-              <div className="space-y-3">
-                <h3 className="text-sm font-semibold text-accent2">A Solu{"\u00E7\u00E3"}o</h3>
-                <p className="text-xs text-text-muted leading-relaxed">
-                  Colocas um server WireGuard num VPS <strong className="text-text">perto do datacenter Valve</strong>.
-                  O tr{"\u00E1"}fego do CS2 vai encriptado at{"\u00E9"} ao VPS, e da{"\u00ED"} ao relay Valve {"\u00E9"} ~1-3ms local.
-                  O VPS est{"\u00E1"} em redes premium (Hetzner, Vultr) com peering direto.
-                </p>
-                <div className="bg-success/8 border border-success/20 rounded p-3">
-                  <div className="text-xs font-mono text-success">
-                    Com VPN: Lisboa {"\u2192"} VPN Madrid (15ms) {"\u2192"} Valve (2ms)
-                  </div>
-                  <div className="text-[10px] text-text-muted mt-1">~17ms total (rota direta)</div>
-                </div>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-3 gap-3">
-              <div className="bg-bg rounded-lg border border-border p-3">
-                <Zap size={16} className="text-accent mb-2" />
-                <h4 className="text-xs font-semibold mb-1">Split Tunneling</h4>
-                <p className="text-[10px] text-text-muted">S{"\u00F3"} o tr{"\u00E1"}fego CS2/Valve passa pelo VPN. Discord, browser, Steam downloads usam a conex{"\u00E3"}o normal.</p>
-              </div>
-              <div className="bg-bg rounded-lg border border-border p-3">
-                <Shield size={16} className="text-accent mb-2" />
-                <h4 className="text-xs font-semibold mb-1">WireGuard</h4>
-                <p className="text-[10px] text-text-muted">Protocolo VPN mais r{"\u00E1"}pido: +0.5-1.5ms overhead, encripta{"\u00E7\u00E3"}o ChaCha20, UDP-only. Ideal para gaming.</p>
-              </div>
-              <div className="bg-bg rounded-lg border border-border p-3">
-                <Globe size={16} className="text-accent mb-2" />
-                <h4 className="text-xs font-semibold mb-1">VAC Safe</h4>
-                <p className="text-[10px] text-text-muted">VPN {"\u00E9"} 100% permitido pela Valve. VAC inspeciona mem{"\u00F3"}ria/processos, n{"\u00E3"}o routing. Muitos pros usam VPN.</p>
-              </div>
-            </div>
-          </div>
-        )}
+      {/* Footer info */}
+      <div className="mt-6 flex items-center gap-2 text-xs text-text-muted/50">
+        <CheckCircle size={12} />
+        <span>All connections are encrypted with WireGuard. Keys are generated locally and never leave your device.</span>
       </div>
-
-      {/* ══════════ SERVER RECOMMENDATIONS ══════════ */}
-      <div className="bg-bg-card border border-border rounded-lg mb-6">
-        <button
-          onClick={() => setShowRecommendations(!showRecommendations)}
-          className="w-full flex items-center justify-between p-5 text-left"
-        >
-          <h2 className="text-base font-semibold flex items-center gap-2">
-            <Server size={16} className="text-accent2" />
-            VPN Servers Recomendados (Para Portugal)
-          </h2>
-          {showRecommendations ? <ChevronUp size={16} className="text-text-muted" /> : <ChevronDown size={16} className="text-text-muted" />}
-        </button>
-
-        {showRecommendations && (
-          <div className="px-5 pb-5">
-            <p className="text-xs text-text-muted mb-4">
-              Servidores VPS recomendados pr{"\u00F3"}ximos de datacenters Valve. Escolhe baseado na regi{"\u00E3"}o onde costumas jogar.
-              O pre{"\u00E7"}o {"\u00E9"} de um VPS m{"\u00ED"}nimo — suficiente para WireGuard (usa apenas ~1% CPU).
-            </p>
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-border text-text-muted text-xs uppercase tracking-wider">
-                    <th className="text-left py-2 px-3">Valve DC</th>
-                    <th className="text-left py-2 px-3">VPN Server</th>
-                    <th className="text-left py-2 px-3">Provider</th>
-                    <th className="text-left py-2 px-3">Pre{"\u00E7"}o</th>
-                    <th className="text-left py-2 px-3">Est. Ping (PT)</th>
-                    <th className="text-left py-2 px-3"></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {SERVER_RECOMMENDATIONS.map((rec) => (
-                    <tr key={rec.valveDc} className="border-b border-border/50 hover:bg-bg-hover transition">
-                      <td className="py-2.5 px-3">
-                        <span className="font-mono font-bold text-accent2">{rec.valveDc}</span>
-                        <span className="text-text-muted text-xs ml-2">{rec.valveLocation}</span>
-                      </td>
-                      <td className="py-2.5 px-3 text-xs">{rec.vpnLocation}</td>
-                      <td className="py-2.5 px-3">
-                        <span className="text-xs font-semibold text-accent">{rec.vpnProvider}</span>
-                      </td>
-                      <td className="py-2.5 px-3 text-xs font-mono text-success">{rec.price}</td>
-                      <td className="py-2.5 px-3 text-xs font-mono text-warning">{rec.estPing}</td>
-                      <td className="py-2.5 px-3">
-                        <a href={rec.setupUrl} target="_blank" rel="noopener noreferrer" className="text-accent2 hover:text-accent2/80 transition">
-                          <ExternalLink size={14} />
-                        </a>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-            <div className="mt-3 text-[10px] text-text-muted">
-              Oracle Cloud Free Tier oferece um VPS gr{"\u00E1"}tis (4 OCPU ARM, 24GB RAM) em Frankfurt, London, Amsterdam — ideal para testar.
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* ══════════ SAVED PROFILES ══════════ */}
-      <div className="mb-6">
-        <h2 className="text-base font-semibold mb-4 flex items-center gap-2">
-          <Shield size={16} className="text-accent" />
-          Saved Profiles ({profiles.length})
-        </h2>
-
-        {loading && (
-          <div className="space-y-3">
-            {[1, 2].map((i) => (
-              <div key={i} className="bg-bg-card border border-border rounded-lg p-5 animate-pulse">
-                <div className="h-4 bg-border/40 rounded w-48 mb-2" />
-                <div className="h-3 bg-border/40 rounded w-64" />
-              </div>
-            ))}
-          </div>
-        )}
-
-        {!loading && profiles.length === 0 && (
-          <div className="bg-bg-card border border-border rounded-lg p-8 text-center">
-            <Shield size={32} className="mx-auto mb-3 text-text-muted" />
-            <p className="text-text-muted text-sm mb-2">No VPN profiles yet.</p>
-            <p className="text-text-muted text-xs">Complete the wizard above to deploy and connect your first VPN.</p>
-          </div>
-        )}
-
-        {!loading && profiles.length > 0 && (
-          <div className="grid grid-cols-1 gap-3">
-            {profiles.map((name) => {
-              const isActive = activeProfile === name;
-              return (
-                <div key={name} className={`bg-bg-card border rounded-lg p-4 transition flex items-center justify-between ${isActive ? "border-success/40 bg-success/5" : "border-border hover:border-accent/20"}`}>
-                  <div className="flex items-center gap-3">
-                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${isActive ? "bg-success/15" : "bg-accent2/10"}`}>
-                      {isActive ? <Wifi size={16} className="text-success" /> : <Shield size={16} className="text-accent2" />}
-                    </div>
-                    <div>
-                      <span className="font-semibold">{name}</span>
-                      {isActive && <span className="ml-2 text-[10px] px-1.5 py-0.5 rounded-full bg-success/15 text-success font-semibold uppercase">Connected</span>}
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    {isActive ? (
-                      <button onClick={disconnectProfile} className="flex items-center gap-1.5 px-3 py-1.5 bg-danger/15 text-danger text-xs rounded-md border border-danger/30 hover:bg-danger/25 transition">
-                        <WifiOff size={12} /> Disconnect
-                      </button>
-                    ) : (
-                      <button onClick={() => connectProfile(name)} className="flex items-center gap-1.5 px-3 py-1.5 bg-success/15 text-success text-xs rounded-md border border-success/30 hover:bg-success/25 transition">
-                        <Wifi size={12} /> Connect
-                      </button>
-                    )}
-                    <button onClick={() => showPreview(name)} className="flex items-center gap-1.5 px-3 py-1.5 text-text-muted text-xs rounded-md border border-border hover:text-text transition"><FileCode size={12} /> Preview</button>
-                    <button onClick={() => setToast({ message: "Profile deletion coming in next update", type: "error" })} className="p-1.5 text-text-muted hover:text-danger transition"><Trash2 size={14} /></button>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
-
-      {/* Config Preview Modal */}
-      {previewConfig !== null && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50" onClick={() => setPreviewConfig(null)}>
-          <div className="bg-bg-card border border-border rounded-lg w-[600px] max-h-[80vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center justify-between px-5 py-4 border-b border-border">
-              <h3 className="font-semibold flex items-center gap-2"><FileCode size={16} className="text-accent2" /> WireGuard Config Preview</h3>
-              <div className="flex items-center gap-2">
-                <button onClick={() => copyToClipboard(previewConfig)} className="flex items-center gap-1.5 px-3 py-1.5 text-text-muted text-xs rounded-md border border-border hover:text-text transition"><Copy size={12} /> Copy</button>
-                <button onClick={() => setPreviewConfig(null)} className="text-text-muted hover:text-text transition px-2">{"\u2715"}</button>
-              </div>
-            </div>
-            <div className="p-5 overflow-y-auto flex-1">
-              <pre className="bg-bg-code border border-border rounded-lg p-4 text-sm font-mono text-accent2 whitespace-pre-wrap">{previewConfig}</pre>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Toast */}
-      {toast && (
-        <div className={`fixed bottom-6 right-6 px-5 py-3 rounded-lg shadow-lg border flex items-center gap-2 text-sm z-50 ${toast.type === "success" ? "bg-success/15 border-success/30 text-success" : "bg-danger/15 border-danger/30 text-danger"}`}>
-          {toast.type === "success" ? <CheckCircle size={16} /> : <XCircle size={16} />}
-          {toast.message}
-        </div>
-      )}
     </div>
   );
 }

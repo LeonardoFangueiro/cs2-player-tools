@@ -12,6 +12,7 @@ import {
   Power,
   Minimize2,
   Globe,
+  LogOut,
 } from "lucide-react";
 
 interface AppSettings {
@@ -312,6 +313,34 @@ export default function SettingsPage() {
             onChange={(v) => updateSetting("dynamic_valve_ips", v)}
           />
         </SettingRow>
+      </div>
+
+      {/* Account / Token */}
+      <div className="bg-bg-card border border-border rounded-lg p-5 mb-4">
+        <h2 className="text-sm font-semibold uppercase tracking-wider text-text-muted mb-1 flex items-center gap-2">
+          <Shield size={14} className="text-accent" />
+          Account
+        </h2>
+        <div className="flex items-center gap-4 py-4">
+          <div className="w-9 h-9 rounded-lg bg-danger/10 flex items-center justify-center shrink-0 text-danger">
+            <LogOut size={18} />
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="text-sm font-semibold text-text">Logout / Change Token</div>
+            <div className="text-xs text-text-muted mt-0.5">
+              Remove your stored access token and return to the login screen
+            </div>
+          </div>
+          <button
+            onClick={() => {
+              localStorage.removeItem("cs2pt_token");
+              window.location.reload();
+            }}
+            className="px-4 py-2 bg-danger/15 border border-danger/30 text-danger text-sm font-semibold rounded-lg hover:bg-danger/25 transition"
+          >
+            Logout
+          </button>
+        </div>
       </div>
 
       {/* Sticky save bar */}

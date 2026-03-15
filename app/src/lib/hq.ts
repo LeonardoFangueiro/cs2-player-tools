@@ -6,6 +6,11 @@
 const HQ_BASE = "https://cs2-player-tools.maltinha.club/api";
 const APP_VERSION = "0.1.0";
 
+/** Get stored auth token */
+export function getToken(): string {
+  return localStorage.getItem("cs2pt_token") || "";
+}
+
 function getOS(): string {
   const ua = navigator.userAgent;
   if (ua.includes("Windows")) return "Windows";
@@ -264,6 +269,7 @@ export async function sendHeartbeat(
         cs2_running: cs2Running,
         vpn_active: vpnActive,
         profile_name: profileName,
+        token: getToken(),
       }),
     });
     const data = await resp.json();
