@@ -3,388 +3,1394 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CS2 Player Tools — HQ</title>
+    <title>CS2 Player Tools — HQ Mission Control</title>
     <style>
         :root {
-            --bg: #0a0a0f; --card: #12121a; --hover: #1a1a25; --border: #2a2a3a;
-            --text: #e0e0e8; --muted: #8888a0; --accent: #6c5ce7; --accent2: #00cec9;
-            --danger: #fd79a8; --warning: #fdcb6e; --success: #55efc4; --orange: #e17055;
+            --bg: #0a0a0f; --bg2: #0e0e16; --card: #12121a; --hover: #1a1a25;
+            --border: #2a2a3a; --border-light: #3a3a4a;
+            --text: #e0e0e8; --muted: #8888a0; --dim: #555568;
+            --accent: #6c5ce7; --accent-dim: rgba(108,92,231,0.15); --accent-border: rgba(108,92,231,0.3);
+            --accent2: #00cec9; --accent2-dim: rgba(0,206,201,0.15);
+            --danger: #fd79a8; --danger-dim: rgba(253,121,168,0.15);
+            --warning: #fdcb6e; --warning-dim: rgba(253,203,110,0.15);
+            --success: #55efc4; --success-dim: rgba(85,239,196,0.15);
+            --orange: #e17055; --orange-dim: rgba(225,112,85,0.15);
+            --radius: 10px; --radius-sm: 6px; --radius-xs: 4px;
         }
-        * { margin:0; padding:0; box-sizing:border-box; }
-        body { font-family:'Segoe UI',-apple-system,sans-serif; background:var(--bg); color:var(--text); line-height:1.6; }
-        .container { max-width:1200px; margin:0 auto; padding:20px; }
-        h1 { font-size:28px; margin-bottom:4px; }
-        h1 span.accent { color:var(--accent); }
-        h1 span.muted { color:var(--muted); font-weight:400; font-size:16px; }
-        .subtitle { color:var(--muted); font-size:14px; margin-bottom:24px; }
-        .grid { display:grid; gap:16px; margin-bottom:24px; }
-        .grid-4 { grid-template-columns: repeat(4, 1fr); }
-        .grid-3 { grid-template-columns: repeat(3, 1fr); }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--bg); color: var(--text); line-height: 1.6;
+            min-height: 100vh;
+        }
+
+        /* ── Layout ── */
+        .container { max-width: 1400px; margin: 0 auto; padding: 20px 24px; }
+
+        /* ── Header ── */
+        .header {
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 16px 0 20px; border-bottom: 1px solid var(--border); margin-bottom: 24px;
+        }
+        .header-left h1 { font-size: 24px; font-weight: 700; letter-spacing: -0.5px; }
+        .header-left h1 .accent { color: var(--accent); }
+        .header-left h1 .sep { color: var(--dim); font-weight: 300; margin: 0 8px; }
+        .header-left h1 .mc { color: var(--muted); font-weight: 400; font-size: 15px; }
+        .header-meta {
+            display: flex; gap: 16px; margin-top: 6px; font-size: 12px; color: var(--muted);
+            font-family: 'JetBrains Mono', 'Cascadia Code', monospace;
+        }
+        .header-meta span { display: flex; align-items: center; gap: 4px; }
+        .header-right { display: flex; align-items: center; gap: 12px; }
+        .online-badge {
+            display: flex; align-items: center; gap: 6px;
+            background: var(--success-dim); border: 1px solid rgba(85,239,196,0.2);
+            padding: 6px 14px; border-radius: 20px; font-size: 13px; font-weight: 600; color: var(--success);
+        }
+        .online-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--success); animation: pulse 2s infinite; }
+        .refresh-indicator {
+            font-size: 11px; color: var(--dim); display: flex; align-items: center; gap: 4px;
+        }
+
+        /* ── Stats Row ── */
+        .stats-row {
+            display: grid; grid-template-columns: repeat(6, 1fr); gap: 12px; margin-bottom: 24px;
+        }
+        .stat-card {
+            background: var(--card); border: 1px solid var(--border); border-radius: var(--radius);
+            padding: 16px; text-align: center; transition: border-color 0.2s, transform 0.15s;
+        }
+        .stat-card:hover { border-color: var(--accent-border); transform: translateY(-1px); }
+        .stat-card .value {
+            font-size: 32px; font-weight: 800;
+            font-family: 'JetBrains Mono', monospace; line-height: 1.1;
+        }
+        .stat-card .label {
+            font-size: 10px; text-transform: uppercase; letter-spacing: 1.5px;
+            color: var(--muted); margin-top: 4px;
+        }
+        .stat-card .trend { font-size: 10px; margin-top: 2px; }
+
+        /* ── Tabs ── */
+        .tabs-container {
+            background: var(--card); border: 1px solid var(--border); border-radius: var(--radius);
+            padding: 4px; margin-bottom: 24px; display: flex; gap: 2px; overflow-x: auto;
+        }
+        .tab {
+            padding: 8px 16px; border-radius: 8px; cursor: pointer; font-size: 12px;
+            color: var(--muted); transition: all 0.2s; white-space: nowrap;
+            font-weight: 500; letter-spacing: 0.2px;
+        }
+        .tab:hover { color: var(--text); background: var(--hover); }
+        .tab.active { background: var(--accent); color: #fff; font-weight: 600; }
+        .tab .tab-count {
+            background: rgba(255,255,255,0.15); padding: 1px 6px; border-radius: 8px;
+            font-size: 10px; margin-left: 4px;
+        }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+
+        /* ── Cards ── */
+        .card {
+            background: var(--card); border: 1px solid var(--border); border-radius: var(--radius);
+            padding: 20px; transition: border-color 0.2s;
+        }
+        .card:hover { border-color: var(--accent-border); }
+        .card-header {
+            display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;
+        }
+        .card-title {
+            font-size: 14px; font-weight: 600; display: flex; align-items: center; gap: 8px;
+        }
+        .card-title .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+        .section-title {
+            font-size: 14px; font-weight: 600; margin-bottom: 16px;
+            display: flex; align-items: center; gap: 8px;
+        }
+        .section-title .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+
+        /* ── Grid layouts ── */
+        .grid { display: grid; gap: 16px; }
         .grid-2 { grid-template-columns: repeat(2, 1fr); }
-        .card { background:var(--card); border:1px solid var(--border); border-radius:10px; padding:20px; }
-        .card:hover { border-color:rgba(108,92,231,0.3); }
-        .stat-card { text-align:center; }
-        .stat-card .value { font-size:36px; font-weight:800; font-family:'JetBrains Mono',monospace; }
-        .stat-card .label { font-size:11px; text-transform:uppercase; letter-spacing:1.5px; color:var(--muted); margin-top:4px; }
-        .text-accent { color:var(--accent); }
-        .text-accent2 { color:var(--accent2); }
-        .text-success { color:var(--success); }
-        .text-danger { color:var(--danger); }
-        .text-warning { color:var(--warning); }
-        .text-orange { color:var(--orange); }
-        .text-muted { color:var(--muted); }
-        .badge { display:inline-block; padding:2px 8px; border-radius:10px; font-size:10px; font-weight:700; text-transform:uppercase; }
-        .badge-success { background:rgba(85,239,196,0.15); color:var(--success); }
-        .badge-danger { background:rgba(253,121,168,0.15); color:var(--danger); }
-        .badge-warning { background:rgba(253,203,110,0.15); color:var(--warning); }
-        .badge-accent { background:rgba(108,92,231,0.15); color:var(--accent); }
-        table { width:100%; border-collapse:collapse; font-size:13px; }
-        th { text-align:left; padding:10px 12px; border-bottom:2px solid var(--border); color:var(--muted); font-size:11px; text-transform:uppercase; letter-spacing:0.5px; }
-        td { padding:10px 12px; border-bottom:1px solid var(--border); }
-        tr:hover { background:var(--hover); }
-        .mono { font-family:'JetBrains Mono','Cascadia Code',monospace; }
-        .btn { padding:8px 16px; border:1px solid var(--border); border-radius:8px; background:var(--card); color:var(--text); cursor:pointer; font-size:13px; transition:all 0.2s; display:inline-flex; align-items:center; gap:6px; }
-        .btn:hover { border-color:var(--accent); color:var(--accent); }
-        .btn-primary { background:var(--accent); border-color:var(--accent); color:#fff; }
-        .btn-primary:hover { opacity:0.85; }
-        .btn-success { background:rgba(85,239,196,0.15); border-color:rgba(85,239,196,0.3); color:var(--success); }
-        .btn-danger { background:rgba(253,121,168,0.15); border-color:rgba(253,121,168,0.3); color:var(--danger); }
-        .section-title { font-size:16px; font-weight:600; margin-bottom:12px; display:flex; align-items:center; gap:8px; }
-        .section-title .dot { width:8px; height:8px; border-radius:50%; display:inline-block; }
-        .header { display:flex; justify-content:space-between; align-items:center; margin-bottom:24px; border-bottom:1px solid var(--border); padding-bottom:16px; }
-        .header-actions { display:flex; gap:8px; }
-        .tabs { display:flex; gap:2px; margin-bottom:24px; background:var(--card); border-radius:10px; padding:4px; border:1px solid var(--border); }
-        .tab { padding:8px 20px; border-radius:8px; cursor:pointer; font-size:13px; color:var(--muted); transition:all 0.2s; }
-        .tab:hover { color:var(--text); }
-        .tab.active { background:var(--accent); color:#fff; }
-        .tab-content { display:none; }
-        .tab-content.active { display:block; }
-        .error-item { background:var(--bg); border:1px solid var(--border); border-radius:8px; padding:12px; margin-bottom:8px; }
-        .error-item:hover { border-color:var(--danger); }
-        .error-type { font-weight:600; color:var(--danger); }
-        .error-msg { color:var(--text); font-size:13px; margin-top:4px; }
-        .error-meta { color:var(--muted); font-size:11px; margin-top:6px; }
-        .diag-test { display:flex; align-items:center; gap:8px; padding:8px 12px; background:var(--bg); border-radius:6px; margin-bottom:4px; }
-        .diag-test .name { font-weight:600; font-size:12px; min-width:120px; }
-        .diag-test .detail { color:var(--muted); font-size:12px; flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-        .pulse { animation: pulse 2s infinite; }
-        @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.5} }
-        .download-card { text-align:center; padding:30px; }
-        .download-card .version { font-size:24px; font-weight:700; color:var(--accent); margin-bottom:8px; }
-        .download-card .date { color:var(--muted); font-size:13px; margin-bottom:20px; }
-        .loading { color:var(--muted); text-align:center; padding:40px; }
-        .empty { color:var(--muted); text-align:center; padding:30px; font-size:14px; }
-        ::-webkit-scrollbar { width:6px; } ::-webkit-scrollbar-track { background:var(--bg); }
-        ::-webkit-scrollbar-thumb { background:var(--border); border-radius:3px; }
-        @media(max-width:768px) { .grid-4,.grid-3 { grid-template-columns:1fr 1fr; } .grid-2 { grid-template-columns:1fr; } }
+        .grid-3 { grid-template-columns: repeat(3, 1fr); }
+        .grid-4 { grid-template-columns: repeat(4, 1fr); }
+
+        /* ── Tables ── */
+        table { width: 100%; border-collapse: collapse; font-size: 13px; }
+        th {
+            text-align: left; padding: 10px 12px; border-bottom: 2px solid var(--border);
+            color: var(--muted); font-size: 10px; text-transform: uppercase; letter-spacing: 0.8px;
+            font-weight: 600;
+        }
+        td { padding: 10px 12px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+        tr:hover { background: var(--hover); }
+        tr:last-child td { border-bottom: none; }
+
+        /* ── Badges ── */
+        .badge {
+            display: inline-block; padding: 2px 8px; border-radius: 10px;
+            font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.3px;
+        }
+        .badge-success { background: var(--success-dim); color: var(--success); }
+        .badge-danger { background: var(--danger-dim); color: var(--danger); }
+        .badge-warning { background: var(--warning-dim); color: var(--warning); }
+        .badge-accent { background: var(--accent-dim); color: var(--accent); }
+        .badge-accent2 { background: var(--accent2-dim); color: var(--accent2); }
+        .badge-orange { background: var(--orange-dim); color: var(--orange); }
+        .badge-muted { background: rgba(136,136,160,0.1); color: var(--muted); }
+
+        /* ── Buttons ── */
+        .btn {
+            padding: 7px 14px; border: 1px solid var(--border); border-radius: 8px;
+            background: var(--card); color: var(--text); cursor: pointer; font-size: 12px;
+            transition: all 0.2s; display: inline-flex; align-items: center; gap: 6px;
+            text-decoration: none; font-weight: 500; line-height: 1.4;
+        }
+        .btn:hover { border-color: var(--accent); color: var(--accent); }
+        .btn-sm { padding: 4px 10px; font-size: 11px; border-radius: 6px; }
+        .btn-primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+        .btn-primary:hover { opacity: 0.85; color: #fff; }
+        .btn-success { background: var(--success-dim); border-color: rgba(85,239,196,0.3); color: var(--success); }
+        .btn-danger { background: var(--danger-dim); border-color: rgba(253,121,168,0.3); color: var(--danger); }
+        .btn-warning { background: var(--warning-dim); border-color: rgba(253,203,110,0.3); color: var(--warning); }
+        .btn-group { display: flex; gap: 6px; flex-wrap: wrap; }
+
+        /* ── Forms ── */
+        .input, select, textarea {
+            background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius-sm);
+            padding: 8px 12px; color: var(--text); font-size: 13px; font-family: inherit;
+            transition: border-color 0.2s; outline: none; width: 100%;
+        }
+        .input:focus, select:focus, textarea:focus { border-color: var(--accent); }
+        select { cursor: pointer; appearance: none; padding-right: 28px;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%238888a0' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+            background-repeat: no-repeat; background-position: right 8px center;
+        }
+
+        /* ── Utility ── */
+        .mono { font-family: 'JetBrains Mono', 'Cascadia Code', monospace; }
+        .text-accent { color: var(--accent); }
+        .text-accent2 { color: var(--accent2); }
+        .text-success { color: var(--success); }
+        .text-danger { color: var(--danger); }
+        .text-warning { color: var(--warning); }
+        .text-orange { color: var(--orange); }
+        .text-muted { color: var(--muted); }
+        .text-dim { color: var(--dim); }
+        .truncate { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .empty { color: var(--muted); text-align: center; padding: 30px; font-size: 13px; }
+        .loading { color: var(--muted); text-align: center; padding: 40px; font-size: 13px; }
+        .flex { display: flex; }
+        .flex-col { flex-direction: column; }
+        .flex-wrap { flex-wrap: wrap; }
+        .items-center { align-items: center; }
+        .justify-between { justify-content: space-between; }
+        .gap-4 { gap: 4px; } .gap-6 { gap: 6px; } .gap-8 { gap: 8px; } .gap-12 { gap: 12px; } .gap-16 { gap: 16px; }
+        .mb-8 { margin-bottom: 8px; } .mb-12 { margin-bottom: 12px; } .mb-16 { margin-bottom: 16px; }
+        .mt-8 { margin-top: 8px; } .mt-12 { margin-top: 12px; }
+
+        /* ── Bar chart ── */
+        .bar-chart { display: flex; align-items: flex-end; gap: 3px; height: 120px; padding-top: 8px; }
+        .bar-chart .bar-col { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px; height: 100%; justify-content: flex-end; }
+        .bar-chart .bar {
+            width: 100%; min-width: 8px; border-radius: 3px 3px 0 0;
+            background: var(--accent); transition: height 0.3s ease; position: relative;
+        }
+        .bar-chart .bar:hover { background: var(--accent2); }
+        .bar-chart .bar-label { font-size: 9px; color: var(--dim); white-space: nowrap; }
+        .bar-chart .bar-value { font-size: 9px; color: var(--muted); font-weight: 600; }
+
+        /* ── OS Pie display ── */
+        .os-bars { display: flex; flex-direction: column; gap: 8px; }
+        .os-bar-row { display: flex; align-items: center; gap: 10px; }
+        .os-bar-row .os-name { font-size: 12px; min-width: 100px; color: var(--text); }
+        .os-bar-row .os-track { flex: 1; height: 8px; background: var(--bg); border-radius: 4px; overflow: hidden; }
+        .os-bar-row .os-fill { height: 100%; border-radius: 4px; transition: width 0.5s ease; }
+        .os-bar-row .os-pct { font-size: 11px; color: var(--muted); min-width: 40px; text-align: right; font-family: 'JetBrains Mono', monospace; }
+
+        /* ── Error items ── */
+        .error-item {
+            background: var(--bg); border: 1px solid var(--border); border-radius: 8px;
+            padding: 12px; margin-bottom: 8px; transition: border-color 0.2s;
+        }
+        .error-item:hover { border-color: rgba(253,121,168,0.3); }
+
+        /* ── Diagnostics ── */
+        .diag-card {
+            background: var(--bg); border: 1px solid var(--border); border-radius: 8px;
+            margin-bottom: 10px; overflow: hidden; transition: border-color 0.2s;
+        }
+        .diag-card:hover { border-color: var(--accent-border); }
+        .diag-header {
+            padding: 12px 16px; cursor: pointer; display: flex; justify-content: space-between;
+            align-items: center; transition: background 0.2s;
+        }
+        .diag-header:hover { background: var(--hover); }
+        .diag-body { padding: 0 16px 16px; display: none; }
+        .diag-card.expanded .diag-body { display: block; }
+        .diag-card.expanded .diag-chevron { transform: rotate(180deg); }
+        .diag-chevron { color: var(--muted); transition: transform 0.2s; font-size: 12px; }
+        .diag-test {
+            display: flex; align-items: center; gap: 8px; padding: 8px 12px;
+            background: var(--card); border-radius: var(--radius-sm); margin-bottom: 4px;
+        }
+        .diag-test .icon { font-size: 14px; min-width: 18px; text-align: center; }
+        .diag-test .name { font-weight: 600; font-size: 12px; min-width: 120px; }
+        .diag-test .detail { color: var(--muted); font-size: 11px; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+        /* ── Client grid ── */
+        .client-card {
+            background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 14px;
+            transition: border-color 0.2s;
+        }
+        .client-card:hover { border-color: var(--accent-border); }
+        .client-card .ip { font-family: 'JetBrains Mono', monospace; font-size: 13px; font-weight: 600; }
+        .client-card .meta { font-size: 11px; color: var(--muted); margin-top: 6px; }
+        .client-status { display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
+
+        /* ── Toggle ── */
+        .toggle-row {
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 12px 0; border-bottom: 1px solid var(--border);
+        }
+        .toggle-row:last-child { border-bottom: none; }
+        .toggle-label { font-size: 13px; font-weight: 500; }
+        .toggle-desc { font-size: 11px; color: var(--muted); margin-top: 2px; }
+        .toggle {
+            position: relative; width: 44px; height: 24px; cursor: pointer;
+        }
+        .toggle input { opacity: 0; width: 0; height: 0; }
+        .toggle .slider {
+            position: absolute; inset: 0; background: var(--border); border-radius: 12px;
+            transition: background 0.3s;
+        }
+        .toggle .slider::before {
+            content: ''; position: absolute; width: 18px; height: 18px; left: 3px; bottom: 3px;
+            background: var(--text); border-radius: 50%; transition: transform 0.3s;
+        }
+        .toggle input:checked + .slider { background: var(--accent); }
+        .toggle input:checked + .slider::before { transform: translateX(20px); }
+
+        /* ── Feedback ── */
+        .feedback-item {
+            background: var(--bg); border: 1px solid var(--border); border-radius: 8px;
+            padding: 14px; margin-bottom: 8px;
+        }
+        .feedback-item:hover { border-color: var(--accent-border); }
+
+        /* ── Build row ── */
+        .build-row {
+            display: flex; align-items: center; gap: 12px; padding: 12px;
+            background: var(--bg); border: 1px solid var(--border); border-radius: 8px;
+            margin-bottom: 6px; transition: border-color 0.2s;
+        }
+        .build-row:hover { border-color: var(--accent-border); }
+        .build-status-dot {
+            width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0;
+        }
+
+        /* ── Download card ── */
+        .download-file {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 14px 16px; background: var(--bg); border: 1px solid var(--border);
+            border-radius: 8px; margin-bottom: 6px; transition: border-color 0.2s;
+        }
+        .download-file:hover { border-color: var(--accent-border); }
+
+        /* ── Toast ── */
+        .toast-container { position: fixed; bottom: 20px; right: 20px; z-index: 9999; display: flex; flex-direction: column; gap: 8px; }
+        .toast {
+            padding: 10px 16px; border-radius: 8px; font-size: 13px;
+            animation: slideIn 0.3s ease; min-width: 200px;
+            border: 1px solid var(--border);
+        }
+        .toast-success { background: var(--success-dim); color: var(--success); border-color: rgba(85,239,196,0.3); }
+        .toast-error { background: var(--danger-dim); color: var(--danger); border-color: rgba(253,121,168,0.3); }
+        .toast-info { background: var(--accent-dim); color: var(--accent); border-color: var(--accent-border); }
+
+        @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
+        @keyframes slideIn { from { transform: translateX(100px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+
+        /* ── Scrollbar ── */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: var(--bg); }
+        ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: var(--dim); }
+
+        /* ── Responsive ── */
+        @media (max-width: 1024px) {
+            .stats-row { grid-template-columns: repeat(3, 1fr); }
+        }
+        @media (max-width: 768px) {
+            .stats-row { grid-template-columns: repeat(2, 1fr); }
+            .grid-2, .grid-3, .grid-4 { grid-template-columns: 1fr; }
+            .header { flex-direction: column; align-items: flex-start; gap: 12px; }
+            .header-right { width: 100%; justify-content: flex-start; }
+            .tabs-container { overflow-x: auto; }
+            .container { padding: 12px; }
+        }
+        @media (max-width: 480px) {
+            .stats-row { grid-template-columns: 1fr 1fr; }
+            .stat-card .value { font-size: 24px; }
+        }
     </style>
 </head>
 <body>
     <div class="container">
         <!-- Header -->
         <div class="header">
-            <div>
-                <h1><span class="accent">CS2 Player Tools</span> <span class="muted">— Headquarters</span></h1>
-                <div class="subtitle">App monitoring, diagnostics, downloads & release management</div>
+            <div class="header-left">
+                <h1>
+                    <span class="accent">CS2 Player Tools</span>
+                    <span class="sep">|</span>
+                    <span class="mc">Mission Control</span>
+                </h1>
+                <div class="header-meta">
+                    <span id="header-version">v...</span>
+                    <span id="header-commit">...</span>
+                    <span id="header-uptime">...</span>
+                </div>
             </div>
-            <div class="header-actions">
-                <button class="btn" onclick="refreshAll()">↻ Refresh</button>
-                <a href="/" class="btn">← App Preview</a>
-                <a href="/kb" class="btn">📚 Knowledge Base</a>
+            <div class="header-right">
+                <div class="refresh-indicator" id="refresh-indicator">Auto-refresh: 15s</div>
+                <div class="online-badge">
+                    <span class="online-dot"></span>
+                    <span id="header-online">0</span> online
+                </div>
+                <button class="btn" onclick="refreshAll()" title="Refresh all data">Refresh</button>
+                <a href="/" class="btn" title="App Preview">App</a>
+                <a href="/kb" class="btn" title="Knowledge Base">KB</a>
             </div>
         </div>
 
-        <!-- Stats -->
-        <div class="grid grid-4" id="stats-grid">
-            <div class="card stat-card"><div class="value text-danger" id="stat-errors">-</div><div class="label">Total Errors</div></div>
-            <div class="card stat-card"><div class="value text-warning" id="stat-errors-24h">-</div><div class="label">Errors (24h)</div></div>
-            <div class="card stat-card"><div class="value text-accent" id="stat-diagnostics">-</div><div class="label">Diagnostics</div></div>
-            <div class="card stat-card"><div class="value text-success" id="stat-users">-</div><div class="label">Users (24h)</div></div>
+        <!-- Stats Row -->
+        <div class="stats-row" id="stats-row">
+            <div class="stat-card">
+                <div class="value text-danger" id="stat-errors-24h">-</div>
+                <div class="label">Errors (24h)</div>
+                <div class="trend text-muted" id="stat-errors-total"></div>
+            </div>
+            <div class="stat-card">
+                <div class="value text-accent" id="stat-users-24h">-</div>
+                <div class="label">Users (24h)</div>
+                <div class="trend text-muted" id="stat-users-7d"></div>
+            </div>
+            <div class="stat-card">
+                <div class="value text-success" id="stat-online">-</div>
+                <div class="label">Online Now</div>
+                <div class="trend text-muted" id="stat-online-extra"></div>
+            </div>
+            <div class="stat-card">
+                <div class="value text-accent2" id="stat-cs2">-</div>
+                <div class="label">CS2 Playing</div>
+                <div class="trend text-muted" id="stat-cs2-extra"></div>
+            </div>
+            <div class="stat-card">
+                <div class="value text-warning" id="stat-vpn">-</div>
+                <div class="label">VPN Connected</div>
+                <div class="trend text-muted" id="stat-vpn-extra"></div>
+            </div>
+            <div class="stat-card">
+                <div class="value text-success" id="stat-diag-rate">-</div>
+                <div class="label">Diag Pass Rate</div>
+                <div class="trend text-muted" id="stat-diag-total"></div>
+            </div>
         </div>
 
         <!-- Tabs -->
-        <div class="tabs">
-            <div class="tab active" onclick="switchTab('overview')">Overview</div>
-            <div class="tab" onclick="switchTab('errors')">Errors</div>
-            <div class="tab" onclick="switchTab('diagnostics')">Diagnostics</div>
-            <div class="tab" onclick="switchTab('telemetry')">Telemetry</div>
-            <div class="tab" onclick="switchTab('downloads')">Downloads</div>
-            <div class="tab" onclick="switchTab('releases')">Releases</div>
+        <div class="tabs-container" id="tabs-container">
+            <div class="tab active" data-tab="overview">Overview</div>
+            <div class="tab" data-tab="errors">Errors</div>
+            <div class="tab" data-tab="diagnostics">Diagnostics</div>
+            <div class="tab" data-tab="telemetry">Telemetry</div>
+            <div class="tab" data-tab="builds">Builds</div>
+            <div class="tab" data-tab="downloads">Downloads</div>
+            <div class="tab" data-tab="clients">Clients</div>
+            <div class="tab" data-tab="feedback">Feedback</div>
+            <div class="tab" data-tab="config">Config</div>
         </div>
 
-        <!-- Tab: Overview -->
+        <!-- ═══ Tab: Overview ═══ -->
         <div class="tab-content active" id="tab-overview">
-            <div class="grid grid-2">
+            <div class="grid grid-2 mb-16">
+                <!-- Error Trend Chart -->
                 <div class="card">
-                    <div class="section-title"><span class="dot" style="background:var(--danger)"></span> Latest Errors</div>
-                    <div id="latest-errors"><div class="empty">No errors reported yet</div></div>
-                </div>
-                <div class="card">
-                    <div class="section-title"><span class="dot" style="background:var(--success)"></span> Quick Actions</div>
-                    <div style="display:flex;flex-direction:column;gap:8px;">
-                        <a href="https://github.com/LeonardoFangueiro/cs2-player-tools/actions" target="_blank" class="btn">🔨 GitHub Actions (Builds)</a>
-                        <a href="https://github.com/LeonardoFangueiro/cs2-player-tools" target="_blank" class="btn">📂 GitHub Repository</a>
-                        <button class="btn btn-danger" onclick="clearErrors()">🗑️ Clear All Errors</button>
-                        <button class="btn btn-success" onclick="triggerBuild()">🚀 Trigger Windows Build</button>
+                    <div class="card-header">
+                        <div class="card-title"><span class="dot" style="background:var(--danger)"></span> Error Trend (Last 14 Days)</div>
                     </div>
+                    <div id="overview-error-chart" class="bar-chart"><div class="empty" style="width:100%">Loading...</div></div>
+                </div>
+                <!-- OS Distribution -->
+                <div class="card">
+                    <div class="card-header">
+                        <div class="card-title"><span class="dot" style="background:var(--accent2)"></span> OS Distribution</div>
+                    </div>
+                    <div id="overview-os-dist"><div class="empty">Loading...</div></div>
+                </div>
+            </div>
+            <div class="grid grid-3 mb-16">
+                <!-- Top Error Types -->
+                <div class="card">
+                    <div class="card-header">
+                        <div class="card-title"><span class="dot" style="background:var(--orange)"></span> Top Error Types</div>
+                    </div>
+                    <div id="overview-top-errors"><div class="empty">Loading...</div></div>
+                </div>
+                <!-- Latest 5 Errors -->
+                <div class="card" style="grid-column: span 2;">
+                    <div class="card-header">
+                        <div class="card-title"><span class="dot" style="background:var(--danger)"></span> Latest Errors</div>
+                        <button class="btn btn-sm" onclick="switchTab('errors')">View All</button>
+                    </div>
+                    <div id="overview-latest-errors"><div class="empty">Loading...</div></div>
+                </div>
+            </div>
+            <!-- Quick Actions -->
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-title"><span class="dot" style="background:var(--success)"></span> Quick Actions</div>
+                </div>
+                <div class="btn-group">
+                    <a href="https://github.com/LeonardoFangueiro/cs2-player-tools/actions" target="_blank" class="btn">GitHub Actions</a>
+                    <a href="https://github.com/LeonardoFangueiro/cs2-player-tools" target="_blank" class="btn">Repository</a>
+                    <button class="btn btn-primary" onclick="triggerBuild()">Trigger Build</button>
+                    <button class="btn btn-danger" onclick="clearErrors()">Clear All Errors</button>
+                    <button class="btn btn-warning" onclick="clearDiagnostics()">Clear Diagnostics</button>
+                    <button class="btn btn-warning" onclick="clearTelemetry()">Clear Telemetry</button>
                 </div>
             </div>
         </div>
 
-        <!-- Tab: Errors -->
+        <!-- ═══ Tab: Errors ═══ -->
         <div class="tab-content" id="tab-errors">
             <div class="card">
-                <div class="section-title"><span class="dot" style="background:var(--danger)"></span> Error Reports</div>
-                <div id="errors-list"><div class="loading">Loading errors...</div></div>
+                <div class="card-header">
+                    <div class="card-title"><span class="dot" style="background:var(--danger)"></span> Error Reports</div>
+                    <div class="flex items-center gap-8">
+                        <select id="error-type-filter" onchange="loadErrors()" style="width:180px">
+                            <option value="">All Types</option>
+                        </select>
+                        <button class="btn btn-sm btn-danger" onclick="clearErrors()">Clear All</button>
+                    </div>
+                </div>
+                <div id="errors-table"><div class="loading">Loading errors...</div></div>
             </div>
         </div>
 
-        <!-- Tab: Diagnostics -->
+        <!-- ═══ Tab: Diagnostics ═══ -->
         <div class="tab-content" id="tab-diagnostics">
             <div class="card">
-                <div class="section-title"><span class="dot" style="background:var(--accent)"></span> Diagnostics Reports</div>
+                <div class="card-header">
+                    <div class="card-title"><span class="dot" style="background:var(--accent)"></span> Diagnostics Reports</div>
+                    <div class="flex items-center gap-8">
+                        <span class="text-muted" style="font-size:12px" id="diag-count"></span>
+                        <button class="btn btn-sm btn-warning" onclick="clearDiagnostics()">Clear All</button>
+                    </div>
+                </div>
                 <div id="diagnostics-list"><div class="loading">Loading diagnostics...</div></div>
             </div>
         </div>
 
-        <!-- Tab: Telemetry -->
+        <!-- ═══ Tab: Telemetry ═══ -->
         <div class="tab-content" id="tab-telemetry">
+            <!-- Event Breakdown -->
+            <div class="card mb-16">
+                <div class="card-header">
+                    <div class="card-title"><span class="dot" style="background:var(--accent2)"></span> Event Breakdown</div>
+                </div>
+                <div id="telemetry-breakdown" class="flex flex-wrap gap-8"><div class="loading" style="width:100%">Loading...</div></div>
+            </div>
+            <!-- Events Table -->
             <div class="card">
-                <div class="section-title"><span class="dot" style="background:var(--accent2)"></span> Telemetry Events</div>
-                <div id="telemetry-list"><div class="loading">Loading telemetry...</div></div>
+                <div class="card-header">
+                    <div class="card-title"><span class="dot" style="background:var(--accent2)"></span> Telemetry Events</div>
+                    <div class="flex items-center gap-8">
+                        <select id="telemetry-event-filter" onchange="loadTelemetry()" style="width:180px">
+                            <option value="">All Events</option>
+                        </select>
+                        <button class="btn btn-sm btn-warning" onclick="clearTelemetry()">Clear All</button>
+                    </div>
+                </div>
+                <div id="telemetry-table"><div class="loading">Loading telemetry...</div></div>
             </div>
         </div>
 
-        <!-- Tab: Downloads -->
+        <!-- ═══ Tab: Builds ═══ -->
+        <div class="tab-content" id="tab-builds">
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-title"><span class="dot" style="background:var(--warning)"></span> GitHub Actions Builds</div>
+                    <button class="btn btn-primary" onclick="triggerBuild()">Trigger Build</button>
+                </div>
+                <div id="builds-list"><div class="loading">Loading builds...</div></div>
+            </div>
+        </div>
+
+        <!-- ═══ Tab: Downloads ═══ -->
         <div class="tab-content" id="tab-downloads">
-            <div class="grid grid-2">
-                <div class="card download-card">
-                    <div style="font-size:48px;margin-bottom:12px;">🛡️</div>
-                    <div class="version" id="dl-version">v0.1.0</div>
-                    <div class="date" id="dl-date">Windows 11 / 10</div>
-                    <div style="margin-bottom:16px;">
+            <div class="grid grid-2 mb-16">
+                <div class="card" style="text-align:center;padding:30px;">
+                    <div style="font-size:40px;margin-bottom:8px;">&#128737;</div>
+                    <div class="text-accent mono" style="font-size:22px;font-weight:700;" id="dl-version">v0.1.0</div>
+                    <div class="text-muted" style="font-size:12px;margin:6px 0 16px;" id="dl-date">Windows 11 / 10</div>
+                    <div class="flex justify-between gap-8" style="justify-content:center;margin-bottom:12px;">
                         <span class="badge badge-accent">Tauri v2</span>
                         <span class="badge badge-success">WireGuard Bundled</span>
                         <span class="badge badge-warning">Admin Required</span>
                     </div>
-                    <a id="dl-exe-link" href="https://github.com/LeonardoFangueiro/cs2-player-tools/actions" target="_blank" class="btn btn-primary" style="font-size:15px;padding:12px 24px;">
-                        ⬇ Download .exe (NSIS Installer)
-                    </a>
-                    <div style="margin-top:12px;">
-                        <a id="dl-msi-link" href="https://github.com/LeonardoFangueiro/cs2-player-tools/actions" target="_blank" class="btn">
-                            ⬇ Download .msi (MSI Installer)
-                        </a>
+                    <div class="flex flex-col gap-8" style="align-items:center;margin-top:16px;">
+                        <a id="dl-exe-link" href="#" class="btn btn-primary" style="font-size:14px;padding:10px 24px;">Download .exe (NSIS)</a>
+                        <a id="dl-msi-link" href="#" class="btn" style="font-size:13px;">Download .msi (MSI)</a>
                     </div>
                 </div>
                 <div class="card">
-                    <div class="section-title">Installation Notes</div>
-                    <div style="font-size:13px;color:var(--muted);line-height:1.8;">
+                    <div class="section-title">Install Instructions</div>
+                    <div style="font-size:13px;color:var(--muted);line-height:2;">
                         <p><strong style="color:var(--text)">1.</strong> Download the NSIS (.exe) or MSI installer</p>
-                        <p><strong style="color:var(--text)">2.</strong> Run as Administrator (required for network optimizations)</p>
+                        <p><strong style="color:var(--text)">2.</strong> Run as Administrator (required for network features)</p>
                         <p><strong style="color:var(--text)">3.</strong> WebView2 runtime is included automatically</p>
-                        <p><strong style="color:var(--text)">4.</strong> WireGuard binaries are bundled — no separate install needed</p>
-                        <hr style="border:none;border-top:1px solid var(--border);margin:12px 0;">
-                        <p><strong style="color:var(--accent)">Features:</strong></p>
-                        <p>• Network Diagnostics (ping, traceroute, DNS, buffer bloat, MTU)</p>
-                        <p>• Windows Optimizer (7 tweaks with safety levels)</p>
-                        <p>• Smart VPN (auto SSH deploy WireGuard to VPS)</p>
-                        <p>• Server Picker (region lock via firewall)</p>
-                        <p>• CS2 Config Helper (autoexec.cfg optimization)</p>
-                        <p>• System Tray + CS2 Auto-Detection</p>
+                        <p><strong style="color:var(--text)">4.</strong> WireGuard binaries are bundled</p>
+                        <hr style="border:none;border-top:1px solid var(--border);margin:8px 0;">
+                        <p><strong class="text-accent">Features:</strong></p>
+                        <p>Network Diagnostics / Windows Optimizer / Smart VPN</p>
+                        <p>Server Picker / CS2 Config Helper / System Tray</p>
                     </div>
                 </div>
             </div>
+            <!-- File list -->
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-title"><span class="dot" style="background:var(--accent2)"></span> Available Files</div>
+                </div>
+                <div id="downloads-list"><div class="loading">Loading files...</div></div>
+            </div>
         </div>
 
-        <!-- Tab: Releases -->
-        <div class="tab-content" id="tab-releases">
+        <!-- ═══ Tab: Clients ═══ -->
+        <div class="tab-content" id="tab-clients">
             <div class="card">
-                <div class="section-title"><span class="dot" style="background:var(--success)"></span> Register New Release</div>
-                <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;">
-                    <input id="rel-version" placeholder="Version (e.g. 0.2.0)" style="background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:8px 12px;color:var(--text);font-size:13px;">
-                    <input id="rel-url" placeholder="Download URL" style="background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:8px 12px;color:var(--text);font-size:13px;">
+                <div class="card-header">
+                    <div class="card-title"><span class="dot" style="background:var(--success)"></span> Online Clients</div>
+                    <span class="text-muted" style="font-size:12px;" id="clients-count"></span>
                 </div>
-                <textarea id="rel-changelog" placeholder="Changelog" rows="3" style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:8px 12px;color:var(--text);font-size:13px;resize:vertical;margin-bottom:12px;"></textarea>
-                <button class="btn btn-primary" onclick="registerRelease()">Publish Release</button>
+                <div id="clients-grid"><div class="loading">Loading clients...</div></div>
+            </div>
+        </div>
+
+        <!-- ═══ Tab: Feedback ═══ -->
+        <div class="tab-content" id="tab-feedback">
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-title"><span class="dot" style="background:var(--accent)"></span> User Feedback</div>
+                    <span class="text-muted" style="font-size:12px;" id="feedback-count"></span>
+                </div>
+                <div id="feedback-list"><div class="loading">Loading feedback...</div></div>
+            </div>
+        </div>
+
+        <!-- ═══ Tab: Config ═══ -->
+        <div class="tab-content" id="tab-config">
+            <div class="grid grid-2">
+                <div class="card">
+                    <div class="card-header">
+                        <div class="card-title"><span class="dot" style="background:var(--warning)"></span> Feature Flags</div>
+                    </div>
+                    <div id="config-flags"><div class="loading">Loading config...</div></div>
+                </div>
+                <div class="card">
+                    <div class="card-header">
+                        <div class="card-title"><span class="dot" style="background:var(--orange)"></span> Maintenance Mode</div>
+                    </div>
+                    <div id="config-maintenance">
+                        <div class="toggle-row">
+                            <div>
+                                <div class="toggle-label">Maintenance Mode</div>
+                                <div class="toggle-desc">When enabled, the app will show a maintenance message to users</div>
+                            </div>
+                            <label class="toggle">
+                                <input type="checkbox" id="config-maintenance-toggle" onchange="saveConfig()">
+                                <span class="slider"></span>
+                            </label>
+                        </div>
+                    </div>
+                    <div class="mt-12">
+                        <div class="card-title mb-8" style="font-size:13px;">Broadcast Message</div>
+                        <textarea id="config-message" placeholder="Optional message for users..." rows="3" style="margin-bottom:8px;"></textarea>
+                        <button class="btn btn-primary btn-sm" onclick="saveConfig()">Save Config</button>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
 
+    <!-- Toast container -->
+    <div class="toast-container" id="toast-container"></div>
+
     <script>
-        const API = '/api';
+    const API = '/api';
 
-        // ── Tabs ──
-        function switchTab(name) {
-            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-            document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
-            document.querySelector(`#tab-${name}`).classList.add('active');
-            event.target.classList.add('active');
-            if (name === 'errors') loadErrors();
-            if (name === 'diagnostics') loadDiagnostics();
-            if (name === 'telemetry') loadTelemetry();
-        }
+    // ── State ──
+    let statsData = null;
+    let clientsData = null;
+    let refreshTimer = null;
+    let lastRefresh = Date.now();
 
-        // ── Stats ──
-        async function loadStats() {
-            try {
-                const r = await fetch(`${API}/stats`);
-                const d = await r.json();
-                document.getElementById('stat-errors').textContent = d.total_errors;
-                document.getElementById('stat-errors-24h').textContent = d.errors_24h;
-                document.getElementById('stat-diagnostics').textContent = d.total_diagnostics;
-                document.getElementById('stat-users').textContent = d.unique_users_24h;
+    // ══════════════════════════════════════════
+    // ── TABS
+    // ══════════════════════════════════════════
 
-                // Latest errors
-                const el = document.getElementById('latest-errors');
-                if (d.latest_errors?.length > 0) {
-                    el.innerHTML = d.latest_errors.map(e => `
-                        <div class="error-item">
-                            <div class="error-type">${esc(e.error_type)}</div>
-                            <div class="error-msg">${esc(e.error_message).slice(0, 200)}</div>
-                            <div class="error-meta">${e.app_version} | ${e.os} | ${timeAgo(e.received_at)}</div>
-                        </div>
-                    `).join('');
-                } else {
-                    el.innerHTML = '<div class="empty">No errors — looking good! 🎉</div>';
-                }
+    document.getElementById('tabs-container').addEventListener('click', (e) => {
+        const tab = e.target.closest('.tab');
+        if (!tab) return;
+        switchTab(tab.dataset.tab);
+    });
 
-                // Update download info
-                if (d.latest_release) {
-                    document.getElementById('dl-version').textContent = `v${d.latest_release.version}`;
-                    document.getElementById('dl-date').textContent = d.latest_release.date?.split('T')[0] || 'Windows 11 / 10';
-                    if (d.latest_release.download_url) {
-                        document.getElementById('dl-exe-link').href = d.latest_release.download_url;
-                    }
-                }
-            } catch (e) {
-                console.error('Failed to load stats:', e);
+    function switchTab(name) {
+        document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+        document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+        const targetTab = document.querySelector(`.tab[data-tab="${name}"]`);
+        if (targetTab) targetTab.classList.add('active');
+        const targetContent = document.getElementById(`tab-${name}`);
+        if (targetContent) targetContent.classList.add('active');
+
+        // Lazy-load tab data
+        const loaders = {
+            errors: loadErrors,
+            diagnostics: loadDiagnostics,
+            telemetry: loadTelemetry,
+            builds: loadBuilds,
+            downloads: loadDownloads,
+            clients: loadClients,
+            feedback: loadFeedback,
+            config: loadConfig,
+        };
+        if (loaders[name]) loaders[name]();
+    }
+
+    // ══════════════════════════════════════════
+    // ── HEADER & STATS
+    // ══════════════════════════════════════════
+
+    async function loadHeaderInfo() {
+        try {
+            const r = await fetch(`${API}/info`);
+            const d = await r.json();
+            document.getElementById('header-version').textContent = `v${d.app_version}`;
+            if (d.git) {
+                document.getElementById('header-commit').textContent = `${d.git.branch}@${d.git.sha}`;
             }
+            document.getElementById('header-uptime').textContent = `uptime ${formatUptime(d.server.uptime_s)}`;
+        } catch (e) {
+            console.error('Failed to load info:', e);
         }
+    }
 
-        // ── Errors ──
-        async function loadErrors() {
-            const el = document.getElementById('errors-list');
-            try {
-                const r = await fetch(`${API}/errors?limit=50`);
-                const d = await r.json();
-                if (d.errors.length === 0) { el.innerHTML = '<div class="empty">No errors reported</div>'; return; }
-                el.innerHTML = `<table><thead><tr><th>Type</th><th>Message</th><th>Version</th><th>OS</th><th>Time</th></tr></thead><tbody>` +
-                    d.errors.map(e => `<tr>
-                        <td><span class="badge badge-danger">${esc(e.error_type)}</span></td>
-                        <td class="mono" style="font-size:11px;max-width:400px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(e.error_message)}</td>
-                        <td class="text-muted">${esc(e.app_version)}</td>
-                        <td class="text-muted">${esc(e.os)}</td>
-                        <td class="text-muted" style="white-space:nowrap;">${timeAgo(e.received_at)}</td>
-                    </tr>`).join('') + '</tbody></table>';
-            } catch { el.innerHTML = '<div class="empty">Failed to load errors</div>'; }
+    async function loadClients() {
+        try {
+            const r = await fetch(`${API}/clients`);
+            clientsData = await r.json();
+            document.getElementById('header-online').textContent = clientsData.online;
+
+            // Update stats
+            document.getElementById('stat-online').textContent = clientsData.online;
+            document.getElementById('stat-cs2').textContent = clientsData.cs2_playing;
+            document.getElementById('stat-vpn').textContent = clientsData.vpn_connected;
+
+            // Render clients grid
+            renderClientsGrid();
+        } catch (e) {
+            console.error('Failed to load clients:', e);
         }
+    }
 
-        // ── Diagnostics ──
-        async function loadDiagnostics() {
-            const el = document.getElementById('diagnostics-list');
-            try {
-                const r = await fetch(`${API}/diagnostics?limit=20`);
-                const d = await r.json();
-                if (d.diagnostics.length === 0) { el.innerHTML = '<div class="empty">No diagnostics reports yet</div>'; return; }
-                el.innerHTML = d.diagnostics.map(diag => {
-                    const tests = diag.tests || {};
-                    const summary = diag.summary || {};
-                    return `<div class="card" style="margin-bottom:12px;background:var(--bg);">
-                        <div style="display:flex;justify-content:space-between;margin-bottom:8px;">
-                            <div>
-                                <span class="badge badge-accent">${esc(diag.app_version || '?')}</span>
-                                <span class="text-muted" style="font-size:11px;margin-left:8px;">${esc(diag.os || '?')}</span>
-                            </div>
-                            <div class="text-muted" style="font-size:11px;">${timeAgo(diag.received_at)} | ID: ${esc(diag.id)}</div>
+    async function loadStats() {
+        try {
+            const r = await fetch(`${API}/stats`);
+            statsData = await r.json();
+
+            // Stats cards
+            document.getElementById('stat-errors-24h').textContent = statsData.errors_24h;
+            document.getElementById('stat-errors-total').textContent = `${statsData.total_errors} total`;
+            document.getElementById('stat-users-24h').textContent = statsData.unique_users_24h;
+            document.getElementById('stat-users-7d').textContent = `${statsData.unique_users_7d} (7d)`;
+            document.getElementById('stat-diag-rate').textContent = `${statsData.diagnostics_pass_rate}%`;
+            document.getElementById('stat-diag-total').textContent = `${statsData.total_diagnostics} reports`;
+
+            // Overview tab
+            renderErrorChart();
+            renderOsDistribution();
+            renderTopErrors();
+            renderLatestErrors();
+
+            // Download info
+            if (statsData.latest_release) {
+                document.getElementById('dl-version').textContent = `v${statsData.latest_release.version}`;
+                const dt = statsData.latest_release.date;
+                if (dt) document.getElementById('dl-date').textContent = dt.split('T')[0] + ' | Windows 11/10';
+                if (statsData.latest_release.download_url) {
+                    document.getElementById('dl-exe-link').href = statsData.latest_release.download_url;
+                }
+                if (statsData.latest_release.download_url_msi) {
+                    document.getElementById('dl-msi-link').href = statsData.latest_release.download_url_msi;
+                }
+            }
+
+            // Update tab counts
+            updateTabCounts();
+        } catch (e) {
+            console.error('Failed to load stats:', e);
+        }
+    }
+
+    function updateTabCounts() {
+        if (!statsData) return;
+        const tabs = document.querySelectorAll('.tab');
+        const counts = {
+            errors: statsData.total_errors,
+            diagnostics: statsData.total_diagnostics,
+            telemetry: statsData.total_telemetry,
+        };
+        tabs.forEach(tab => {
+            const name = tab.dataset.tab;
+            if (counts[name] !== undefined) {
+                let counter = tab.querySelector('.tab-count');
+                if (!counter) {
+                    counter = document.createElement('span');
+                    counter.className = 'tab-count';
+                    tab.appendChild(counter);
+                }
+                counter.textContent = counts[name];
+            }
+        });
+    }
+
+    // ══════════════════════════════════════════
+    // ── OVERVIEW RENDERERS
+    // ══════════════════════════════════════════
+
+    function renderErrorChart() {
+        const el = document.getElementById('overview-error-chart');
+        if (!statsData || !statsData.errors_by_day) {
+            el.innerHTML = '<div class="empty" style="width:100%">No error data</div>';
+            return;
+        }
+        // Build last 14 days
+        const days = [];
+        for (let i = 13; i >= 0; i--) {
+            const d = new Date(Date.now() - i * 86400000);
+            const key = d.toISOString().slice(0, 10);
+            days.push({ key, label: d.toLocaleDateString('en', { month: 'short', day: 'numeric' }), count: statsData.errors_by_day[key] || 0 });
+        }
+        const maxVal = Math.max(...days.map(d => d.count), 1);
+        el.innerHTML = days.map(d => {
+            const height = Math.max((d.count / maxVal) * 100, 2);
+            return `<div class="bar-col">
+                <div class="bar-value">${d.count || ''}</div>
+                <div class="bar" style="height:${height}%" title="${d.key}: ${d.count} errors"></div>
+                <div class="bar-label">${d.label.split(' ')[1]}</div>
+            </div>`;
+        }).join('');
+    }
+
+    function renderOsDistribution() {
+        const el = document.getElementById('overview-os-dist');
+        if (!statsData || !statsData.os_distribution || Object.keys(statsData.os_distribution).length === 0) {
+            el.innerHTML = '<div class="empty">No OS data yet</div>';
+            return;
+        }
+        const os = statsData.os_distribution;
+        const total = Object.values(os).reduce((a, b) => a + b, 0);
+        const sorted = Object.entries(os).sort((a, b) => b[1] - a[1]);
+        const colors = ['var(--accent)', 'var(--accent2)', 'var(--success)', 'var(--warning)', 'var(--orange)', 'var(--danger)'];
+        el.innerHTML = '<div class="os-bars">' + sorted.map(([name, count], i) => {
+            const pct = ((count / total) * 100).toFixed(1);
+            const color = colors[i % colors.length];
+            return `<div class="os-bar-row">
+                <div class="os-name">${esc(name)}</div>
+                <div class="os-track"><div class="os-fill" style="width:${pct}%;background:${color}"></div></div>
+                <div class="os-pct">${pct}%</div>
+            </div>`;
+        }).join('') + '</div>';
+    }
+
+    function renderTopErrors() {
+        const el = document.getElementById('overview-top-errors');
+        if (!statsData || !statsData.top_error_types || statsData.top_error_types.length === 0) {
+            el.innerHTML = '<div class="empty">No errors recorded</div>';
+            return;
+        }
+        el.innerHTML = statsData.top_error_types.slice(0, 8).map(([type, count]) => {
+            return `<div class="flex justify-between items-center" style="padding:6px 0;border-bottom:1px solid var(--border);">
+                <span class="badge badge-danger">${esc(type)}</span>
+                <span class="mono text-muted" style="font-size:12px;">${count}</span>
+            </div>`;
+        }).join('');
+    }
+
+    function renderLatestErrors() {
+        const el = document.getElementById('overview-latest-errors');
+        if (!statsData || !statsData.latest_errors || statsData.latest_errors.length === 0) {
+            el.innerHTML = '<div class="empty">No errors -- looking good!</div>';
+            return;
+        }
+        el.innerHTML = statsData.latest_errors.map(e => `
+            <div class="error-item">
+                <div class="flex justify-between items-center mb-4">
+                    <span class="badge badge-danger">${esc(e.error_type)}</span>
+                    <span class="text-muted" style="font-size:11px;">${timeAgo(e.received_at)}</span>
+                </div>
+                <div class="text-muted" style="font-size:12px;" class="truncate">${esc((e.error_message || '').slice(0, 200))}</div>
+                <div class="text-dim" style="font-size:11px;margin-top:4px;">${esc(e.app_version)} | ${esc(e.os)}</div>
+            </div>
+        `).join('');
+    }
+
+    // ══════════════════════════════════════════
+    // ── ERRORS TAB
+    // ══════════════════════════════════════════
+
+    async function loadErrors() {
+        const el = document.getElementById('errors-table');
+        const filterEl = document.getElementById('error-type-filter');
+        const typeFilter = filterEl.value;
+
+        try {
+            const url = typeFilter ? `${API}/errors?limit=100&type=${encodeURIComponent(typeFilter)}` : `${API}/errors?limit=100`;
+            const r = await fetch(url);
+            const d = await r.json();
+
+            // Populate type filter dropdown (keep selection)
+            if (d.by_type && Object.keys(d.by_type).length > 0) {
+                const current = filterEl.value;
+                const opts = '<option value="">All Types</option>' +
+                    Object.entries(d.by_type).sort((a, b) => b[1] - a[1])
+                        .map(([type, count]) => `<option value="${esc(type)}" ${type === current ? 'selected' : ''}>${esc(type)} (${count})</option>`)
+                        .join('');
+                filterEl.innerHTML = opts;
+            }
+
+            if (d.errors.length === 0) {
+                el.innerHTML = '<div class="empty">No errors found</div>';
+                return;
+            }
+            el.innerHTML = `<div style="overflow-x:auto;"><table>
+                <thead><tr>
+                    <th>Type</th><th>Message</th><th>Version</th><th>OS</th><th>Time</th><th>Status</th><th>Actions</th>
+                </tr></thead>
+                <tbody>${d.errors.map(e => `<tr>
+                    <td><span class="badge badge-danger">${esc(e.error_type)}</span></td>
+                    <td class="mono truncate" style="font-size:11px;max-width:350px;" title="${esc(e.error_message)}">${esc((e.error_message || '').slice(0, 120))}</td>
+                    <td class="text-muted" style="font-size:12px;">${esc(e.app_version)}</td>
+                    <td class="text-muted" style="font-size:12px;">${esc(e.os)}</td>
+                    <td class="text-muted" style="font-size:11px;white-space:nowrap;">${timeAgo(e.received_at)}</td>
+                    <td>${e.resolved
+                        ? '<span class="badge badge-success">Resolved</span>'
+                        : '<span class="badge badge-warning">Open</span>'}</td>
+                    <td>
+                        <div class="btn-group">
+                            ${!e.resolved ? `<button class="btn btn-sm btn-success" onclick="resolveError('${e.id}')">Resolve</button>` : ''}
+                            <button class="btn btn-sm btn-danger" onclick="deleteError('${e.id}')">Delete</button>
                         </div>
-                        <div style="display:flex;gap:8px;margin-bottom:8px;">
-                            <span class="badge badge-success">${summary.passed || 0} passed</span>
-                            <span class="badge badge-danger">${summary.failed || 0} failed</span>
-                        </div>
-                        <div>${Object.entries(tests).map(([name, test]) => `
-                            <div class="diag-test">
-                                <span style="color:${test.status === 'pass' ? 'var(--success)' : 'var(--danger)'};">${test.status === 'pass' ? '✓' : '✗'}</span>
-                                <span class="name">${esc(name)}</span>
-                                <span class="detail mono">${test.status === 'pass' ? Object.entries(test).filter(([k]) => k !== 'status').map(([k,v]) => `${k}=${JSON.stringify(v)}`).join(', ') : (test.error || 'failed')}</span>
-                            </div>
-                        `).join('')}</div>
-                    </div>`;
-                }).join('');
-            } catch { el.innerHTML = '<div class="empty">Failed to load diagnostics</div>'; }
+                    </td>
+                </tr>`).join('')}</tbody>
+            </table></div>`;
+        } catch {
+            el.innerHTML = '<div class="empty">Failed to load errors</div>';
         }
+    }
 
-        // ── Telemetry ──
-        async function loadTelemetry() {
-            const el = document.getElementById('telemetry-list');
-            try {
-                const r = await fetch(`${API}/telemetry`);
-                // The telemetry endpoint returns the array directly from the file, let's handle both cases
-                const raw = await r.json();
-                const events = Array.isArray(raw) ? raw.slice(-50).reverse() : (raw.events || []);
-                if (events.length === 0) { el.innerHTML = '<div class="empty">No telemetry events yet</div>'; return; }
-                el.innerHTML = `<table><thead><tr><th>Event</th><th>Version</th><th>OS</th><th>Data</th><th>Time</th></tr></thead><tbody>` +
-                    events.map(e => `<tr>
-                        <td><span class="badge badge-accent">${esc(e.event)}</span></td>
-                        <td class="text-muted">${esc(e.app_version)}</td>
-                        <td class="text-muted">${esc(e.os)}</td>
-                        <td class="mono text-muted" style="font-size:10px;max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(JSON.stringify(e.data || {}))}</td>
-                        <td class="text-muted" style="white-space:nowrap;">${timeAgo(e.timestamp)}</td>
-                    </tr>`).join('') + '</tbody></table>';
-            } catch { el.innerHTML = '<div class="empty">Failed to load telemetry</div>'; }
-        }
+    async function resolveError(id) {
+        try {
+            await fetch(`${API}/errors/${id}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ resolved: true }),
+            });
+            toast('Error resolved', 'success');
+            loadErrors();
+        } catch { toast('Failed to resolve error', 'error'); }
+    }
 
-        // ── Actions ──
-        async function clearErrors() {
-            if (!confirm('Clear all error reports?')) return;
+    async function deleteError(id) {
+        if (!confirm('Delete this error?')) return;
+        try {
+            await fetch(`${API}/errors/${id}`, { method: 'DELETE' });
+            toast('Error deleted', 'success');
+            loadErrors();
+            loadStats();
+        } catch { toast('Failed to delete error', 'error'); }
+    }
+
+    async function clearErrors() {
+        if (!confirm('Clear ALL error reports? This cannot be undone.')) return;
+        try {
             await fetch(`${API}/errors`, { method: 'DELETE' });
-            await refreshAll();
-        }
+            toast('All errors cleared', 'success');
+            refreshAll();
+        } catch { toast('Failed to clear errors', 'error'); }
+    }
 
-        async function triggerBuild() {
-            try {
-                const r = await fetch('https://api.github.com/repos/LeonardoFangueiro/cs2-player-tools/actions/workflows/build-windows.yml/dispatches', {
-                    method: 'POST',
-                    headers: { 'Accept': 'application/vnd.github+json', 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ ref: 'main' }),
-                });
-                if (r.status === 204) alert('Build triggered! Check GitHub Actions.');
-                else alert('Failed to trigger. You may need to trigger manually from GitHub.');
-            } catch { alert('Failed — trigger manually from GitHub Actions.'); }
-        }
+    // ══════════════════════════════════════════
+    // ── DIAGNOSTICS TAB
+    // ══════════════════════════════════════════
 
-        async function registerRelease() {
-            const version = document.getElementById('rel-version').value;
-            const url = document.getElementById('rel-url').value;
-            const changelog = document.getElementById('rel-changelog').value;
-            if (!version) return alert('Version is required');
-            const r = await fetch(`${API}/releases`, {
-                method: 'POST', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ version, download_url: url, changelog, api_key: 'cs2pt-dev-key' }),
+    async function loadDiagnostics() {
+        const el = document.getElementById('diagnostics-list');
+        try {
+            const r = await fetch(`${API}/diagnostics?limit=50`);
+            const d = await r.json();
+            document.getElementById('diag-count').textContent = `${d.total} total reports`;
+
+            if (d.diagnostics.length === 0) {
+                el.innerHTML = '<div class="empty">No diagnostics reports yet</div>';
+                return;
+            }
+            el.innerHTML = d.diagnostics.map((diag, idx) => {
+                const tests = diag.tests || {};
+                const summary = diag.summary || {};
+                const testEntries = Object.entries(tests);
+                return `<div class="diag-card" id="diag-${idx}">
+                    <div class="diag-header" onclick="toggleDiag(${idx})">
+                        <div class="flex items-center gap-12">
+                            <div class="flex gap-6">
+                                <span class="badge badge-success">${summary.passed || 0} passed</span>
+                                <span class="badge badge-danger">${summary.failed || 0} failed</span>
+                            </div>
+                            <span class="badge badge-accent">${esc(diag.app_version || '?')}</span>
+                            <span class="text-muted" style="font-size:11px;">${esc(diag.os || '?')}</span>
+                        </div>
+                        <div class="flex items-center gap-12">
+                            <span class="text-dim" style="font-size:11px;">${timeAgo(diag.received_at)} | ${esc(diag.id)}</span>
+                            <span class="diag-chevron">&#9660;</span>
+                        </div>
+                    </div>
+                    <div class="diag-body">
+                        ${testEntries.length > 0 ? testEntries.map(([name, test]) => `
+                            <div class="diag-test">
+                                <span class="icon" style="color:${test.status === 'pass' ? 'var(--success)' : 'var(--danger)'};">${test.status === 'pass' ? '&#10003;' : '&#10007;'}</span>
+                                <span class="name">${esc(name)}</span>
+                                <span class="detail mono">${test.status === 'pass'
+                                    ? Object.entries(test).filter(([k]) => k !== 'status').map(([k, v]) => `${k}=${JSON.stringify(v)}`).join(', ')
+                                    : (test.error || 'failed')}</span>
+                            </div>
+                        `).join('') : '<div class="text-muted" style="font-size:12px;">No test details available</div>'}
+                    </div>
+                </div>`;
+            }).join('');
+        } catch {
+            el.innerHTML = '<div class="empty">Failed to load diagnostics</div>';
+        }
+    }
+
+    function toggleDiag(idx) {
+        const card = document.getElementById(`diag-${idx}`);
+        if (card) card.classList.toggle('expanded');
+    }
+
+    async function clearDiagnostics() {
+        if (!confirm('Clear ALL diagnostics? This cannot be undone.')) return;
+        try {
+            await fetch(`${API}/diagnostics`, { method: 'DELETE' });
+            toast('All diagnostics cleared', 'success');
+            refreshAll();
+        } catch { toast('Failed to clear diagnostics', 'error'); }
+    }
+
+    // ══════════════════════════════════════════
+    // ── TELEMETRY TAB
+    // ══════════════════════════════════════════
+
+    async function loadTelemetry() {
+        const tableEl = document.getElementById('telemetry-table');
+        const breakdownEl = document.getElementById('telemetry-breakdown');
+        const filterEl = document.getElementById('telemetry-event-filter');
+        const eventFilter = filterEl.value;
+
+        try {
+            const url = eventFilter
+                ? `${API}/telemetry?limit=100&event=${encodeURIComponent(eventFilter)}`
+                : `${API}/telemetry?limit=100`;
+            const r = await fetch(url);
+            const d = await r.json();
+
+            // Populate event filter
+            if (d.by_event && Object.keys(d.by_event).length > 0) {
+                const current = filterEl.value;
+                const opts = '<option value="">All Events</option>' +
+                    Object.entries(d.by_event).sort((a, b) => b[1] - a[1])
+                        .map(([ev, count]) => `<option value="${esc(ev)}" ${ev === current ? 'selected' : ''}>${esc(ev)} (${count})</option>`)
+                        .join('');
+                filterEl.innerHTML = opts;
+            }
+
+            // Event breakdown summary
+            if (d.by_event && Object.keys(d.by_event).length > 0) {
+                const total = Object.values(d.by_event).reduce((a, b) => a + b, 0);
+                breakdownEl.innerHTML = Object.entries(d.by_event)
+                    .sort((a, b) => b[1] - a[1])
+                    .map(([ev, count]) => {
+                        const pct = ((count / total) * 100).toFixed(0);
+                        return `<div style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:10px 14px;min-width:120px;">
+                            <div class="mono" style="font-size:18px;font-weight:700;color:var(--accent2);">${count}</div>
+                            <div class="text-muted" style="font-size:11px;">${esc(ev)}</div>
+                            <div class="text-dim" style="font-size:10px;">${pct}%</div>
+                        </div>`;
+                    }).join('');
+            } else {
+                breakdownEl.innerHTML = '<div class="empty" style="width:100%">No event data</div>';
+            }
+
+            // Events table
+            const events = d.events || [];
+            if (events.length === 0) {
+                tableEl.innerHTML = '<div class="empty">No telemetry events</div>';
+                return;
+            }
+            tableEl.innerHTML = `<div style="overflow-x:auto;"><table>
+                <thead><tr><th>Event</th><th>Version</th><th>OS</th><th>Data</th><th>IP</th><th>Time</th></tr></thead>
+                <tbody>${events.map(e => `<tr>
+                    <td><span class="badge badge-accent2">${esc(e.event)}</span></td>
+                    <td class="text-muted" style="font-size:12px;">${esc(e.app_version)}</td>
+                    <td class="text-muted" style="font-size:12px;">${esc(e.os)}</td>
+                    <td class="mono text-dim truncate" style="font-size:10px;max-width:250px;" title="${esc(JSON.stringify(e.data || {}))}">${esc(JSON.stringify(e.data || {}))}</td>
+                    <td class="mono text-dim" style="font-size:11px;">${esc(e.ip || '')}</td>
+                    <td class="text-muted" style="font-size:11px;white-space:nowrap;">${timeAgo(e.timestamp)}</td>
+                </tr>`).join('')}</tbody>
+            </table></div>`;
+        } catch {
+            tableEl.innerHTML = '<div class="empty">Failed to load telemetry</div>';
+        }
+    }
+
+    async function clearTelemetry() {
+        if (!confirm('Clear ALL telemetry? This cannot be undone.')) return;
+        try {
+            await fetch(`${API}/telemetry`, { method: 'DELETE' });
+            toast('All telemetry cleared', 'success');
+            refreshAll();
+        } catch { toast('Failed to clear telemetry', 'error'); }
+    }
+
+    // ══════════════════════════════════════════
+    // ── BUILDS TAB
+    // ══════════════════════════════════════════
+
+    async function loadBuilds() {
+        const el = document.getElementById('builds-list');
+        try {
+            const r = await fetch(`${API}/builds`);
+            const d = await r.json();
+            if (!d.builds || d.builds.length === 0) {
+                el.innerHTML = '<div class="empty">No builds found. Make sure GH_TOKEN is configured.</div>';
+                return;
+            }
+            el.innerHTML = d.builds.map(b => {
+                let statusColor, statusLabel;
+                if (b.status === 'completed' && b.conclusion === 'success') {
+                    statusColor = 'var(--success)'; statusLabel = 'Success';
+                } else if (b.status === 'completed' && b.conclusion === 'failure') {
+                    statusColor = 'var(--danger)'; statusLabel = 'Failed';
+                } else if (b.status === 'in_progress' || b.status === 'queued') {
+                    statusColor = 'var(--warning)'; statusLabel = b.status === 'queued' ? 'Queued' : 'Running';
+                } else if (b.status === 'completed' && b.conclusion === 'cancelled') {
+                    statusColor = 'var(--muted)'; statusLabel = 'Cancelled';
+                } else {
+                    statusColor = 'var(--muted)'; statusLabel = b.conclusion || b.status || 'Unknown';
+                }
+                const badgeClass = statusLabel === 'Success' ? 'badge-success'
+                    : statusLabel === 'Failed' ? 'badge-danger'
+                    : (statusLabel === 'Running' || statusLabel === 'Queued') ? 'badge-warning'
+                    : 'badge-muted';
+
+                return `<div class="build-row">
+                    <div class="build-status-dot" style="background:${statusColor};${b.status === 'in_progress' ? 'animation:pulse 2s infinite;' : ''}"></div>
+                    <div style="flex:1;">
+                        <div class="flex items-center gap-8">
+                            <span class="mono" style="font-weight:600;font-size:13px;">#${b.number}</span>
+                            <span class="badge ${badgeClass}">${statusLabel}</span>
+                        </div>
+                        <div class="text-muted" style="font-size:11px;margin-top:2px;">
+                            ${esc(b.branch)} @ ${esc(b.sha)} | ${timeAgo(b.created_at)}
+                        </div>
+                    </div>
+                    <a href="${b.url}" target="_blank" class="btn btn-sm">View on GitHub</a>
+                </div>`;
+            }).join('');
+        } catch {
+            el.innerHTML = '<div class="empty">Failed to load builds</div>';
+        }
+    }
+
+    async function triggerBuild() {
+        if (!confirm('Trigger a new Windows build?')) return;
+        try {
+            const r = await fetch(`${API}/builds/trigger`, { method: 'POST' });
+            const d = await r.json();
+            if (d.success) {
+                toast('Build triggered! Check GitHub Actions.', 'success');
+                setTimeout(loadBuilds, 3000);
+            } else {
+                toast(`Build trigger failed: ${d.error || 'Unknown error'}`, 'error');
+            }
+        } catch { toast('Failed to trigger build', 'error'); }
+    }
+
+    // ══════════════════════════════════════════
+    // ── DOWNLOADS TAB
+    // ══════════════════════════════════════════
+
+    async function loadDownloads() {
+        const el = document.getElementById('downloads-list');
+        try {
+            const r = await fetch(`${API}/downloads`);
+            const d = await r.json();
+            if (!d.files || d.files.length === 0) {
+                el.innerHTML = '<div class="empty">No downloadable files found in /releases/ directory</div>';
+                return;
+            }
+            el.innerHTML = d.files.map(f => {
+                const ext = f.name.split('.').pop().toUpperCase();
+                const badgeClass = ext === 'EXE' ? 'badge-accent' : ext === 'MSI' ? 'badge-success' : 'badge-muted';
+                return `<div class="download-file">
+                    <div class="flex items-center gap-12">
+                        <span class="badge ${badgeClass}">${ext}</span>
+                        <div>
+                            <div class="mono" style="font-size:13px;font-weight:500;">${esc(f.name)}</div>
+                            <div class="text-dim" style="font-size:11px;">${f.size_mb} MB | Modified: ${new Date(f.modified).toLocaleDateString()}</div>
+                        </div>
+                    </div>
+                    <a href="${f.url}" class="btn btn-sm btn-primary" download>Download</a>
+                </div>`;
+            }).join('');
+        } catch {
+            el.innerHTML = '<div class="empty">Failed to load downloads</div>';
+        }
+    }
+
+    // ══════════════════════════════════════════
+    // ── CLIENTS TAB
+    // ══════════════════════════════════════════
+
+    function renderClientsGrid() {
+        const el = document.getElementById('clients-grid');
+        if (!clientsData || clientsData.clients.length === 0) {
+            el.innerHTML = '<div class="empty">No clients online</div>';
+            document.getElementById('clients-count').textContent = '0 clients';
+            return;
+        }
+        document.getElementById('clients-count').textContent = `${clientsData.online} online | ${clientsData.cs2_playing} playing CS2 | ${clientsData.vpn_connected} VPN`;
+        el.innerHTML = `<div class="grid grid-3" style="margin-top:8px;">` +
+            clientsData.clients.map(c => {
+                return `<div class="client-card">
+                    <div class="flex justify-between items-center">
+                        <div class="ip">${esc(c.ip)}</div>
+                        <span class="badge badge-accent">${esc(c.app_version || '?')}</span>
+                    </div>
+                    <div class="meta">
+                        <div>${esc(c.os || 'Unknown OS')}</div>
+                        ${c.profile_name ? `<div>Profile: ${esc(c.profile_name)}</div>` : ''}
+                        <div>Last seen: ${timeAgo(c.last_seen)}</div>
+                    </div>
+                    <div class="client-status">
+                        ${c.cs2_running ? '<span class="badge badge-success">CS2 Running</span>' : '<span class="badge badge-muted">CS2 Off</span>'}
+                        ${c.vpn_active ? '<span class="badge badge-accent2">VPN Active</span>' : '<span class="badge badge-muted">No VPN</span>'}
+                    </div>
+                </div>`;
+            }).join('') + '</div>';
+    }
+
+    // ══════════════════════════════════════════
+    // ── FEEDBACK TAB
+    // ══════════════════════════════════════════
+
+    async function loadFeedback() {
+        const el = document.getElementById('feedback-list');
+        try {
+            const r = await fetch(`${API}/feedback?limit=50`);
+            const d = await r.json();
+            document.getElementById('feedback-count').textContent = `${d.total} total`;
+
+            if (!d.feedback || d.feedback.length === 0) {
+                el.innerHTML = '<div class="empty">No feedback received yet</div>';
+                return;
+            }
+            el.innerHTML = d.feedback.map(f => {
+                const rating = f.rating;
+                const stars = rating ? Array(5).fill(0).map((_, i) => i < rating ? '<span class="text-warning">&#9733;</span>' : '<span class="text-dim">&#9733;</span>').join('') : '';
+                return `<div class="feedback-item">
+                    <div class="flex justify-between items-center mb-4">
+                        <div class="flex items-center gap-8">
+                            ${stars ? `<div style="font-size:14px;">${stars}</div>` : ''}
+                            <span class="badge badge-accent">${esc(f.app_version || '?')}</span>
+                            <span class="text-muted" style="font-size:11px;">${esc(f.os || '')}</span>
+                        </div>
+                        <span class="text-dim" style="font-size:11px;">${timeAgo(f.received_at)} | ${esc(f.ip || '')}</span>
+                    </div>
+                    ${f.category ? `<div class="mb-4"><span class="badge badge-orange">${esc(f.category)}</span></div>` : ''}
+                    <div style="font-size:13px;color:var(--text);">${esc(f.message || f.text || f.feedback || JSON.stringify(f.data || ''))}</div>
+                    ${f.email ? `<div class="text-dim" style="font-size:11px;margin-top:6px;">Email: ${esc(f.email)}</div>` : ''}
+                </div>`;
+            }).join('');
+        } catch {
+            el.innerHTML = '<div class="empty">Failed to load feedback</div>';
+        }
+    }
+
+    // ══════════════════════════════════════════
+    // ── CONFIG TAB
+    // ══════════════════════════════════════════
+
+    let currentConfig = null;
+
+    async function loadConfig() {
+        const el = document.getElementById('config-flags');
+        try {
+            const r = await fetch(`${API}/config`);
+            currentConfig = await r.json();
+
+            const features = currentConfig.features || {};
+            const descriptions = {
+                vpn_enabled: 'Allow users to use the VPN feature',
+                optimizer_enabled: 'Allow users to use the Windows Optimizer',
+                region_lock_enabled: 'Allow users to use the Region Lock / Server Picker',
+                cs2_config_enabled: 'Allow users to modify CS2 config files',
+                auto_update_check: 'Check for updates on app startup',
+                telemetry_enabled: 'Collect telemetry data from clients',
+                dev_tools_visible: 'Show developer tools in the app',
+            };
+
+            el.innerHTML = Object.entries(features).map(([key, val]) => {
+                const label = key.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+                return `<div class="toggle-row">
+                    <div>
+                        <div class="toggle-label">${label}</div>
+                        <div class="toggle-desc">${descriptions[key] || ''}</div>
+                    </div>
+                    <label class="toggle">
+                        <input type="checkbox" data-flag="${key}" ${val ? 'checked' : ''} onchange="saveConfig()">
+                        <span class="slider"></span>
+                    </label>
+                </div>`;
+            }).join('');
+
+            // Maintenance toggle
+            document.getElementById('config-maintenance-toggle').checked = !!currentConfig.maintenance;
+
+            // Messages
+            const msgs = currentConfig.messages || [];
+            document.getElementById('config-message').value = msgs.length > 0 ? msgs[0] : '';
+        } catch {
+            el.innerHTML = '<div class="empty">Failed to load config</div>';
+        }
+    }
+
+    async function saveConfig() {
+        if (!currentConfig) return;
+
+        // Gather feature flags
+        const features = {};
+        document.querySelectorAll('#config-flags input[data-flag]').forEach(input => {
+            features[input.dataset.flag] = input.checked;
+        });
+
+        const maintenance = document.getElementById('config-maintenance-toggle').checked;
+        const message = document.getElementById('config-message').value.trim();
+        const messages = message ? [message] : [];
+
+        try {
+            const r = await fetch(`${API}/config`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ features, maintenance, messages, api_key: 'cs2pt-dev-key' }),
             });
             const d = await r.json();
-            alert(d.message || 'Done');
-            document.getElementById('rel-version').value = '';
-            document.getElementById('rel-url').value = '';
-            document.getElementById('rel-changelog').value = '';
-            await loadStats();
+            if (d.success) {
+                toast('Config saved', 'success');
+            } else {
+                toast('Failed to save config: ' + (d.error || ''), 'error');
+            }
+        } catch {
+            toast('Failed to save config', 'error');
         }
+    }
 
-        // ── Helpers ──
-        function esc(s) { const d = document.createElement('div'); d.textContent = String(s || ''); return d.innerHTML; }
-        function timeAgo(ts) {
-            if (!ts) return '?';
-            const d = (Date.now() - new Date(ts).getTime()) / 1000;
-            if (d < 60) return `${Math.round(d)}s ago`;
-            if (d < 3600) return `${Math.round(d/60)}m ago`;
-            if (d < 86400) return `${Math.round(d/3600)}h ago`;
-            return `${Math.round(d/86400)}d ago`;
+    // ══════════════════════════════════════════
+    // ── HELPERS
+    // ══════════════════════════════════════════
+
+    function esc(s) {
+        const d = document.createElement('div');
+        d.textContent = String(s || '');
+        return d.innerHTML;
+    }
+
+    function timeAgo(ts) {
+        if (!ts) return '?';
+        const diff = (Date.now() - new Date(ts).getTime()) / 1000;
+        if (diff < 0) return 'just now';
+        if (diff < 60) return `${Math.round(diff)}s ago`;
+        if (diff < 3600) return `${Math.round(diff / 60)}m ago`;
+        if (diff < 86400) return `${Math.round(diff / 3600)}h ago`;
+        if (diff < 604800) return `${Math.round(diff / 86400)}d ago`;
+        return new Date(ts).toLocaleDateString();
+    }
+
+    function formatUptime(seconds) {
+        if (seconds < 60) return `${seconds}s`;
+        if (seconds < 3600) return `${Math.floor(seconds / 60)}m`;
+        if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ${Math.floor((seconds % 3600) / 60)}m`;
+        return `${Math.floor(seconds / 86400)}d ${Math.floor((seconds % 86400) / 3600)}h`;
+    }
+
+    function toast(message, type = 'info') {
+        const container = document.getElementById('toast-container');
+        const el = document.createElement('div');
+        el.className = `toast toast-${type}`;
+        el.textContent = message;
+        container.appendChild(el);
+        setTimeout(() => {
+            el.style.opacity = '0';
+            el.style.transition = 'opacity 0.3s';
+            setTimeout(() => el.remove(), 300);
+        }, 3000);
+    }
+
+    // ══════════════════════════════════════════
+    // ── REFRESH & INIT
+    // ══════════════════════════════════════════
+
+    async function refreshAll() {
+        lastRefresh = Date.now();
+        await Promise.all([loadStats(), loadClients(), loadHeaderInfo()]);
+        // Reload active tab data if not overview
+        const activeTab = document.querySelector('.tab.active');
+        if (activeTab) {
+            const name = activeTab.dataset.tab;
+            if (name !== 'overview') switchTab(name);
         }
+    }
 
-        async function refreshAll() { await loadStats(); }
+    function startAutoRefresh() {
+        if (refreshTimer) clearInterval(refreshTimer);
+        refreshTimer = setInterval(() => {
+            refreshAll();
+        }, 15000);
+    }
 
-        // ── Init ──
-        refreshAll();
-        setInterval(refreshAll, 30000); // Auto-refresh every 30s
+    function updateRefreshIndicator() {
+        const el = document.getElementById('refresh-indicator');
+        setInterval(() => {
+            const ago = Math.round((Date.now() - lastRefresh) / 1000);
+            el.textContent = `Updated ${ago}s ago`;
+        }, 1000);
+    }
+
+    // ── Init ──
+    (async () => {
+        await refreshAll();
+        startAutoRefresh();
+        updateRefreshIndicator();
+    })();
     </script>
 </body>
 </html>
