@@ -466,24 +466,21 @@ export default function ServerPicker() {
                             {ping > 0 ? `${ping.toFixed(0)}ms` : "\u2014"}
                           </span>
                         )}
-                        <button
-                          onClick={() => toggleBlock(pop)}
-                          disabled={isToggling}
-                          title={isBlocked ? "Unblock this PoP" : "Block this PoP"}
-                          className={`p-1 rounded transition ${
-                            isBlocked
-                              ? "text-danger hover:text-danger/70"
-                              : "text-text-muted hover:text-warning"
-                          }`}
-                        >
-                          {isToggling ? (
-                            <Loader size={14} className="animate-spin" />
-                          ) : isBlocked ? (
-                            <Lock size={14} />
+                        <div className="flex gap-1">
+                          {isBlocked ? (
+                            <button onClick={() => toggleBlock(pop)} disabled={isToggling}
+                              title="Unblock this PoP"
+                              className="px-1.5 py-0.5 text-[10px] rounded bg-success/15 text-success border border-success/30 hover:bg-success/25 transition disabled:opacity-50 flex items-center gap-1">
+                              {isToggling ? <Loader size={10} className="animate-spin" /> : <Unlock size={10} />} Allow
+                            </button>
                           ) : (
-                            <Unlock size={14} />
+                            <button onClick={() => toggleBlock(pop)} disabled={isToggling}
+                              title="Block this PoP"
+                              className="px-1.5 py-0.5 text-[10px] rounded bg-danger/15 text-danger border border-danger/30 hover:bg-danger/25 transition disabled:opacity-50 flex items-center gap-1">
+                              {isToggling ? <Loader size={10} className="animate-spin" /> : <Lock size={10} />} Block
+                            </button>
                           )}
-                        </button>
+                        </div>
                       </div>
                     </div>
                     <div className="text-xs text-text-muted mb-2 truncate">

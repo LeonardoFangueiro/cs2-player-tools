@@ -91,15 +91,29 @@ function getLatencyColor(ms: number): string {
   return "text-danger";
 }
 
+// Valve datacenter quick-select targets
+const VALVE_DCS = [
+  { code: "fra", name: "Frankfurt", ip: "155.133.240.55" },
+  { code: "ams", name: "Amsterdam", ip: "155.133.226.71" },
+  { code: "lhr", name: "London", ip: "162.254.197.36" },
+  { code: "mad", name: "Madrid", ip: "155.133.248.41" },
+  { code: "sto", name: "Stockholm", ip: "162.254.199.36" },
+  { code: "waw", name: "Warsaw", ip: "155.133.234.41" },
+  { code: "vie", name: "Vienna", ip: "155.133.236.71" },
+  { code: "iad", name: "Virginia", ip: "208.78.164.10" },
+  { code: "gru", name: "São Paulo", ip: "205.196.6.75" },
+  { code: "sgp", name: "Singapore", ip: "103.10.124.36" },
+];
+
 export default function NetworkDiag() {
-  // Ping state
-  const [host, setHost] = useState("162.254.197.1");
+  // Ping state — default to Frankfurt Valve DC
+  const [host, setHost] = useState("155.133.240.55");
   const [count, setCount] = useState(10);
   const [results, setResults] = useState<PingResult[]>([]);
   const [running, setRunning] = useState(false);
 
-  // Traceroute state
-  const [traceHost, setTraceHost] = useState("162.254.197.1");
+  // Traceroute state — default to Frankfurt Valve DC
+  const [traceHost, setTraceHost] = useState("155.133.240.55");
   const [traceHops, setTraceHops] = useState<TraceHop[]>([]);
   const [tracing, setTracing] = useState(false);
 
@@ -175,23 +189,23 @@ export default function NetworkDiag() {
       } : d));
     }
 
-    // Quick ping to nearest PoP
+    // Quick ping to a known Valve IP instead of ping_all_pops (TCP ping to port 27015 fails without admin)
     setDiagnostics(prev => prev.map((d, i) => i === 2 ? { ...d, status: "running" as const } : d));
     try {
-      const pings = await invoke<Array<[string, number]>>("ping_all_pops");
-      const reachable = pings.filter(([, ms]) => ms > 0);
-      if (reachable.length > 0) {
-        const [bestCode, bestMs] = reachable[0];
+      const pingResult = await invoke<PingResult[]>("ping_host", { host: "155.133.240.55", count: 3 });
+      const successful = pingResult.filter(r => r.success);
+      if (successful.length > 0) {
+        const avg = successful.reduce((s, r) => s + r.latency_ms, 0) / successful.length;
         setDiagnostics(prev => prev.map((d, i) => i === 2 ? {
           ...d,
           status: "pass" as const,
-          detail: `${bestCode}: ${bestMs.toFixed(1)}ms`,
+          detail: `FRA (Frankfurt): ${avg.toFixed(1)}ms`,
         } : d));
       } else {
         setDiagnostics(prev => prev.map((d, i) => i === 2 ? {
           ...d,
           status: "fail" as const,
-          detail: "No reachable PoPs",
+          detail: "Valve DC unreachable",
         } : d));
       }
     } catch (e) {
@@ -419,6 +433,15 @@ export default function NetworkDiag() {
             {running ? "Running..." : "Ping"}
           </button>
         </div>
+        <div className="flex flex-wrap gap-1.5 mb-4">
+          <span className="text-[10px] text-text-muted uppercase tracking-wider self-center mr-1">Valve DCs:</span>
+          {VALVE_DCS.map(dc => (
+            <button key={dc.code} onClick={() => setHost(dc.ip)}
+              className={`px-2 py-1 text-[10px] rounded border transition ${host === dc.ip ? 'bg-accent/20 border-accent/40 text-accent' : 'border-border text-text-muted hover:border-accent/20'}`}>
+              {dc.code.toUpperCase()} ({dc.name})
+            </button>
+          ))}
+        </div>
 
         {results.length > 0 && (
           <>
@@ -543,6 +566,15 @@ export default function NetworkDiag() {
         <h2 className="text-base font-semibold mb-4 flex items-center gap-2">
           <Route size={16} className="text-accent2" /> Traceroute
         </h2>
+        <div className="flex flex-wrap gap-1.5 mb-3">
+          <span className="text-[10px] text-text-muted uppercase tracking-wider self-center mr-1">Valve DCs:</span>
+          {VALVE_DCS.map(dc => (
+            <button key={dc.code} onClick={() => setTraceHost(dc.ip)}
+              className={`px-2 py-1 text-[10px] rounded border transition ${traceHost === dc.ip ? 'bg-accent/20 border-accent/40 text-accent' : 'border-border text-text-muted hover:border-accent/20'}`}>
+              {dc.code.toUpperCase()} ({dc.name})
+            </button>
+          ))}
+        </div>
         <div className="flex gap-3 mb-4">
           <input
             type="text"

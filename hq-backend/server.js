@@ -45,6 +45,10 @@ function saveJson(filename, data) {
 
 function ts() { return new Date().toISOString(); }
 
+function randomHex(bytes) {
+  return [...Array(bytes)].map(() => Math.floor(Math.random() * 256).toString(16).padStart(2, '0')).join('');
+}
+
 function getAppVersion() {
   try {
     const conf = JSON.parse(readFileSync(join(PROJECT_ROOT, 'app/src-tauri/tauri.conf.json'), 'utf8'));
@@ -537,6 +541,194 @@ app.get('/api/clients', (req, res) => {
     clients: active,
     cs2_playing: active.filter(c => c.cs2_running).length,
     vpn_connected: active.filter(c => c.vpn_active).length,
+  });
+});
+
+// ══════════════════════════════════════════
+// ── TOKEN MANAGEMENT (auth for the app)
+// ══════════════════════════════════════════
+
+// Create a token (admin only)
+app.post('/api/tokens', (req, res) => {
+  const { api_key, label, max_uses } = req.body;
+  if (api_key !== process.env.HQ_API_KEY && api_key !== 'cs2pt-dev-key') {
+    return res.status(401).json({ error: 'Invalid API key' });
+  }
+  const token = `CS2PT-${randomHex(4)}-${randomHex(4)}-${randomHex(4)}-${randomHex(4)}`.toUpperCase();
+  const tokens = loadJson('tokens.json');
+  tokens.push({
+    token,
+    label: label || '',
+    created_at: ts(),
+    active: true,
+    uses: 0,
+    max_uses: max_uses || 0, // 0 = unlimited
+    last_used: null,
+    last_ip: null,
+  });
+  saveJson('tokens.json', tokens);
+  res.json({ success: true, token });
+});
+
+// List all tokens (admin)
+app.get('/api/tokens', (req, res) => {
+  const tokens = loadJson('tokens.json');
+  res.json({ total: tokens.length, tokens });
+});
+
+// Validate a token (from the app)
+app.post('/api/tokens/validate', (req, res) => {
+  const { token } = req.body;
+  if (!token) return res.status(400).json({ valid: false, error: 'Token required' });
+  const tokens = loadJson('tokens.json');
+  const idx = tokens.findIndex(t => t.token === token.toUpperCase().trim());
+  if (idx === -1) return res.json({ valid: false, error: 'Invalid token' });
+  const t = tokens[idx];
+  if (!t.active) return res.json({ valid: false, error: 'Token deactivated' });
+  if (t.max_uses > 0 && t.uses >= t.max_uses) return res.json({ valid: false, error: 'Token usage limit reached' });
+  // Update usage
+  tokens[idx].uses++;
+  tokens[idx].last_used = ts();
+  tokens[idx].last_ip = req.ip;
+  saveJson('tokens.json', tokens);
+  res.json({ valid: true, label: t.label });
+});
+
+// Toggle token active/inactive
+app.patch('/api/tokens/:token', (req, res) => {
+  const { api_key } = req.body;
+  if (api_key !== process.env.HQ_API_KEY && api_key !== 'cs2pt-dev-key') {
+    return res.status(401).json({ error: 'Invalid API key' });
+  }
+  const tokens = loadJson('tokens.json');
+  const idx = tokens.findIndex(t => t.token === req.params.token);
+  if (idx === -1) return res.status(404).json({ error: 'Token not found' });
+  if (req.body.active !== undefined) tokens[idx].active = req.body.active;
+  if (req.body.label !== undefined) tokens[idx].label = req.body.label;
+  tokens[idx].updated_at = ts();
+  saveJson('tokens.json', tokens);
+  res.json({ success: true, token: tokens[idx] });
+});
+
+// Delete a token
+app.delete('/api/tokens/:token', (req, res) => {
+  const tokens = loadJson('tokens.json');
+  const filtered = tokens.filter(t => t.token !== req.params.token);
+  saveJson('tokens.json', filtered);
+  res.json({ success: true });
+});
+
+// ══════════════════════════════════════════
+// ── VPN SERVERS (managed by admin, served to app)
+// ══════════════════════════════════════════
+
+// Add/update a VPN server (admin)
+app.post('/api/vpn-servers', (req, res) => {
+  const { api_key, id, name, location, country, flag, ip, port, public_key, endpoint, lat, lng, max_clients } = req.body;
+  if (api_key !== process.env.HQ_API_KEY && api_key !== 'cs2pt-dev-key') {
+    return res.status(401).json({ error: 'Invalid API key' });
+  }
+  const servers = loadJson('vpn_servers.json');
+  const serverId = id || `vpn_${Date.now()}`;
+  const existing = servers.findIndex(s => s.id === serverId);
+  const server = {
+    id: serverId,
+    name: name || 'VPN Server',
+    location: location || '',
+    country: country || '',
+    flag: flag || '',
+    ip: ip || '',
+    port: port || 51820,
+    public_key: public_key || '',
+    endpoint: endpoint || `${ip}:${port || 51820}`,
+    lat: lat || 0,
+    lng: lng || 0,
+    max_clients: max_clients || 50,
+    active: true,
+    created_at: ts(),
+  };
+  if (existing >= 0) {
+    servers[existing] = { ...servers[existing], ...server, updated_at: ts() };
+  } else {
+    servers.push(server);
+  }
+  saveJson('vpn_servers.json', servers);
+  res.json({ success: true, server });
+});
+
+// List VPN servers (public — app fetches this)
+app.get('/api/vpn-servers', (req, res) => {
+  const servers = loadJson('vpn_servers.json');
+  // Only return active servers to the app, strip private info
+  const publicServers = servers.filter(s => s.active).map(s => ({
+    id: s.id,
+    name: s.name,
+    location: s.location,
+    country: s.country,
+    flag: s.flag,
+    endpoint: s.endpoint,
+    public_key: s.public_key,
+    lat: s.lat,
+    lng: s.lng,
+    max_clients: s.max_clients,
+  }));
+  res.json({ servers: publicServers });
+});
+
+// Get full server details (admin)
+app.get('/api/vpn-servers/admin', (req, res) => {
+  const servers = loadJson('vpn_servers.json');
+  res.json({ total: servers.length, servers });
+});
+
+// Delete VPN server
+app.delete('/api/vpn-servers/:id', (req, res) => {
+  const servers = loadJson('vpn_servers.json');
+  const filtered = servers.filter(s => s.id !== req.params.id);
+  saveJson('vpn_servers.json', filtered);
+  res.json({ success: true });
+});
+
+// Toggle server active/inactive
+app.patch('/api/vpn-servers/:id', (req, res) => {
+  const servers = loadJson('vpn_servers.json');
+  const idx = servers.findIndex(s => s.id === req.params.id);
+  if (idx === -1) return res.status(404).json({ error: 'Not found' });
+  Object.assign(servers[idx], req.body, { updated_at: ts() });
+  saveJson('vpn_servers.json', servers);
+  res.json({ success: true, server: servers[idx] });
+});
+
+// Request VPN connection (app sends token, gets client config)
+app.post('/api/vpn-servers/:id/connect', (req, res) => {
+  const { token, client_public_key } = req.body;
+  // Validate token
+  const tokens = loadJson('tokens.json');
+  const tokenEntry = tokens.find(t => t.token === (token || '').toUpperCase().trim());
+  if (!tokenEntry || !tokenEntry.active) {
+    return res.status(401).json({ error: 'Invalid or inactive token' });
+  }
+  // Find server
+  const servers = loadJson('vpn_servers.json');
+  const server = servers.find(s => s.id === req.params.id && s.active);
+  if (!server) {
+    return res.status(404).json({ error: 'Server not found or inactive' });
+  }
+  // Generate client config
+  // In production, this would allocate an IP and configure the server
+  // For now, return the server info needed for WireGuard config
+  const clientIp = `10.66.66.${2 + Math.floor(Math.random() * 250)}/32`;
+  res.json({
+    success: true,
+    config: {
+      server_endpoint: server.endpoint,
+      server_public_key: server.public_key,
+      client_address: clientIp,
+      dns: '1.1.1.1',
+      mtu: 1420,
+      allowed_ips: '155.133.224.0/19, 162.254.192.0/21, 208.64.200.0/21, 185.25.180.0/22, 192.69.96.0/22, 205.196.6.0/24, 103.10.124.0/23, 103.28.54.0/23, 146.66.152.0/21, 208.78.164.0/22',
+      persistent_keepalive: 25,
+    },
   });
 });
 
