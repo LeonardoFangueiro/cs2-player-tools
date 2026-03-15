@@ -9,3 +9,9 @@ Thumbs.db
 *.key
 app/src-tauri/resources/wireguard/*.exe
 app/src-tauri/resources/wireguard/*.dll
+
+# Claude Code settings
+.claude/
+
+# Knowledge Base (internal docs, not for public repo)
+docs/kb/
