@@ -9,8 +9,10 @@ import {
   FileCode,
   BarChart3,
   Settings,
-  Download,
   ArrowUpCircle,
+  ArrowDown,
+  ArrowUp,
+  Wifi,
 } from "lucide-react";
 import { invoke } from "../lib/tauri";
 import { checkForUpdate } from "../lib/hq";
@@ -18,6 +20,16 @@ import { checkForUpdate } from "../lib/hq";
 interface Cs2Status {
   running: boolean;
   pid: number | null;
+}
+
+interface VpnStatus {
+  active: boolean;
+  profile_name: string | null;
+  endpoint: string | null;
+  transfer_rx: string | null;
+  transfer_tx: string | null;
+  latest_handshake: string | null;
+  error: string | null;
 }
 
 interface UpdateInfo {
@@ -42,19 +54,23 @@ const navItems = [
 
 export default function Sidebar() {
   const [cs2Status, setCs2Status] = useState<Cs2Status>({ running: false, pid: null });
+  const [vpnStatus, setVpnStatus] = useState<VpnStatus | null>(null);
+  const [vpnIp, setVpnIp] = useState<string | null>(null);
   const [update, setUpdate] = useState<UpdateInfo | null>(null);
   const [updating, setUpdating] = useState(false);
 
   useEffect(() => {
     checkCs2();
-    const cs2Interval = setInterval(checkCs2, 5000);
-
-    // Check for updates on start and every 5 minutes
+    checkVpn();
     doUpdateCheck();
+
+    const cs2Interval = setInterval(checkCs2, 5000);
+    const vpnInterval = setInterval(checkVpn, 2000); // 2s for near-realtime transfer stats
     const updateInterval = setInterval(doUpdateCheck, 300000);
 
     return () => {
       clearInterval(cs2Interval);
+      clearInterval(vpnInterval);
       clearInterval(updateInterval);
     };
   }, []);
@@ -65,6 +81,32 @@ export default function Sidebar() {
       setCs2Status(status);
     } catch {
       setCs2Status({ running: false, pid: null });
+    }
+  }
+
+  async function checkVpn() {
+    try {
+      // Try to get status of any active VPN profile
+      const profiles = await invoke<string[]>("vpn_list_profiles");
+      for (const name of profiles) {
+        const status = await invoke<VpnStatus>("vpn_get_status", { profileName: name });
+        if (status.active) {
+          setVpnStatus(status);
+          // Try to get the VPN IP (client address from profile)
+          try {
+            const profile = await invoke<{ client_address: string }>("vpn_load_profile", { profileName: name });
+            setVpnIp(profile.client_address?.split('/')[0] || null);
+          } catch {
+            setVpnIp(null);
+          }
+          return;
+        }
+      }
+      setVpnStatus(null);
+      setVpnIp(null);
+    } catch {
+      setVpnStatus(null);
+      setVpnIp(null);
     }
   }
 
@@ -83,18 +125,15 @@ export default function Sidebar() {
   }
 
   async function handleUpdate() {
-    if (!update?.url) return;
+    if (!update?.url) {
+      window.location.reload();
+      return;
+    }
     setUpdating(true);
-
-    // For frontend-only updates: just reload the page (since frontend loads from HQ)
-    // For binary updates: open download URL
     const isFrontendOnly = update.version.startsWith(APP_VERSION.split('.').slice(0, 2).join('.'));
-
     if (isFrontendOnly) {
-      // Frontend hot-reload — just refresh
       window.location.reload();
     } else {
-      // Binary update needed — download new .exe
       window.open(update.url, '_blank');
     }
     setUpdating(false);
@@ -146,6 +185,35 @@ export default function Sidebar() {
               <div className="text-[9px] text-success/70 truncate">{update.changelog}</div>
             </div>
           </button>
+        </div>
+      )}
+
+      {/* VPN Status */}
+      {vpnStatus?.active && (
+        <div className="mx-3 mb-2 bg-accent2/8 border border-accent2/25 rounded-lg p-2.5 overflow-hidden">
+          <div className="flex items-center gap-1.5 mb-1.5">
+            <Wifi size={12} className="text-accent2 shrink-0" />
+            <span className="text-[10px] font-semibold text-accent2 truncate">
+              VPN {vpnStatus.profile_name || "Connected"}
+            </span>
+          </div>
+          {/* VPN IP */}
+          {vpnIp && (
+            <div className="text-[9px] text-accent2/70 font-mono mb-1.5 truncate">
+              IP: {vpnIp}
+            </div>
+          )}
+          {/* Transfer Stats */}
+          <div className="flex items-center gap-3 text-[9px] font-mono">
+            <div className="flex items-center gap-1 text-success">
+              <ArrowDown size={9} className="shrink-0" />
+              <span>{vpnStatus.transfer_rx || "0 B"}</span>
+            </div>
+            <div className="flex items-center gap-1 text-orange">
+              <ArrowUp size={9} className="shrink-0" />
+              <span>{vpnStatus.transfer_tx || "0 B"}</span>
+            </div>
+          </div>
         </div>
       )}
 
