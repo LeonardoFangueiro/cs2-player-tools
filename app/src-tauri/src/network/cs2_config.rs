@@ -73,46 +73,59 @@ fn find_cs2_cfg_dir() -> Option<PathBuf> {
     None
 }
 
+// Only commands verified as working in CS2 (Source 2) as of March 2026
+// cl_forcepreload REMOVED — deprecated in Source 2, causes micro-lags
+// snd_mix_async REMOVED — Source 1 only, not confirmed in CS2
 const RECOMMENDED_SETTINGS: &[(&str, &str, &str)] = &[
     (
         "rate",
         "786432",
-        "Max network rate (bytes/sec). 786432 = ~6.1 Mbps, maximum allowed.",
+        "Max network rate (bytes/sec). 786432 = ~6.1 Mbps, maximum allowed by Valve.",
     ),
     (
         "cl_interp_ratio",
         "1",
-        "Interpolation ratio. 1 = minimum delay for stable connections.",
+        "Interpolation ratio. 1 = minimum delay (stable connections). Use 2 if you have packet loss.",
     ),
     (
         "cl_interp",
-        "0",
-        "Auto-calculate interpolation from cl_interp_ratio/tickrate.",
+        "0.015625",
+        "Interpolation period. 0.015625 = 1 tick (15.6ms). Set 0 for auto-calc from cl_interp_ratio.",
     ),
     (
         "fps_max",
         "0",
-        "Uncapped FPS for best sub-tick precision. Set to monitor Hz if you prefer.",
-    ),
-    (
-        "cl_forcepreload",
-        "1",
-        "Preload all models/textures to reduce in-game hitches.",
+        "Uncapped FPS for best sub-tick input precision. Set to monitor Hz if you have screen tearing.",
     ),
     (
         "r_drawtracers_firstperson",
         "1",
-        "Show first-person tracers for better aim feedback.",
+        "Show first-person bullet tracers. Helps with spray tracking and aim feedback.",
     ),
     (
         "mm_dedicated_search_maxping",
         "70",
-        "Max matchmaking ping. Adjust based on your region.",
+        "Max acceptable ping for matchmaking servers. Lower = stricter. Min: 50.",
     ),
     (
-        "snd_mix_async",
+        "cl_showfps",
+        "0",
+        "FPS counter. 0=off, 1=simple, 2=detailed with frame time. Use for monitoring.",
+    ),
+    (
+        "cq_netgraph",
         "1",
-        "Async audio mixing to reduce CPU overhead.",
+        "CS2 network graph overlay. Shows ping, loss, choke, tick rate, server recv margin.",
+    ),
+    (
+        "cl_hud_telemetry_ping",
+        "1",
+        "Show ping in the HUD telemetry. Real-time latency display.",
+    ),
+    (
+        "cl_hud_telemetry_serverrecvmargin_graph_show",
+        "1",
+        "Server receive margin graph. Most important CS2 network metric — shows if your data arrives on time.",
     ),
 ];
 
@@ -222,21 +235,15 @@ pub fn apply_cs2_config(settings: Vec<(String, String)>) -> Cs2ConfigResult {
 }
 
 /// Get recommended CS2 launch options
+// Launch options verified for CS2 (Source 2) — March 2026
+// -high REMOVED — Valve says it can cause instability in CS2
+// -tickrate 128 REMOVED — CS2 uses sub-tick, this has no effect
 pub fn get_launch_options() -> Vec<(String, String)> {
     vec![
-        (
-            "-novid".into(),
-            "Skip intro video for faster launch".into(),
-        ),
-        ("-high".into(), "Run CS2 at high CPU priority".into()),
-        (
-            "-freq 144".into(),
-            "Set refresh rate (change to your monitor Hz)".into(),
-        ),
-        (
-            "-tickrate 128".into(),
-            "Prefer 128-tick servers in community matches".into(),
-        ),
-        ("+fps_max 0".into(), "Uncap FPS from launch".into()),
+        ("-novid".into(), "Skip intro video for faster launch.".into()),
+        ("-freq 144".into(), "Set refresh rate. Change 144 to your monitor's Hz (e.g. 240, 360).".into()),
+        ("+fps_max 0".into(), "Uncap FPS from launch for best sub-tick precision.".into()),
+        ("-allow_third_party_software".into(), "Allow overlays and third-party software (needed for some tools).".into()),
+        ("-nojoy".into(), "Disable joystick support. Saves a small amount of RAM.".into()),
     ]
 }
