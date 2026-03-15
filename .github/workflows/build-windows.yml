@@ -31,6 +31,47 @@ jobs:
         working-directory: app
         run: npm ci
 
+      - name: Download WireGuard binaries for bundling
+        shell: pwsh
+        run: |
+          $wgDir = "app/src-tauri/resources/wireguard"
+
+          # Download wintun (MIT licensed TUN driver)
+          $wintunUrl = "https://www.wintun.net/builds/wintun-0.14.1.zip"
+          Invoke-WebRequest -Uri $wintunUrl -OutFile wintun.zip
+          Expand-Archive -Path wintun.zip -DestinationPath wintun-extract
+          Copy-Item "wintun-extract/wintun/bin/amd64/wintun.dll" "$wgDir/wintun.dll"
+          Remove-Item -Recurse wintun.zip, wintun-extract
+
+          # Copy WireGuard tools from system (pre-installed on windows-latest runners)
+          # If not available, download the MSI and extract
+          $wgExe = "C:\Program Files\WireGuard\wg.exe"
+          $wireguardExe = "C:\Program Files\WireGuard\wireguard.exe"
+
+          if (Test-Path $wgExe) {
+            Copy-Item $wgExe "$wgDir/wg.exe"
+            Copy-Item $wireguardExe "$wgDir/wireguard.exe"
+            Write-Host "Copied WireGuard from system install"
+          } else {
+            # Download and install WireGuard
+            $msiUrl = "https://download.wireguard.com/windows-client/wireguard-amd64-0.5.3.msi"
+            Invoke-WebRequest -Uri $msiUrl -OutFile wireguard.msi
+            Start-Process msiexec.exe -ArgumentList "/i", "wireguard.msi", "/qn", "TARGETDIR=C:\wg-extract" -Wait
+            Copy-Item "C:\wg-extract\wg.exe" "$wgDir/wg.exe" -ErrorAction SilentlyContinue
+            Copy-Item "C:\wg-extract\wireguard.exe" "$wgDir/wireguard.exe" -ErrorAction SilentlyContinue
+            # Fallback: install normally and copy
+            if (-not (Test-Path "$wgDir/wg.exe")) {
+              Start-Process msiexec.exe -ArgumentList "/i", "wireguard.msi", "/qn" -Wait
+              Copy-Item "C:\Program Files\WireGuard\wg.exe" "$wgDir/wg.exe"
+              Copy-Item "C:\Program Files\WireGuard\wireguard.exe" "$wgDir/wireguard.exe"
+            }
+            Remove-Item wireguard.msi -ErrorAction SilentlyContinue
+            Write-Host "Downloaded and extracted WireGuard tools"
+          }
+
+          # Verify
+          Get-ChildItem "$wgDir" | ForEach-Object { Write-Host "$($_.Name): $($_.Length) bytes" }
+
       - name: Build Tauri app
         uses: tauri-apps/tauri-action@v0
         env:
@@ -42,11 +83,11 @@ jobs:
       - name: Upload MSI
         uses: actions/upload-artifact@v4
         with:
-          name: cs2-player-tools-windows
+          name: cs2-player-tools-windows-msi
           path: app/src-tauri/target/release/bundle/msi/*.msi
 
       - name: Upload EXE
         uses: actions/upload-artifact@v4
         with:
-          name: cs2-player-tools-exe
+          name: cs2-player-tools-windows-exe
           path: app/src-tauri/target/release/bundle/nsis/*.exe

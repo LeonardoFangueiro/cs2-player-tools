@@ -4,10 +4,17 @@ mod diagnostics;
 mod optimizer;
 mod vpn;
 mod deploy;
+mod process;
+mod region_block;
+mod settings;
 
 pub use sdr::{SDRConfig, fetch_sdr_config};
 pub use ping::{PingResult, ping_host, ping_all_pops};
 pub use diagnostics::{TraceHop, NetworkInfo, traceroute, resolve_dns, get_network_info};
 pub use optimizer::{SystemOptStatus, OptimizationResult, scan_system, apply_optimization};
-pub use vpn::{VpnProfile, VpnStatus, VpnActionResult, get_valve_allowed_ips, generate_keypair, generate_config, get_vpn_status, activate_vpn, deactivate_vpn, list_profiles};
+pub use vpn::{VpnProfile, VpnStatus, VpnActionResult, WireGuardStatus, get_valve_allowed_ips, generate_keypair, generate_config, get_vpn_status, activate_vpn, deactivate_vpn, list_profiles, check_wireguard_available};
+pub use vpn::get_valve_ips_from_config;
 pub use deploy::{VpsCredentials, TestConnectionResult, DeployResult, test_connection, deploy_wireguard};
+pub use process::{Cs2Status, check_cs2_running};
+pub use region_block::{RegionBlockResult, block_pop, unblock_pop, list_blocked_pops};
+pub use settings::{AppSettings, load_settings, save_settings};

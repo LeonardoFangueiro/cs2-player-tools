@@ -32,9 +32,36 @@ pub struct VpnActionResult {
     pub message: String,
 }
 
-/// Default Valve IP ranges for split tunneling
+/// Get Valve IPs — dynamic from SDR config if available, fallback to hardcoded
 pub fn get_valve_allowed_ips() -> String {
+    // Hardcoded fallback (Valve AS32590)
     "155.133.224.0/19, 162.254.192.0/21, 208.64.200.0/21, 185.25.180.0/22, 192.69.96.0/22, 205.196.6.0/24, 103.10.124.0/23, 103.28.54.0/23, 146.66.152.0/21, 208.78.164.0/22".to_string()
+}
+
+/// Get dynamic Valve IPs from a pre-fetched SDR config
+pub fn get_valve_ips_from_config(config: &serde_json::Value) -> String {
+    let mut ips = std::collections::HashSet::new();
+
+    if let Some(pops) = config.get("pops").and_then(|v| v.as_object()) {
+        for (_code, pop_data) in pops {
+            if let Some(relays) = pop_data.get("relays").and_then(|v| v.as_array()) {
+                for relay in relays {
+                    if let Some(ipv4) = relay.get("ipv4").and_then(|v| v.as_str()) {
+                        ips.insert(ipv4.to_string());
+                    }
+                }
+            }
+        }
+    }
+
+    if ips.is_empty() {
+        return get_valve_allowed_ips();
+    }
+
+    // Convert individual IPs to /32 entries
+    let mut sorted: Vec<String> = ips.into_iter().map(|ip| format!("{}/32", ip)).collect();
+    sorted.sort();
+    sorted.join(", ")
 }
 
 /// Generate WireGuard config file content
@@ -270,28 +297,91 @@ fn get_config_dir() -> Result<PathBuf, String> {
     }
 }
 
+/// Find wireguard.exe — checks bundled resources first, then system install
 #[cfg(target_os = "windows")]
 fn find_wireguard_exe() -> Result<String, String> {
-    let paths = [
+    // 1. Check bundled with app (resources/wireguard/)
+    if let Ok(exe_path) = std::env::current_exe() {
+        if let Some(app_dir) = exe_path.parent() {
+            let bundled = app_dir.join("wireguard").join("wireguard.exe");
+            if bundled.exists() { return Ok(bundled.to_string_lossy().to_string()); }
+            // Also check resources subdirectory (Tauri bundle layout)
+            let bundled_res = app_dir.join("resources").join("wireguard").join("wireguard.exe");
+            if bundled_res.exists() { return Ok(bundled_res.to_string_lossy().to_string()); }
+        }
+    }
+    // 2. Check C:\CS2PlayerTools\wireguard\ (our custom install dir)
+    let custom = r"C:\CS2PlayerTools\wireguard\wireguard.exe";
+    if std::path::Path::new(custom).exists() { return Ok(custom.to_string()); }
+    // 3. Check system-installed WireGuard
+    let system_paths = [
         r"C:\Program Files\WireGuard\wireguard.exe",
         r"C:\Program Files (x86)\WireGuard\wireguard.exe",
     ];
-    for p in &paths {
+    for p in &system_paths {
         if std::path::Path::new(p).exists() { return Ok(p.to_string()); }
     }
-    Err("WireGuard not found. Install from wireguard.com".to_string())
+    Err("WireGuard not found. It should be bundled with the app — please reinstall, or install WireGuard from wireguard.com".to_string())
 }
 
+/// Find wg.exe — checks bundled resources first, then system install
 #[cfg(target_os = "windows")]
 fn find_wg_exe() -> Result<String, String> {
-    let paths = [
+    // 1. Check bundled with app
+    if let Ok(exe_path) = std::env::current_exe() {
+        if let Some(app_dir) = exe_path.parent() {
+            let bundled = app_dir.join("wireguard").join("wg.exe");
+            if bundled.exists() { return Ok(bundled.to_string_lossy().to_string()); }
+            let bundled_res = app_dir.join("resources").join("wireguard").join("wg.exe");
+            if bundled_res.exists() { return Ok(bundled_res.to_string_lossy().to_string()); }
+        }
+    }
+    // 2. Check custom dir
+    let custom = r"C:\CS2PlayerTools\wireguard\wg.exe";
+    if std::path::Path::new(custom).exists() { return Ok(custom.to_string()); }
+    // 3. System-installed
+    let system_paths = [
         r"C:\Program Files\WireGuard\wg.exe",
         r"C:\Program Files (x86)\WireGuard\wg.exe",
     ];
-    for p in &paths {
+    for p in &system_paths {
         if std::path::Path::new(p).exists() { return Ok(p.to_string()); }
     }
-    Err("wg.exe not found".to_string())
+    Err("wg.exe not found. It should be bundled with the app — please reinstall, or install WireGuard from wireguard.com".to_string())
+}
+
+/// Check if WireGuard binaries are available (bundled or system)
+pub fn check_wireguard_available() -> WireGuardStatus {
+    #[cfg(target_os = "windows")]
+    {
+        let wg = find_wg_exe();
+        let wireguard = find_wireguard_exe();
+        WireGuardStatus {
+            available: wg.is_ok() && wireguard.is_ok(),
+            wg_path: wg.ok(),
+            wireguard_path: wireguard.ok(),
+            source: if wg.as_ref().map_or(false, |p| p.contains("CS2PlayerTools") || p.contains("resources"))
+                { "bundled".to_string() } else if wg.is_ok() { "system".to_string() } else { "not_found".to_string() },
+        }
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        let wg = Command::new("which").arg("wg").output().ok().map(|o| o.status.success()).unwrap_or(false);
+        WireGuardStatus {
+            available: wg,
+            wg_path: if wg { Some("wg".to_string()) } else { None },
+            wireguard_path: None,
+            source: if wg { "system".to_string() } else { "not_found".to_string() },
+        }
+    }
+}
+
+#[derive(Debug, serde::Serialize, serde::Deserialize, Clone)]
+pub struct WireGuardStatus {
+    pub available: bool,
+    pub wg_path: Option<String>,
+    pub wireguard_path: Option<String>,
+    pub source: String,
 }
 
 /// List saved VPN profiles

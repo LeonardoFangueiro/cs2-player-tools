@@ -79,6 +79,54 @@ fn vpn_get_valve_ips() -> String {
     network::get_valve_allowed_ips()
 }
 
+// CS2 Process Detection
+#[tauri::command]
+fn check_cs2() -> network::Cs2Status {
+    network::check_cs2_running()
+}
+
+// Region Blocking commands
+#[tauri::command]
+fn block_server_region(pop_code: String, relay_ips: Vec<String>) -> network::RegionBlockResult {
+    network::block_pop(pop_code, relay_ips)
+}
+
+#[tauri::command]
+fn unblock_server_region(pop_code: String) -> network::RegionBlockResult {
+    network::unblock_pop(pop_code)
+}
+
+#[tauri::command]
+fn list_blocked_regions() -> Vec<String> {
+    network::list_blocked_pops()
+}
+
+// Settings commands
+#[tauri::command]
+fn get_settings() -> network::AppSettings {
+    network::load_settings()
+}
+
+#[tauri::command]
+fn save_app_settings(settings: network::AppSettings) -> Result<(), String> {
+    network::save_settings(&settings)
+}
+
+// Dynamic Valve IPs
+#[tauri::command]
+async fn get_dynamic_valve_ips() -> Result<String, String> {
+    let url = "https://api.steampowered.com/ISteamApps/GetSDRConfig/v1/?appid=730";
+    let resp = reqwest::get(url).await.map_err(|e| e.to_string())?;
+    let json: serde_json::Value = resp.json().await.map_err(|e| e.to_string())?;
+    Ok(network::get_valve_ips_from_config(&json))
+}
+
+// WireGuard availability check
+#[tauri::command]
+fn check_wireguard() -> network::WireGuardStatus {
+    network::check_wireguard_available()
+}
+
 // VPS Deploy commands
 #[tauri::command]
 async fn vps_test_connection(
@@ -115,6 +163,11 @@ async fn vps_deploy_wireguard(
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_store::Builder::default().build())
+        .plugin(tauri_plugin_autostart::init(
+            tauri_plugin_autostart::MacosLauncher::LaunchAgent,
+            None,
+        ))
         .invoke_handler(tauri::generate_handler![
             fetch_sdr_config,
             ping_host,
@@ -133,6 +186,14 @@ pub fn run() {
             vpn_get_valve_ips,
             vps_test_connection,
             vps_deploy_wireguard,
+            check_cs2,
+            block_server_region,
+            unblock_server_region,
+            list_blocked_regions,
+            get_settings,
+            save_app_settings,
+            get_dynamic_valve_ips,
+            check_wireguard,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

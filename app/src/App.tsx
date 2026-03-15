@@ -5,6 +5,7 @@ import NetworkDiag from "./pages/NetworkDiag";
 import WinOptimizer from "./pages/WinOptimizer";
 import SmartVPN from "./pages/SmartVPN";
 import ServerPicker from "./pages/ServerPicker";
+import Settings from "./pages/Settings";
 
 function App() {
   return (
@@ -15,6 +16,7 @@ function App() {
         <Route path="/optimizer" element={<WinOptimizer />} />
         <Route path="/vpn" element={<SmartVPN />} />
         <Route path="/servers" element={<ServerPicker />} />
+        <Route path="/settings" element={<Settings />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>
     </Routes>

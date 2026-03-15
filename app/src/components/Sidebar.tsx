@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { NavLink } from "react-router-dom";
 import {
   LayoutDashboard,
@@ -5,7 +6,14 @@ import {
   Settings2,
   Shield,
   Globe,
+  Settings,
 } from "lucide-react";
+import { invoke } from "../lib/tauri";
+
+interface Cs2Status {
+  running: boolean;
+  pid: number | null;
+}
 
 const navItems = [
   { to: "/", icon: LayoutDashboard, label: "Dashboard" },
@@ -13,9 +21,33 @@ const navItems = [
   { to: "/optimizer", icon: Settings2, label: "Windows Optimizer" },
   { to: "/vpn", icon: Shield, label: "Smart VPN" },
   { to: "/servers", icon: Globe, label: "Server Picker" },
+  { to: "/settings", icon: Settings, label: "Settings" },
 ];
 
 export default function Sidebar() {
+  const [cs2Status, setCs2Status] = useState<Cs2Status>({
+    running: false,
+    pid: null,
+  });
+
+  useEffect(() => {
+    // Initial check
+    checkCs2();
+
+    // Poll every 5 seconds
+    const interval = setInterval(checkCs2, 5000);
+    return () => clearInterval(interval);
+  }, []);
+
+  async function checkCs2() {
+    try {
+      const status = await invoke<Cs2Status>("check_cs2");
+      setCs2Status(status);
+    } catch {
+      setCs2Status({ running: false, pid: null });
+    }
+  }
+
   return (
     <aside className="w-[220px] h-screen flex flex-col border-r border-border bg-bg-card shrink-0">
       {/* Logo */}
@@ -47,6 +79,20 @@ export default function Sidebar() {
           </NavLink>
         ))}
       </nav>
+
+      {/* CS2 Status */}
+      <div className="px-5 py-3 border-t border-border">
+        <div className="flex items-center gap-2">
+          <span
+            className={`w-2 h-2 rounded-full shrink-0 ${
+              cs2Status.running ? "bg-success animate-pulse" : "bg-text-muted"
+            }`}
+          />
+          <span className="text-[11px] text-text-muted">
+            {cs2Status.running ? "CS2 Running" : "CS2 Not Detected"}
+          </span>
+        </div>
+      </div>
 
       {/* Footer */}
       <div className="px-5 py-3 border-t border-border">

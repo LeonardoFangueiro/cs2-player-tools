@@ -9,6 +9,8 @@ import {
   Info,
   Wifi,
   Filter,
+  Lock,
+  Unlock,
 } from "lucide-react";
 
 interface PopRelay {
@@ -103,9 +105,12 @@ export default function ServerPicker() {
   const [selectedRegions, setSelectedRegions] = useState<Set<string>>(
     new Set(ALL_REGIONS)
   );
+  const [blockedRegions, setBlockedRegions] = useState<Set<string>>(new Set());
+  const [blockingPop, setBlockingPop] = useState<string | null>(null);
 
   useEffect(() => {
     loadSdrConfig();
+    loadBlockedRegions();
   }, []);
 
   async function loadSdrConfig() {
@@ -118,6 +123,15 @@ export default function ServerPicker() {
       setError(String(e));
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function loadBlockedRegions() {
+    try {
+      const blocked = await invoke<string[]>("list_blocked_regions");
+      setBlockedRegions(new Set(blocked));
+    } catch {
+      // Ignore
     }
   }
 
@@ -134,6 +148,41 @@ export default function ServerPicker() {
       setError(String(e));
     } finally {
       setPinging(false);
+    }
+  }
+
+  async function toggleBlock(pop: ValvePoP) {
+    const isBlocked = blockedRegions.has(pop.code);
+    setBlockingPop(pop.code);
+    try {
+      if (isBlocked) {
+        await invoke<{ success: boolean; message: string }>(
+          "unblock_server_region",
+          { popCode: pop.code }
+        );
+        setBlockedRegions((prev) => {
+          const next = new Set(prev);
+          next.delete(pop.code);
+          return next;
+        });
+      } else {
+        await invoke<{ success: boolean; message: string }>(
+          "block_server_region",
+          {
+            popCode: pop.code,
+            relayIps: pop.relays.map((r) => r.ipv4),
+          }
+        );
+        setBlockedRegions((prev) => {
+          const next = new Set(prev);
+          next.add(pop.code);
+          return next;
+        });
+      }
+    } catch {
+      // Ignore
+    } finally {
+      setBlockingPop(null);
     }
   }
 
@@ -185,6 +234,7 @@ export default function ServerPicker() {
   // Stats
   const totalPops = sdrConfig?.pops.length ?? 0;
   const reachable = Array.from(pingResults.values()).filter((ms) => ms > 0).length;
+  const blockedCount = blockedRegions.size;
 
   return (
     <div>
@@ -245,7 +295,7 @@ export default function ServerPicker() {
 
       {/* Stats bar */}
       {sdrConfig && (
-        <div className="grid grid-cols-4 gap-4 mb-6">
+        <div className="grid grid-cols-5 gap-4 mb-6">
           <div className="bg-bg-card border border-border rounded-lg p-3 text-center">
             <div className="text-[10px] text-text-muted uppercase tracking-wider">
               Total PoPs
@@ -276,6 +326,14 @@ export default function ServerPicker() {
               {pingResults.size > 0
                 ? pingResults.size - reachable
                 : "\u2014"}
+            </div>
+          </div>
+          <div className="bg-bg-card border border-border rounded-lg p-3 text-center">
+            <div className="text-[10px] text-text-muted uppercase tracking-wider">
+              Blocked
+            </div>
+            <div className="text-xl font-bold text-danger">
+              {blockedCount > 0 ? blockedCount : "\u2014"}
             </div>
           </div>
         </div>
@@ -382,12 +440,16 @@ export default function ServerPicker() {
               {groupedPops[region].map((pop) => {
                 const hasPing = pingResults.size > 0;
                 const ping = pop.ping;
+                const isBlocked = blockedRegions.has(pop.code);
+                const isToggling = blockingPop === pop.code;
 
                 return (
                   <div
                     key={pop.code}
                     className={`rounded-lg border p-4 transition hover:scale-[1.02] ${
-                      hasPing
+                      isBlocked
+                        ? "bg-danger/5 border-danger/30 opacity-60"
+                        : hasPing
                         ? `${getPingBgColor(ping)} ${getPingBorderColor(ping)}`
                         : "bg-bg-card border-border"
                     }`}
@@ -396,13 +458,33 @@ export default function ServerPicker() {
                       <span className="text-sm font-mono font-bold text-accent2 uppercase">
                         {pop.code}
                       </span>
-                      {hasPing && (
-                        <span
-                          className={`text-sm font-mono font-bold ${getPingColor(ping)}`}
+                      <div className="flex items-center gap-2">
+                        {hasPing && (
+                          <span
+                            className={`text-sm font-mono font-bold ${getPingColor(ping)}`}
+                          >
+                            {ping > 0 ? `${ping.toFixed(0)}ms` : "\u2014"}
+                          </span>
+                        )}
+                        <button
+                          onClick={() => toggleBlock(pop)}
+                          disabled={isToggling}
+                          title={isBlocked ? "Unblock this PoP" : "Block this PoP"}
+                          className={`p-1 rounded transition ${
+                            isBlocked
+                              ? "text-danger hover:text-danger/70"
+                              : "text-text-muted hover:text-warning"
+                          }`}
                         >
-                          {ping > 0 ? `${ping.toFixed(0)}ms` : "\u2014"}
-                        </span>
-                      )}
+                          {isToggling ? (
+                            <Loader size={14} className="animate-spin" />
+                          ) : isBlocked ? (
+                            <Lock size={14} />
+                          ) : (
+                            <Unlock size={14} />
+                          )}
+                        </button>
+                      </div>
                     </div>
                     <div className="text-xs text-text-muted mb-2 truncate">
                       {pop.desc || "No description"}

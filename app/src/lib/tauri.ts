@@ -322,6 +322,57 @@ export async function invoke<T>(cmd: string, args?: Record<string, unknown>): Pr
     case "vpn_get_valve_ips":
       return "155.133.224.0/19, 162.254.192.0/21, 208.64.200.0/21, 185.25.180.0/22, 192.69.96.0/22, 205.196.6.0/24, 103.10.124.0/23, 103.28.54.0/23, 146.66.152.0/21, 208.78.164.0/22" as unknown as Promise<T>;
 
+    case "check_cs2":
+      return { running: false, pid: null } as unknown as Promise<T>;
+
+    case "block_server_region":
+      return { success: false, message: "Region blocking requires the Windows desktop app." } as unknown as Promise<T>;
+
+    case "unblock_server_region":
+      return { success: false, message: "Region blocking requires the Windows desktop app." } as unknown as Promise<T>;
+
+    case "list_blocked_regions":
+      return [] as unknown as Promise<T>;
+
+    case "get_settings":
+      return {
+        auto_connect_vpn: false,
+        vpn_profile_name: null,
+        max_ping: 70,
+        auto_start_with_windows: false,
+        minimize_to_tray: true,
+        check_cs2_interval_secs: 5,
+        dynamic_valve_ips: true,
+      } as unknown as Promise<T>;
+
+    case "save_app_settings":
+      return undefined as unknown as Promise<T>;
+
+    case "check_wireguard":
+      return {
+        available: false,
+        wg_path: null,
+        wireguard_path: null,
+        source: "browser_preview",
+      } as unknown as Promise<T>;
+
+    case "get_dynamic_valve_ips":
+      try {
+        const resp = await fetch("https://api.steampowered.com/ISteamApps/GetSDRConfig/v1/?appid=730");
+        const json = await resp.json();
+        const ips = new Set<string>();
+        if (json.pops) {
+          for (const pop of Object.values(json.pops) as any[]) {
+            for (const relay of (pop.relays ?? [])) {
+              if (relay.ipv4) ips.add(relay.ipv4 + "/32");
+            }
+          }
+        }
+        return Array.from(ips).sort().join(", ") as unknown as Promise<T>;
+      } catch {
+        return "155.133.224.0/19, 162.254.192.0/21, 208.64.200.0/21, 185.25.180.0/22" as unknown as Promise<T>;
+      }
+
     default:
       throw new Error(`Unknown command: ${cmd} (running in browser mode)`);
   }
