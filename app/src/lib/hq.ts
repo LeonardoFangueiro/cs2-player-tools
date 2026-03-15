@@ -177,15 +177,16 @@ export async function runAndReportDiagnostics(
   return { success: failed === 0, results, reportId };
 }
 
-/** Check for app updates */
+/** Check for app updates — sends current version so HQ can compare */
 export async function checkForUpdate(): Promise<{
   update_available: boolean;
   latest_version: string;
   download_url: string | null;
+  download_url_msi: string | null;
   changelog: string;
 } | null> {
   try {
-    const resp = await fetch(`${HQ_BASE}/version`);
+    const resp = await fetch(`${HQ_BASE}/version?current=${APP_VERSION}`);
     return await resp.json();
   } catch {
     return null;

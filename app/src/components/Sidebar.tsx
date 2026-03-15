@@ -9,13 +9,25 @@ import {
   FileCode,
   BarChart3,
   Settings,
+  Download,
+  ArrowUpCircle,
 } from "lucide-react";
 import { invoke } from "../lib/tauri";
+import { checkForUpdate } from "../lib/hq";
 
 interface Cs2Status {
   running: boolean;
   pid: number | null;
 }
+
+interface UpdateInfo {
+  available: boolean;
+  version: string;
+  url: string | null;
+  changelog: string;
+}
+
+const APP_VERSION = "0.1.0";
 
 const navItems = [
   { to: "/", icon: LayoutDashboard, label: "Dashboard" },
@@ -29,18 +41,22 @@ const navItems = [
 ];
 
 export default function Sidebar() {
-  const [cs2Status, setCs2Status] = useState<Cs2Status>({
-    running: false,
-    pid: null,
-  });
+  const [cs2Status, setCs2Status] = useState<Cs2Status>({ running: false, pid: null });
+  const [update, setUpdate] = useState<UpdateInfo | null>(null);
+  const [updating, setUpdating] = useState(false);
 
   useEffect(() => {
-    // Initial check
     checkCs2();
+    const cs2Interval = setInterval(checkCs2, 5000);
 
-    // Poll every 5 seconds
-    const interval = setInterval(checkCs2, 5000);
-    return () => clearInterval(interval);
+    // Check for updates on start and every 5 minutes
+    doUpdateCheck();
+    const updateInterval = setInterval(doUpdateCheck, 300000);
+
+    return () => {
+      clearInterval(cs2Interval);
+      clearInterval(updateInterval);
+    };
   }, []);
 
   async function checkCs2() {
@@ -50,6 +66,38 @@ export default function Sidebar() {
     } catch {
       setCs2Status({ running: false, pid: null });
     }
+  }
+
+  async function doUpdateCheck() {
+    try {
+      const info = await checkForUpdate();
+      if (info && info.update_available && info.latest_version !== APP_VERSION) {
+        setUpdate({
+          available: true,
+          version: info.latest_version,
+          url: info.download_url,
+          changelog: info.changelog,
+        });
+      }
+    } catch {}
+  }
+
+  async function handleUpdate() {
+    if (!update?.url) return;
+    setUpdating(true);
+
+    // For frontend-only updates: just reload the page (since frontend loads from HQ)
+    // For binary updates: open download URL
+    const isFrontendOnly = update.version.startsWith(APP_VERSION.split('.').slice(0, 2).join('.'));
+
+    if (isFrontendOnly) {
+      // Frontend hot-reload — just refresh
+      window.location.reload();
+    } else {
+      // Binary update needed — download new .exe
+      window.open(update.url, '_blank');
+    }
+    setUpdating(false);
   }
 
   return (
@@ -84,6 +132,24 @@ export default function Sidebar() {
         ))}
       </nav>
 
+      {/* Update Banner */}
+      {update?.available && (
+        <div className="mx-3 mb-2">
+          <button
+            onClick={handleUpdate}
+            disabled={updating}
+            className="w-full flex items-center gap-2 px-3 py-2.5 bg-success/10 border border-success/30 rounded-lg text-xs text-success hover:bg-success/20 transition"
+          >
+            <ArrowUpCircle size={16} className={updating ? "animate-spin" : "animate-bounce"} />
+            <div className="flex-1 text-left">
+              <div className="font-semibold">Update v{update.version}</div>
+              <div className="text-[10px] text-success/70 truncate">{update.changelog}</div>
+            </div>
+            <Download size={12} />
+          </button>
+        </div>
+      )}
+
       {/* CS2 Status */}
       <div className="px-5 py-3 border-t border-border">
         <div className="flex items-center gap-2">
@@ -100,7 +166,7 @@ export default function Sidebar() {
 
       {/* Footer */}
       <div className="px-5 py-3 border-t border-border">
-        <p className="text-[10px] text-text-muted">v0.1.0</p>
+        <p className="text-[10px] text-text-muted">v{APP_VERSION}</p>
       </div>
     </aside>
   );
