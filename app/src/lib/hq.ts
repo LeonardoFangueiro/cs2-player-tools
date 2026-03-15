@@ -152,6 +152,41 @@ export async function runAndReportDiagnostics(
     tests["ping_pops"] = { status: "fail", error: String(e) };
   }
 
+  // Test 9: Buffer Bloat
+  try {
+    const t0 = performance.now();
+    const bloat = await invoke<{ grade: string; idle_ping_ms: number; loaded_ping_ms: number; bloat_ms: number }>("test_buffer_bloat", { targetHost: "1.1.1.1" });
+    tests["buffer_bloat"] = { status: "pass", time_ms: Math.round(performance.now() - t0), ...bloat };
+  } catch (e) {
+    tests["buffer_bloat"] = { status: "fail", error: String(e) };
+  }
+
+  // Test 10: MTU Detection
+  try {
+    const mtu = await invoke<{ optimal_mtu: number; message: string }>("detect_mtu", { host: "1.1.1.1" });
+    tests["mtu"] = { status: "pass", ...mtu };
+  } catch (e) {
+    tests["mtu"] = { status: "fail", error: String(e) };
+  }
+
+  // Test 11: CS2 Config
+  try {
+    const cfg = await invoke<{ autoexec_exists: boolean; autoexec_path: string | null; current_settings: unknown[] }>("scan_cs2_config");
+    tests["cs2_config"] = { status: "pass", exists: cfg.autoexec_exists, path: cfg.autoexec_path, settings_count: cfg.current_settings.length };
+  } catch (e) {
+    tests["cs2_config"] = { status: "fail", error: String(e) };
+  }
+
+  // Test 12: VPN Connectivity to HQ
+  try {
+    const t0 = performance.now();
+    const resp = await fetch("https://cs2-player-tools.maltinha.club/api/health");
+    const data = await resp.json();
+    tests["hq_connectivity"] = { status: "pass", time_ms: Math.round(performance.now() - t0), hq_status: data.status };
+  } catch (e) {
+    tests["hq_connectivity"] = { status: "fail", error: String(e) };
+  }
+
   results.tests = tests;
 
   // Count pass/fail
