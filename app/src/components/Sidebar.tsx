@@ -6,6 +6,8 @@ import {
   Settings2,
   Shield,
   Globe,
+  FileCode,
+  BarChart3,
   Settings,
 } from "lucide-react";
 import { invoke } from "../lib/tauri";
@@ -21,6 +23,8 @@ const navItems = [
   { to: "/optimizer", icon: Settings2, label: "Windows Optimizer" },
   { to: "/vpn", icon: Shield, label: "Smart VPN" },
   { to: "/servers", icon: Globe, label: "Server Picker" },
+  { to: "/cs2config", icon: FileCode, label: "CS2 Config" },
+  { to: "/history", icon: BarChart3, label: "History" },
   { to: "/settings", icon: Settings, label: "Settings" },
 ];
 

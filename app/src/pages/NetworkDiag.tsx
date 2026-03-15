@@ -10,6 +10,8 @@ import {
   Loader,
   Globe,
   Wifi,
+  Gauge,
+  Ruler,
 } from "lucide-react";
 import {
   LineChart,
@@ -47,6 +49,20 @@ interface DiagResult {
   label: string;
   status: "idle" | "running" | "pass" | "fail";
   detail: string;
+}
+
+interface BufferBloatResult {
+  idle_ping_ms: number;
+  loaded_ping_ms: number;
+  bloat_ms: number;
+  grade: string;
+  message: string;
+}
+
+interface MtuResult {
+  optimal_mtu: number;
+  tested_host: string;
+  message: string;
 }
 
 function MiniStat({
@@ -97,6 +113,16 @@ export default function NetworkDiag() {
   // DNS state
   const [dnsHost, setDnsHost] = useState("steamcommunity.com");
   const [dnsResults, setDnsResults] = useState<string[]>([]);
+
+  // Buffer Bloat state
+  const [bloatHost, setBloatHost] = useState("1.1.1.1");
+  const [bloatResult, setBloatResult] = useState<BufferBloatResult | null>(null);
+  const [bloatRunning, setBloatRunning] = useState(false);
+
+  // MTU state
+  const [mtuHost, setMtuHost] = useState("1.1.1.1");
+  const [mtuResult, setMtuResult] = useState<MtuResult | null>(null);
+  const [mtuRunning, setMtuRunning] = useState(false);
 
   // Run quick diagnostics on mount
   useEffect(() => {
@@ -208,6 +234,54 @@ export default function NetworkDiag() {
       setDnsResults(res);
     } catch (e) {
       console.error(e);
+    }
+  }
+
+  async function runBufferBloat() {
+    try {
+      setBloatRunning(true);
+      setBloatResult(null);
+      const res = await invoke<BufferBloatResult>("test_buffer_bloat", { host: bloatHost });
+      setBloatResult(res);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setBloatRunning(false);
+    }
+  }
+
+  async function runMtuDetect() {
+    try {
+      setMtuRunning(true);
+      setMtuResult(null);
+      const res = await invoke<MtuResult>("detect_mtu", { host: mtuHost });
+      setMtuResult(res);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setMtuRunning(false);
+    }
+  }
+
+  function getBloatGradeColor(grade: string): string {
+    switch (grade.toUpperCase()) {
+      case "A": return "text-success";
+      case "B": return "text-success";
+      case "C": return "text-warning";
+      case "D": return "text-danger";
+      case "F": return "text-danger";
+      default: return "text-text-muted";
+    }
+  }
+
+  function getBloatGradeBg(grade: string): string {
+    switch (grade.toUpperCase()) {
+      case "A": return "bg-success/15 border-success/30";
+      case "B": return "bg-success/10 border-success/20";
+      case "C": return "bg-warning/15 border-warning/30";
+      case "D": return "bg-danger/15 border-danger/30";
+      case "F": return "bg-danger/15 border-danger/30";
+      default: return "bg-bg border-border";
     }
   }
 
@@ -570,7 +644,7 @@ export default function NetworkDiag() {
       </div>
 
       {/* DNS Tool */}
-      <div className="bg-bg-card border border-border rounded-lg p-5">
+      <div className="bg-bg-card border border-border rounded-lg p-5 mb-6">
         <h2 className="text-base font-semibold mb-4 flex items-center gap-2">
           <Search size={16} className="text-accent2" /> DNS Resolution
         </h2>
@@ -599,6 +673,133 @@ export default function NetworkDiag() {
                 {ip}
               </div>
             ))}
+          </div>
+        )}
+      </div>
+
+      {/* Buffer Bloat Test */}
+      <div className="bg-bg-card border border-border rounded-lg p-5 mb-6">
+        <h2 className="text-base font-semibold mb-4 flex items-center gap-2">
+          <Gauge size={16} className="text-accent2" /> Buffer Bloat Test
+        </h2>
+        <div className="flex gap-3 mb-4">
+          <input
+            type="text"
+            value={bloatHost}
+            onChange={(e) => setBloatHost(e.target.value)}
+            placeholder="Target host"
+            className="flex-1 bg-bg border border-border rounded-md px-3 py-2 text-sm text-text focus:outline-none focus:border-accent"
+          />
+          <button
+            onClick={runBufferBloat}
+            disabled={bloatRunning}
+            className="px-5 py-2 bg-accent text-white text-sm rounded-md hover:bg-accent/80 transition disabled:opacity-50"
+          >
+            {bloatRunning ? "Testing..." : "Test Buffer Bloat"}
+          </button>
+        </div>
+
+        {bloatRunning && (
+          <div className="flex items-center gap-2 text-text-muted text-sm">
+            <Loader size={14} className="animate-spin" />
+            Running buffer bloat test... this may take a moment.
+          </div>
+        )}
+
+        {bloatResult && (
+          <div className="space-y-3">
+            {/* Grade */}
+            <div className={`inline-flex items-center gap-3 px-4 py-3 rounded-lg border ${getBloatGradeBg(bloatResult.grade)}`}>
+              <span className={`text-3xl font-bold font-mono ${getBloatGradeColor(bloatResult.grade)}`}>
+                {bloatResult.grade}
+              </span>
+              <div className="text-sm">
+                <div className="text-text font-semibold">Buffer Bloat Grade</div>
+                <div className="text-text-muted text-xs">{bloatResult.message}</div>
+              </div>
+            </div>
+
+            {/* Stats */}
+            <div className="grid grid-cols-3 gap-3">
+              <div className="bg-bg rounded-md border border-border px-3 py-2 text-center">
+                <div className="text-[10px] text-text-muted uppercase tracking-wider">Idle Ping</div>
+                <div className="text-lg font-bold font-mono text-success">
+                  {bloatResult.idle_ping_ms.toFixed(1)}ms
+                </div>
+              </div>
+              <div className="bg-bg rounded-md border border-border px-3 py-2 text-center">
+                <div className="text-[10px] text-text-muted uppercase tracking-wider">Loaded Ping</div>
+                <div className="text-lg font-bold font-mono text-warning">
+                  {bloatResult.loaded_ping_ms.toFixed(1)}ms
+                </div>
+              </div>
+              <div className="bg-bg rounded-md border border-border px-3 py-2 text-center">
+                <div className="text-[10px] text-text-muted uppercase tracking-wider">Bloat</div>
+                <div className={`text-lg font-bold font-mono ${bloatResult.bloat_ms > 50 ? "text-danger" : bloatResult.bloat_ms > 20 ? "text-warning" : "text-success"}`}>
+                  +{bloatResult.bloat_ms.toFixed(1)}ms
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* MTU Detection */}
+      <div className="bg-bg-card border border-border rounded-lg p-5">
+        <h2 className="text-base font-semibold mb-4 flex items-center gap-2">
+          <Ruler size={16} className="text-accent2" /> MTU Detection
+        </h2>
+        <div className="flex gap-3 mb-4">
+          <input
+            type="text"
+            value={mtuHost}
+            onChange={(e) => setMtuHost(e.target.value)}
+            placeholder="Target host"
+            className="flex-1 bg-bg border border-border rounded-md px-3 py-2 text-sm text-text focus:outline-none focus:border-accent"
+          />
+          <button
+            onClick={runMtuDetect}
+            disabled={mtuRunning}
+            className="px-5 py-2 bg-accent text-white text-sm rounded-md hover:bg-accent/80 transition disabled:opacity-50"
+          >
+            {mtuRunning ? "Detecting..." : "Detect MTU"}
+          </button>
+        </div>
+
+        {mtuRunning && (
+          <div className="flex items-center gap-2 text-text-muted text-sm">
+            <Loader size={14} className="animate-spin" />
+            Detecting optimal MTU size...
+          </div>
+        )}
+
+        {mtuResult && (
+          <div className="space-y-3">
+            <div className="grid grid-cols-3 gap-3">
+              <div className="bg-bg rounded-md border border-border px-3 py-2 text-center">
+                <div className="text-[10px] text-text-muted uppercase tracking-wider">Optimal MTU</div>
+                <div className="text-lg font-bold font-mono text-accent2">
+                  {mtuResult.optimal_mtu}
+                </div>
+              </div>
+              <div className="bg-bg rounded-md border border-border px-3 py-2 text-center">
+                <div className="text-[10px] text-text-muted uppercase tracking-wider">WireGuard MTU</div>
+                <div className="text-lg font-bold font-mono text-accent">
+                  {mtuResult.optimal_mtu - 80}
+                </div>
+              </div>
+              <div className="bg-bg rounded-md border border-border px-3 py-2 text-center">
+                <div className="text-[10px] text-text-muted uppercase tracking-wider">Tested Host</div>
+                <div className="text-sm font-mono text-text-muted truncate">
+                  {mtuResult.tested_host || "--"}
+                </div>
+              </div>
+            </div>
+            {mtuResult.message && (
+              <div className="text-xs text-text-muted bg-bg rounded-md border border-border px-3 py-2">
+                {mtuResult.message}
+              </div>
+            )}
           </div>
         )}
       </div>

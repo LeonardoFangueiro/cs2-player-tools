@@ -384,6 +384,84 @@ pub struct WireGuardStatus {
     pub source: String,
 }
 
+/// Load a saved VPN profile from config file
+pub fn load_profile(profile_name: &str) -> Result<VpnProfile, String> {
+    let config_dir = get_config_dir()?;
+    let config_path = config_dir.join(format!("{}.conf", profile_name));
+
+    if !config_path.exists() {
+        return Err(format!("Profile '{}' not found", profile_name));
+    }
+
+    let content = std::fs::read_to_string(&config_path)
+        .map_err(|e| format!("Failed to read profile: {}", e))?;
+
+    // Parse WireGuard config format
+    let mut profile = VpnProfile {
+        name: profile_name.to_string(),
+        server_endpoint: String::new(),
+        server_public_key: String::new(),
+        client_private_key: String::new(),
+        client_address: String::new(),
+        dns: "1.1.1.1".to_string(),
+        mtu: 1420,
+        allowed_ips: String::new(),
+        persistent_keepalive: 25,
+    };
+
+    let mut in_peer = false;
+    for line in content.lines() {
+        let line = line.trim();
+        if line == "[Peer]" { in_peer = true; continue; }
+        if line == "[Interface]" { in_peer = false; continue; }
+
+        if let Some((key, value)) = line.split_once('=') {
+            let key = key.trim();
+            let value = value.trim();
+
+            if !in_peer {
+                match key {
+                    "PrivateKey" => profile.client_private_key = value.to_string(),
+                    "Address" => profile.client_address = value.to_string(),
+                    "DNS" => profile.dns = value.to_string(),
+                    "MTU" => profile.mtu = value.parse().unwrap_or(1420),
+                    _ => {}
+                }
+            } else {
+                match key {
+                    "PublicKey" => profile.server_public_key = value.to_string(),
+                    "Endpoint" => profile.server_endpoint = value.to_string(),
+                    "AllowedIPs" => profile.allowed_ips = value.to_string(),
+                    "PersistentKeepalive" => profile.persistent_keepalive = value.parse().unwrap_or(25),
+                    _ => {}
+                }
+            }
+        }
+    }
+
+    Ok(profile)
+}
+
+/// Save a VPN profile metadata as JSON alongside the .conf
+pub fn save_profile_meta(profile: &VpnProfile) -> Result<(), String> {
+    let config_dir = get_config_dir()?;
+    std::fs::create_dir_all(&config_dir).map_err(|e| e.to_string())?;
+
+    let meta_path = config_dir.join(format!("{}.json", profile.name));
+    let json = serde_json::to_string_pretty(profile).map_err(|e| e.to_string())?;
+    std::fs::write(&meta_path, json).map_err(|e| e.to_string())
+}
+
+/// Delete a VPN profile (config + meta)
+pub fn delete_profile(profile_name: &str) -> Result<(), String> {
+    let config_dir = get_config_dir()?;
+    let conf = config_dir.join(format!("{}.conf", profile_name));
+    let meta = config_dir.join(format!("{}.json", profile_name));
+    if conf.exists() { std::fs::remove_file(&conf).ok(); }
+    if meta.exists() { std::fs::remove_file(&meta).ok(); }
+    Ok(())
+}
+
 /// List saved VPN profiles
 pub fn list_profiles() -> Result<Vec<String>, String> {
     let config_dir = get_config_dir()?;

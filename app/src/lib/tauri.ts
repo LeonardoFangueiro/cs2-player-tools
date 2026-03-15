@@ -356,6 +356,51 @@ export async function invoke<T>(cmd: string, args?: Record<string, unknown>): Pr
         source: "browser_preview",
       } as unknown as Promise<T>;
 
+    case "test_buffer_bloat":
+      return { idle_ping_ms: 0, loaded_ping_ms: 0, bloat_ms: 0, grade: "?", message: "Buffer bloat test requires desktop app" } as unknown as Promise<T>;
+
+    case "detect_mtu":
+      return { optimal_mtu: 1500, tested_host: "", message: "MTU detection requires desktop app" } as unknown as Promise<T>;
+
+    case "scan_cs2_config":
+      return {
+        autoexec_path: null, autoexec_exists: false,
+        current_settings: [], launch_options: null,
+      } as unknown as Promise<T>;
+
+    case "apply_cs2_config":
+      return { success: false, message: "CS2 config requires desktop app" } as unknown as Promise<T>;
+
+    case "get_launch_options":
+      return [
+        ["-novid", "Skip intro video"], ["-high", "High CPU priority"],
+        ["-freq 144", "Set refresh rate"], ["-tickrate 128", "Prefer 128-tick"],
+      ] as unknown as Promise<T>;
+
+    case "load_connection_history":
+      return { sessions: [] } as unknown as Promise<T>;
+
+    case "save_connection_session":
+      return undefined as unknown as Promise<T>;
+
+    case "clear_connection_history":
+      return undefined as unknown as Promise<T>;
+
+    case "export_all_data":
+      return JSON.stringify({ version: "1.0", settings: {}, history: { sessions: [] }, vpn_profiles: [] }, null, 2) as unknown as Promise<T>;
+
+    case "vpn_load_profile":
+      return { name: "", server_endpoint: "", server_public_key: "", client_private_key: "", client_address: "", dns: "", mtu: 1420, allowed_ips: "", persistent_keepalive: 25 } as unknown as Promise<T>;
+
+    case "vpn_reconnect":
+      return { success: false, message: "VPN reconnect requires desktop app" } as unknown as Promise<T>;
+
+    case "vpn_delete_profile":
+      return undefined as unknown as Promise<T>;
+
+    case "vpn_save_profile":
+      return undefined as unknown as Promise<T>;
+
     case "get_dynamic_valve_ips":
       try {
         const resp = await fetch("https://api.steampowered.com/ISteamApps/GetSDRConfig/v1/?appid=730");

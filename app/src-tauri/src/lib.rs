@@ -1,6 +1,12 @@
 mod network;
 
-use network::{SDRConfig, PingResult, VpnProfile, TestConnectionResult, DeployResult};
+use network::{SDRConfig, PingResult, VpnProfile, TestConnectionResult, DeployResult, BufferBloatResult, MtuResult, Cs2Config, Cs2ConfigResult, SessionRecord, ConnectionHistory};
+
+use tauri::{
+    menu::{Menu, MenuItem},
+    tray::{TrayIconBuilder, TrayIconEvent, MouseButton, MouseButtonState},
+    Manager,
+};
 
 #[tauri::command]
 async fn fetch_sdr_config() -> Result<SDRConfig, String> {
@@ -79,6 +85,41 @@ fn vpn_get_valve_ips() -> String {
     network::get_valve_allowed_ips()
 }
 
+#[tauri::command]
+fn vpn_load_profile(profile_name: String) -> Result<network::VpnProfile, String> {
+    network::load_profile(&profile_name)
+}
+
+#[tauri::command]
+fn vpn_reconnect(profile_name: String) -> Result<network::VpnActionResult, String> {
+    let profile = network::load_profile(&profile_name)?;
+    network::activate_vpn(&profile)
+}
+
+#[tauri::command]
+fn vpn_delete_profile(profile_name: String) -> Result<(), String> {
+    network::delete_profile(&profile_name)
+}
+
+#[tauri::command]
+fn vpn_save_profile(profile: network::VpnProfile) -> Result<(), String> {
+    // Save both the .conf and .json meta
+    let config_content = network::generate_config(&profile);
+    let config_dir = std::path::PathBuf::from(
+        {
+            #[cfg(target_os = "windows")]
+            { r"C:\CS2PlayerTools\vpn" }
+            #[cfg(not(target_os = "windows"))]
+            {
+                &format!("{}/cs2-player-tools/vpn", std::env::var("HOME").unwrap_or("/tmp".into()))
+            }
+        }
+    );
+    std::fs::create_dir_all(&config_dir).map_err(|e| e.to_string())?;
+    std::fs::write(config_dir.join(format!("{}.conf", profile.name)), &config_content).map_err(|e| e.to_string())?;
+    network::save_profile_meta(&profile)
+}
+
 // CS2 Process Detection
 #[tauri::command]
 fn check_cs2() -> network::Cs2Status {
@@ -119,6 +160,54 @@ async fn get_dynamic_valve_ips() -> Result<String, String> {
     let resp = reqwest::get(url).await.map_err(|e| e.to_string())?;
     let json: serde_json::Value = resp.json().await.map_err(|e| e.to_string())?;
     Ok(network::get_valve_ips_from_config(&json))
+}
+
+// Advanced Diagnostics
+#[tauri::command]
+async fn test_buffer_bloat(target_host: String) -> Result<network::BufferBloatResult, String> {
+    network::test_buffer_bloat(target_host).await
+}
+
+#[tauri::command]
+async fn detect_mtu(host: String) -> Result<network::MtuResult, String> {
+    network::detect_mtu(host).await
+}
+
+// CS2 Config
+#[tauri::command]
+fn scan_cs2_config() -> network::Cs2Config {
+    network::scan_cs2_config()
+}
+
+#[tauri::command]
+fn apply_cs2_config(settings: Vec<(String, String)>) -> network::Cs2ConfigResult {
+    network::apply_cs2_config(settings)
+}
+
+#[tauri::command]
+fn get_launch_options() -> Vec<(String, String)> {
+    network::get_launch_options()
+}
+
+// Connection History
+#[tauri::command]
+fn load_connection_history() -> network::ConnectionHistory {
+    network::load_history()
+}
+
+#[tauri::command]
+fn save_connection_session(record: network::SessionRecord) -> Result<(), String> {
+    network::save_session(record)
+}
+
+#[tauri::command]
+fn clear_connection_history() -> Result<(), String> {
+    network::clear_history()
+}
+
+#[tauri::command]
+fn export_all_data() -> Result<String, String> {
+    network::export_all()
 }
 
 // WireGuard availability check
@@ -168,6 +257,46 @@ pub fn run() {
             tauri_plugin_autostart::MacosLauncher::LaunchAgent,
             None,
         ))
+        .setup(|app| {
+            // System tray
+            let show = MenuItem::with_id(app, "show", "Open CS2 Player Tools", true, None::<&str>)?;
+            let vpn_connect = MenuItem::with_id(app, "vpn_connect", "Connect VPN", true, None::<&str>)?;
+            let vpn_disconnect = MenuItem::with_id(app, "vpn_disconnect", "Disconnect VPN", true, None::<&str>)?;
+            let quit = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
+
+            let menu = Menu::with_items(app, &[&show, &vpn_connect, &vpn_disconnect, &quit])?;
+
+            let _tray = TrayIconBuilder::new()
+                .icon(app.default_window_icon().unwrap().clone())
+                .menu(&menu)
+                .tooltip("CS2 Player Tools")
+                .on_menu_event(move |app, event| {
+                    match event.id.as_ref() {
+                        "show" => {
+                            if let Some(window) = app.get_webview_window("main") {
+                                let _ = window.show();
+                                let _ = window.set_focus();
+                            }
+                        }
+                        "quit" => {
+                            app.exit(0);
+                        }
+                        _ => {}
+                    }
+                })
+                .on_tray_icon_event(|tray, event| {
+                    if let TrayIconEvent::Click { button: MouseButton::Left, button_state: MouseButtonState::Up, .. } = event {
+                        let app = tray.app_handle();
+                        if let Some(window) = app.get_webview_window("main") {
+                            let _ = window.show();
+                            let _ = window.set_focus();
+                        }
+                    }
+                })
+                .build(app)?;
+
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
             fetch_sdr_config,
             ping_host,
@@ -184,6 +313,10 @@ pub fn run() {
             vpn_deactivate,
             vpn_list_profiles,
             vpn_get_valve_ips,
+            vpn_load_profile,
+            vpn_reconnect,
+            vpn_delete_profile,
+            vpn_save_profile,
             vps_test_connection,
             vps_deploy_wireguard,
             check_cs2,
@@ -194,6 +327,15 @@ pub fn run() {
             save_app_settings,
             get_dynamic_valve_ips,
             check_wireguard,
+            test_buffer_bloat,
+            detect_mtu,
+            scan_cs2_config,
+            apply_cs2_config,
+            get_launch_options,
+            load_connection_history,
+            save_connection_session,
+            clear_connection_history,
+            export_all_data,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

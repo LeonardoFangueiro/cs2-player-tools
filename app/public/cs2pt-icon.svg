@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="g1" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#6c5ce7"/>
+      <stop offset="100%" stop-color="#00cec9"/>
+    </linearGradient>
+  </defs>
+  <!-- Shield shape -->
+  <path d="M256 32 L480 128 L480 288 C480 400 370 480 256 496 C142 480 32 400 32 288 L32 128 Z"
+        fill="url(#g1)" opacity="0.15" stroke="url(#g1)" stroke-width="8"/>
+  <!-- Inner crosshair -->
+  <circle cx="256" cy="280" r="80" fill="none" stroke="#6c5ce7" stroke-width="6" opacity="0.8"/>
+  <circle cx="256" cy="280" r="4" fill="#00cec9"/>
+  <line x1="256" y1="180" x2="256" y2="220" stroke="#00cec9" stroke-width="4" stroke-linecap="round"/>
+  <line x1="256" y1="340" x2="256" y2="380" stroke="#00cec9" stroke-width="4" stroke-linecap="round"/>
+  <line x1="156" y1="280" x2="196" y2="280" stroke="#00cec9" stroke-width="4" stroke-linecap="round"/>
+  <line x1="316" y1="280" x2="356" y2="280" stroke="#00cec9" stroke-width="4" stroke-linecap="round"/>
+  <!-- Network nodes -->
+  <circle cx="256" cy="120" r="12" fill="#6c5ce7"/>
+  <circle cx="140" cy="200" r="8" fill="#00cec9"/>
+  <circle cx="372" cy="200" r="8" fill="#00cec9"/>
+  <line x1="256" y1="132" x2="256" y2="200" stroke="#6c5ce7" stroke-width="2" opacity="0.5"/>
+  <line x1="148" y1="200" x2="196" y2="250" stroke="#00cec9" stroke-width="2" opacity="0.5"/>
+  <line x1="364" y1="200" x2="316" y2="250" stroke="#00cec9" stroke-width="2" opacity="0.5"/>
+  <!-- CS2 text -->
+  <text x="256" y="460" font-family="Arial,sans-serif" font-size="48" font-weight="bold" fill="#e0e0e8" text-anchor="middle">CS2</text>
+</svg>
