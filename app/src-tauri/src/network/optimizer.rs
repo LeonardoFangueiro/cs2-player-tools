@@ -536,6 +536,7 @@ fn detect_cs2_path() -> Option<String> {
 }
 
 #[cfg(not(target_os = "windows"))]
+#[allow(dead_code)]
 fn detect_cs2_path() -> Option<String> {
     None
 }

@@ -17,13 +17,6 @@ pub struct MtuResult {
     pub message: String,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct BandwidthResult {
-    pub download_mbps: f64,
-    pub upload_mbps: f64,
-    pub message: String,
-}
-
 /// Test for buffer bloat by measuring ping during idle and then during a download
 pub async fn test_buffer_bloat(target_host: String) -> Result<BufferBloatResult, String> {
     // Step 1: Measure idle ping (5 samples)

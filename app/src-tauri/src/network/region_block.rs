@@ -9,12 +9,6 @@ pub struct RegionBlockResult {
     pub message: String,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct BlockedRegion {
-    pub pop_code: String,
-    pub blocked: bool,
-}
-
 /// Block a Valve PoP by adding firewall rules to drop its relay IPs
 pub fn block_pop(pop_code: String, relay_ips: Vec<String>) -> RegionBlockResult {
     // Validate pop_code: only allow alphanumeric 2-6 chars
