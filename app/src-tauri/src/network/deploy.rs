@@ -64,9 +64,9 @@ fn ssh_connect(creds: &VpsCredentials) -> Result<Session, String> {
                 // On non-Unix, fall back to temp file with secure handling
                 #[cfg(not(unix))]
                 {
-                    use rand::Rng;
-                    let random_suffix: u64 = rand::thread_rng().gen();
-                    let key_path = std::env::temp_dir().join(format!("cs2pt_ssh_{:016x}", random_suffix));
+                    let unique = format!("{}_{}", std::process::id(), std::time::SystemTime::now()
+                        .duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_nanos());
+                    let key_path = std::env::temp_dir().join(format!("cs2pt_ssh_{}", unique));
                     std::fs::write(&key_path, key_content)
                         .map_err(|e| format!("Failed to write SSH key: {}", e))?;
                     // Ensure cleanup even on panic
