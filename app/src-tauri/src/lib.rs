@@ -248,6 +248,44 @@ async fn vps_deploy_wireguard(
     network::deploy_wireguard(creds, client_address).await
 }
 
+fn setup_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
+    let icon = app.default_window_icon()
+        .ok_or("No default icon")?
+        .clone();
+
+    let show = MenuItem::with_id(app, "show", "Open CS2 Player Tools", true, None::<&str>)?;
+    let quit = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
+    let menu = Menu::with_items(app, &[&show, &quit])?;
+
+    let _tray = TrayIconBuilder::new()
+        .icon(icon)
+        .menu(&menu)
+        .tooltip("CS2 Player Tools")
+        .on_menu_event(move |app, event| {
+            match event.id.as_ref() {
+                "show" => {
+                    if let Some(window) = app.get_webview_window("main") {
+                        let _ = window.show();
+                        let _ = window.set_focus();
+                    }
+                }
+                "quit" => { app.exit(0); }
+                _ => {}
+            }
+        })
+        .on_tray_icon_event(|tray, event| {
+            if let TrayIconEvent::Click { button: MouseButton::Left, button_state: MouseButtonState::Up, .. } = event {
+                let app = tray.app_handle();
+                if let Some(window) = app.get_webview_window("main") {
+                    let _ = window.show();
+                    let _ = window.set_focus();
+                }
+            }
+        })
+        .build(app)?;
+    Ok(())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -258,43 +296,10 @@ pub fn run() {
             None,
         ))
         .setup(|app| {
-            // System tray
-            let show = MenuItem::with_id(app, "show", "Open CS2 Player Tools", true, None::<&str>)?;
-            let vpn_connect = MenuItem::with_id(app, "vpn_connect", "Connect VPN", true, None::<&str>)?;
-            let vpn_disconnect = MenuItem::with_id(app, "vpn_disconnect", "Disconnect VPN", true, None::<&str>)?;
-            let quit = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
-
-            let menu = Menu::with_items(app, &[&show, &vpn_connect, &vpn_disconnect, &quit])?;
-
-            let _tray = TrayIconBuilder::new()
-                .icon(app.default_window_icon().unwrap().clone())
-                .menu(&menu)
-                .tooltip("CS2 Player Tools")
-                .on_menu_event(move |app, event| {
-                    match event.id.as_ref() {
-                        "show" => {
-                            if let Some(window) = app.get_webview_window("main") {
-                                let _ = window.show();
-                                let _ = window.set_focus();
-                            }
-                        }
-                        "quit" => {
-                            app.exit(0);
-                        }
-                        _ => {}
-                    }
-                })
-                .on_tray_icon_event(|tray, event| {
-                    if let TrayIconEvent::Click { button: MouseButton::Left, button_state: MouseButtonState::Up, .. } = event {
-                        let app = tray.app_handle();
-                        if let Some(window) = app.get_webview_window("main") {
-                            let _ = window.show();
-                            let _ = window.set_focus();
-                        }
-                    }
-                })
-                .build(app)?;
-
+            // System tray — wrapped in catch so app still starts if tray fails
+            if let Err(e) = setup_tray(app) {
+                eprintln!("Warning: System tray setup failed: {}. App will continue without tray.", e);
+            }
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![

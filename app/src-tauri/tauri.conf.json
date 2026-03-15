@@ -22,7 +22,7 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self' https://api.steampowered.com https://speed.cloudflare.com https://cloudflare-dns.com ipc: http://tauri.localhost; img-src 'self' data: http:"
+      "csp": "default-src 'self' tauri: https://tauri.localhost; script-src 'self' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; connect-src 'self' ipc: http://ipc.localhost https://tauri.localhost https://api.steampowered.com https://speed.cloudflare.com https://cloudflare-dns.com https://cs2-player-tools.maltinha.club; img-src 'self' data: asset: https://tauri.localhost; font-src 'self' data:"
     }
   },
   "bundle": {
@@ -44,8 +44,7 @@
       },
       "nsis": {
         "installMode": "both",
-        "displayLanguageSelector": false,
-        "allowDowngrades": true
+        "displayLanguageSelector": false
       }
     }
   }
