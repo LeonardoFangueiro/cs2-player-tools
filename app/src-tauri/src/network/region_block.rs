@@ -1,7 +1,5 @@
 use serde::{Deserialize, Serialize};
 
-#[cfg(target_os = "windows")]
-use std::process::Command;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct RegionBlockResult {
@@ -27,7 +25,7 @@ pub fn block_pop(pop_code: String, relay_ips: Vec<String>) -> RegionBlockResult 
         let rule_name = format!("CS2PT Block - {}", pop_code.to_uppercase());
 
         // Remove existing rule first
-        let _ = Command::new("netsh")
+        let _ = super::cmd::hidden("netsh")
             .args(["advfirewall", "firewall", "delete", "rule", &format!("name={}", rule_name)])
             .output();
 
@@ -37,7 +35,7 @@ pub fn block_pop(pop_code: String, relay_ips: Vec<String>) -> RegionBlockResult 
             return RegionBlockResult { success: false, message: "No relay IPs to block".into() };
         }
 
-        let result = Command::new("netsh")
+        let result = super::cmd::hidden("netsh")
             .args([
                 "advfirewall", "firewall", "add", "rule",
                 &format!("name={}", rule_name),
@@ -72,7 +70,7 @@ pub fn unblock_pop(pop_code: String) -> RegionBlockResult {
     #[cfg(target_os = "windows")]
     {
         let rule_name = format!("CS2PT Block - {}", pop_code.to_uppercase());
-        let result = Command::new("netsh")
+        let result = super::cmd::hidden("netsh")
             .args(["advfirewall", "firewall", "delete", "rule", &format!("name={}", rule_name)])
             .output();
 
@@ -97,7 +95,7 @@ pub fn unblock_pop(pop_code: String) -> RegionBlockResult {
 pub fn list_blocked_pops() -> Vec<String> {
     #[cfg(target_os = "windows")]
     {
-        let output = Command::new("powershell")
+        let output = super::cmd::hidden("powershell")
             .args(["-NoProfile", "-Command",
                 r#"Get-NetFirewallRule | Where-Object { $_.DisplayName -like 'CS2PT Block -*' } | ForEach-Object { $_.DisplayName -replace 'CS2PT Block - ', '' }"#
             ])

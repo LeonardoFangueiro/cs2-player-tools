@@ -118,7 +118,7 @@ pub async fn detect_mtu(host: String) -> Result<MtuResult, String> {
 
             #[cfg(target_os = "windows")]
             let success = {
-                let out = std::process::Command::new("ping")
+                let out = super::cmd::hidden("ping")
                     .args([
                         "-f",
                         "-l",
@@ -139,7 +139,7 @@ pub async fn detect_mtu(host: String) -> Result<MtuResult, String> {
 
             #[cfg(not(target_os = "windows"))]
             let success = {
-                let out = std::process::Command::new("ping")
+                let out = super::cmd::hidden("ping")
                     .args([
                         "-M",
                         "do",

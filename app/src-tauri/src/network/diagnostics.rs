@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 use std::net::ToSocketAddrs;
-use std::process::Command;
+
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct TraceHop {
@@ -42,7 +42,7 @@ pub fn get_network_info() -> Result<NetworkInfo, String> {
 
 #[cfg(target_os = "windows")]
 fn get_system_network_info() -> (Vec<String>, Option<String>) {
-    let dns = Command::new("powershell")
+    let dns = super::cmd::hidden("powershell")
         .args(["-Command", "Get-DnsClientServerAddress -AddressFamily IPv4 | Select-Object -ExpandProperty ServerAddresses | Select-Object -Unique"])
         .output()
         .ok()
@@ -55,7 +55,7 @@ fn get_system_network_info() -> (Vec<String>, Option<String>) {
         })
         .unwrap_or_default();
 
-    let gw = Command::new("powershell")
+    let gw = super::cmd::hidden("powershell")
         .args(["-Command", "(Get-NetRoute -DestinationPrefix '0.0.0.0/0' | Select-Object -First 1).NextHop"])
         .output()
         .ok()
@@ -79,7 +79,7 @@ fn get_system_network_info() -> (Vec<String>, Option<String>) {
         })
         .unwrap_or_default();
 
-    let gw = Command::new("ip")
+    let gw = super::cmd::hidden("ip")
         .args(["route", "show", "default"])
         .output()
         .ok()
@@ -106,12 +106,12 @@ pub async fn traceroute(host: &str) -> Result<Vec<TraceHop>, String> {
         let host = host.to_string();
         move || {
             #[cfg(target_os = "windows")]
-            let cmd = Command::new("tracert")
+            let cmd = super::cmd::hidden("tracert")
                 .args(["-d", "-w", "2000", "-h", "30", &host])
                 .output();
 
             #[cfg(not(target_os = "windows"))]
-            let cmd = Command::new("traceroute")
+            let cmd = super::cmd::hidden("traceroute")
                 .args(["-n", "-w", "2", "-m", "30", &host])
                 .output();
 

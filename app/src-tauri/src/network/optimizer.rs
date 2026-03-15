@@ -1,7 +1,5 @@
 use serde::{Deserialize, Serialize};
 
-#[cfg(target_os = "windows")]
-use std::process::Command;
 
 // ── Data Structures ──
 
@@ -462,7 +460,7 @@ fn apply_optimization_windows(action: &str) -> Result<OptimizationResult, String
 
 #[cfg(target_os = "windows")]
 fn check_admin() -> bool {
-    Command::new("net")
+    super::cmd::hidden("net")
         .args(["session"])
         .output()
         .map(|o| o.status.success())
@@ -471,7 +469,7 @@ fn check_admin() -> bool {
 
 #[cfg(target_os = "windows")]
 fn run_ps(script: &str) -> String {
-    Command::new("powershell")
+    super::cmd::hidden("powershell")
         .args(["-NoProfile", "-NonInteractive", "-Command", script])
         .output()
         .map(|o| {
@@ -487,7 +485,7 @@ fn run_ps(script: &str) -> String {
 
 #[cfg(target_os = "windows")]
 fn run_cmd(program: &str, args: &[&str]) -> String {
-    Command::new(program)
+    super::cmd::hidden(program)
         .args(args)
         .output()
         .map(|o| {

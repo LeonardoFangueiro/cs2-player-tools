@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use std::process::Command;
+
 use std::path::PathBuf;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -84,13 +84,13 @@ pub fn generate_keypair() -> Result<(String, String), String> {
     #[cfg(target_os = "windows")]
     {
         let wg_path = find_wg_exe()?;
-        let privkey_out = Command::new(&wg_path)
+        let privkey_out = super::cmd::hidden(&wg_path)
             .arg("genkey")
             .output()
             .map_err(|e| format!("Failed to generate key: {}", e))?;
         let private_key = String::from_utf8_lossy(&privkey_out.stdout).trim().to_string();
 
-        let pubkey_out = Command::new(&wg_path)
+        let pubkey_out = super::cmd::hidden(&wg_path)
             .arg("pubkey")
             .stdin(std::process::Stdio::piped())
             .stdout(std::process::Stdio::piped())
@@ -110,13 +110,13 @@ pub fn generate_keypair() -> Result<(String, String), String> {
 
     #[cfg(not(target_os = "windows"))]
     {
-        let privkey_out = Command::new("wg")
+        let privkey_out = super::cmd::hidden("wg")
             .arg("genkey")
             .output()
             .map_err(|e| format!("wg not installed: {}", e))?;
         let private_key = String::from_utf8_lossy(&privkey_out.stdout).trim().to_string();
 
-        let mut pubkey_child = Command::new("wg")
+        let mut pubkey_child = super::cmd::hidden("wg")
             .arg("pubkey")
             .stdin(std::process::Stdio::piped())
             .stdout(std::process::Stdio::piped())
@@ -141,7 +141,7 @@ pub fn get_vpn_status(profile_name: &str) -> VpnStatus {
     {
         // Check if tunnel service is running
         let service_name = format!("WireGuardTunnel${}", profile_name);
-        let sc_out = Command::new("sc")
+        let sc_out = super::cmd::hidden("sc")
             .args(["query", &service_name])
             .output();
 
@@ -153,7 +153,7 @@ pub fn get_vpn_status(profile_name: &str) -> VpnStatus {
                 if active {
                     // Get transfer stats from wg show
                     let wg_path = find_wg_exe().unwrap_or_default();
-                    let wg_out = Command::new(&wg_path)
+                    let wg_out = super::cmd::hidden(&wg_path)
                         .args(["show", profile_name, "dump"])
                         .output()
                         .ok();
@@ -173,7 +173,7 @@ pub fn get_vpn_status(profile_name: &str) -> VpnStatus {
 
     #[cfg(not(target_os = "windows"))]
     {
-        let wg_out = Command::new("wg")
+        let wg_out = super::cmd::hidden("wg")
             .args(["show", profile_name, "dump"])
             .output()
             .ok();
@@ -237,7 +237,7 @@ pub fn activate_vpn(profile: &VpnProfile) -> Result<VpnActionResult, String> {
     {
         let wg_exe = find_wireguard_exe()?;
         let config_path_str = config_path.to_str().ok_or("Invalid config path")?;
-        let output = Command::new(&wg_exe)
+        let output = super::cmd::hidden(&wg_exe)
             .args(["/installtunnelservice", config_path_str])
             .output()
             .map_err(|e| format!("Failed to start tunnel: {}", e))?;
@@ -255,7 +255,7 @@ pub fn activate_vpn(profile: &VpnProfile) -> Result<VpnActionResult, String> {
     #[cfg(not(target_os = "windows"))]
     {
         let config_path_str = config_path.to_str().ok_or("Invalid config path")?;
-        let output = Command::new("sudo")
+        let output = super::cmd::hidden("sudo")
             .args(["wg-quick", "up", config_path_str])
             .output()
             .map_err(|e| format!("Failed to start tunnel: {}", e))?;
@@ -271,7 +271,7 @@ pub fn deactivate_vpn(profile_name: &str) -> Result<VpnActionResult, String> {
     #[cfg(target_os = "windows")]
     {
         let wg_exe = find_wireguard_exe()?;
-        let output = Command::new(&wg_exe)
+        let output = super::cmd::hidden(&wg_exe)
             .args(["/uninstalltunnelservice", profile_name])
             .output()
             .map_err(|e| format!("Failed to stop tunnel: {}", e))?;
@@ -286,7 +286,7 @@ pub fn deactivate_vpn(profile_name: &str) -> Result<VpnActionResult, String> {
         let config_dir = get_config_dir()?;
         let config_path = config_dir.join(format!("{}.conf", profile_name));
         let config_path_str = config_path.to_str().ok_or("Invalid config path")?;
-        let output = Command::new("sudo")
+        let output = super::cmd::hidden("sudo")
             .args(["wg-quick", "down", config_path_str])
             .output()
             .map_err(|e| format!("Failed to stop tunnel: {}", e))?;
@@ -378,7 +378,7 @@ pub fn check_wireguard_available() -> WireGuardStatus {
     }
     #[cfg(not(target_os = "windows"))]
     {
-        let wg = Command::new("which").arg("wg").output().ok().map(|o| o.status.success()).unwrap_or(false);
+        let wg = super::cmd::hidden("which").arg("wg").output().ok().map(|o| o.status.success()).unwrap_or(false);
         WireGuardStatus {
             available: wg,
             wg_path: if wg { Some("wg".to_string()) } else { None },

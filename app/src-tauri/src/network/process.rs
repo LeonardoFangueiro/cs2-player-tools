@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use std::process::Command;
+
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Cs2Status {
@@ -10,7 +10,7 @@ pub struct Cs2Status {
 pub fn check_cs2_running() -> Cs2Status {
     #[cfg(target_os = "windows")]
     {
-        let output = Command::new("tasklist")
+        let output = super::cmd::hidden("tasklist")
             .args(["/FI", "IMAGENAME eq cs2.exe", "/FO", "CSV", "/NH"])
             .output()
             .ok();
@@ -30,7 +30,7 @@ pub fn check_cs2_running() -> Cs2Status {
 
     #[cfg(not(target_os = "windows"))]
     {
-        let output = Command::new("pgrep").args(["-x", "cs2"]).output().ok();
+        let output = super::cmd::hidden("pgrep").args(["-x", "cs2"]).output().ok();
         if let Some(out) = output {
             if out.status.success() {
                 let pid = String::from_utf8_lossy(&out.stdout)

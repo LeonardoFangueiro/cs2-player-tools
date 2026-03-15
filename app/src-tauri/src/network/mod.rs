@@ -1,3 +1,4 @@
+mod cmd;
 mod sdr;
 mod ping;
 mod diagnostics;
