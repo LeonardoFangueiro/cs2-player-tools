@@ -265,24 +265,24 @@ fn apply_optimization_windows(action: &str) -> Result<OptimizationResult, String
                 .unwrap_or_else(|| "default (0xa)".to_string());
 
             // Apply: NetworkThrottlingIndex = 0xFFFFFFFF (disabled)
-            let r1 = run_cmd("reg", &[
+            let (r1, r1_text) = run_cmd_checked("reg", &[
                 "add", r"HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Multimedia\SystemProfile",
                 "/v", "NetworkThrottlingIndex", "/t", "REG_DWORD", "/d", "4294967295", "/f",
             ]);
             // Apply: SystemResponsiveness = 0 (max resources to foreground)
-            let r2 = run_cmd("reg", &[
+            let (r2, r2_text) = run_cmd_checked("reg", &[
                 "add", r"HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Multimedia\SystemProfile",
                 "/v", "SystemResponsiveness", "/t", "REG_DWORD", "/d", "0", "/f",
             ]);
 
-            let success = r1.contains("successfully") && r2.contains("successfully");
+            let success = r1 && r2;
             Ok(OptimizationResult {
                 action: action.to_string(),
                 success,
                 message: if success {
                     "Network throttling disabled. SystemResponsiveness set to 0 (max foreground priority).".to_string()
                 } else {
-                    format!("Failed: {} | {}", r1.trim(), r2.trim())
+                    format!("Failed: {} | {}", r1_text.trim(), r2_text.trim())
                 },
                 previous_value: Some(prev_val),
                 requires_reboot: true,
@@ -367,25 +367,25 @@ fn apply_optimization_windows(action: &str) -> Result<OptimizationResult, String
             ]);
 
             // Add inbound + outbound UDP
-            let r1 = run_cmd("netsh", &[
+            let (r1, r1_text) = run_cmd_checked("netsh", &[
                 "advfirewall", "firewall", "add", "rule",
                 "name=CS2 Player Tools - CS2 UDP", "dir=in", "action=allow",
                 &format!("program={}", cs2_path), "protocol=UDP", "enable=yes",
             ]);
-            let r2 = run_cmd("netsh", &[
+            let (r2, r2_text) = run_cmd_checked("netsh", &[
                 "advfirewall", "firewall", "add", "rule",
                 "name=CS2 Player Tools - CS2 TCP", "dir=in", "action=allow",
                 &format!("program={}", cs2_path), "protocol=TCP", "enable=yes",
             ]);
 
-            let success = r1.contains("Ok") && r2.contains("Ok");
+            let success = r1 && r2;
             Ok(OptimizationResult {
                 action: action.to_string(),
                 success,
                 message: if success {
                     format!("Firewall rules added for: {}", cs2_path)
                 } else {
-                    format!("Failed: {} | {}", r1.trim(), r2.trim())
+                    format!("Failed: {} | {}", r1_text.trim(), r2_text.trim())
                 },
                 previous_value: None,
                 requires_reboot: false,
@@ -395,24 +395,28 @@ fn apply_optimization_windows(action: &str) -> Result<OptimizationResult, String
         "gaming_mmcss" => {
             let key_path = r"HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Multimedia\SystemProfile\Tasks\Games";
 
+            // First ensure the Games key exists
+            let (key_ok, _) = run_cmd_checked("reg", &["add", key_path, "/f"]);
+
             // DWORD values
-            let r1 = run_cmd("reg", &["add", key_path, "/v", "GPU Priority", "/t", "REG_DWORD", "/d", "8", "/f"]);
-            let r2 = run_cmd("reg", &["add", key_path, "/v", "Priority", "/t", "REG_DWORD", "/d", "6", "/f"]);
+            let (r1, _) = run_cmd_checked("reg", &["add", key_path, "/v", "GPU Priority", "/t", "REG_DWORD", "/d", "8", "/f"]);
+            let (r2, _) = run_cmd_checked("reg", &["add", key_path, "/v", "Priority", "/t", "REG_DWORD", "/d", "6", "/f"]);
 
             // REG_SZ values (strings — NOT DWORD!)
-            let r3 = run_cmd("reg", &["add", key_path, "/v", "Scheduling Category", "/t", "REG_SZ", "/d", "High", "/f"]);
-            let r4 = run_cmd("reg", &["add", key_path, "/v", "SFIO Priority", "/t", "REG_SZ", "/d", "High", "/f"]);
+            let (r3, _) = run_cmd_checked("reg", &["add", key_path, "/v", "Scheduling Category", "/t", "REG_SZ", "/d", "High", "/f"]);
+            let (r4, _) = run_cmd_checked("reg", &["add", key_path, "/v", "SFIO Priority", "/t", "REG_SZ", "/d", "High", "/f"]);
 
-            let success = r1.contains("successfully") && r2.contains("successfully")
-                && r3.contains("successfully") && r4.contains("successfully");
+            let success = r1 && r2 && r3 && r4;
 
             Ok(OptimizationResult {
                 action: action.to_string(),
                 success,
                 message: if success {
                     "MMCSS Gaming priority configured: GPU Priority=8, Priority=6, Scheduling=High, SFIO=High".to_string()
+                } else if !key_ok {
+                    "Failed to create Games registry key. Run as administrator.".to_string()
                 } else {
-                    "Some MMCSS settings failed. Ensure you're running as administrator.".to_string()
+                    "Some MMCSS values failed to set. Check Windows permissions.".to_string()
                 },
                 previous_value: None,
                 requires_reboot: true,
@@ -483,17 +487,25 @@ fn run_ps(script: &str) -> String {
         .unwrap_or_else(|e| format!("PowerShell error: {}", e))
 }
 
+/// Run a command and return (success, output_text)
 #[cfg(target_os = "windows")]
-fn run_cmd(program: &str, args: &[&str]) -> String {
+fn run_cmd_checked(program: &str, args: &[&str]) -> (bool, String) {
     super::cmd::hidden(program)
         .args(args)
         .output()
         .map(|o| {
             let stdout = String::from_utf8_lossy(&o.stdout).to_string();
             let stderr = String::from_utf8_lossy(&o.stderr).to_string();
-            if stdout.trim().is_empty() { stderr } else { stdout }
+            let text = if stdout.trim().is_empty() { stderr } else { stdout };
+            (o.status.success(), text)
         })
-        .unwrap_or_else(|e| format!("Error: {}", e))
+        .unwrap_or_else(|e| (false, format!("Error: {}", e)))
+}
+
+/// Legacy wrapper for backwards compat — returns just the text
+#[cfg(target_os = "windows")]
+fn run_cmd(program: &str, args: &[&str]) -> String {
+    run_cmd_checked(program, args).1
 }
 
 #[cfg(target_os = "windows")]
