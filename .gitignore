@@ -15,3 +15,4 @@ app/src-tauri/resources/wireguard/*.dll
 
 # Knowledge Base (internal docs, not for public repo)
 docs/kb/
+hq-backend/data/
