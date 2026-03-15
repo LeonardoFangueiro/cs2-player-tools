@@ -196,39 +196,30 @@ function tracerouteBrowser(): TraceHop[] {
 
 // ── Optimizer (browser stubs) ──
 
-interface SystemOptStatus {
-  nagle_disabled: boolean | null;
-  network_throttling_disabled: boolean | null;
-  tcp_autotuning: string | null;
-  ecn_capability: string | null;
-  firewall_cs2_rules: boolean;
-  adapter_name: string | null;
-  adapter_speed: string | null;
-}
-
-interface OptimizationResult {
-  action: string;
-  success: boolean;
-  message: string;
-}
-
-function scanSystemBrowser(): SystemOptStatus {
+function scanSystemBrowser() {
+  const stub = { current_value: "(Web preview — run .exe on Windows)", is_optimized: false };
   return {
-    nagle_disabled: null,
-    network_throttling_disabled: null,
-    tcp_autotuning: "(requires Windows desktop app)",
-    ecn_capability: null,
-    firewall_cs2_rules: false,
+    is_admin: false,
+    nagle: stub,
+    throttling: stub,
+    autotuning: stub,
+    ecn: stub,
+    firewall: stub,
+    mmcss: stub,
+    dscp: stub,
     adapter_name: "(browser preview)",
     adapter_speed: null,
+    cs2_path: null,
   };
 }
 
-function applyOptimizationBrowser(action: string): OptimizationResult {
+function applyOptimizationBrowser(action: string) {
   return {
     action,
     success: false,
     message: "Optimizations require the Windows desktop app (.exe). This is a web preview.",
+    previous_value: null,
+    requires_reboot: false,
   };
 }
 
