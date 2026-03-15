@@ -106,18 +106,23 @@ interface PingResult {
 }
 
 async function pingHostBrowser(host: string, count: number): Promise<PingResult[]> {
+  // Browser cannot do real ICMP/TCP pings to arbitrary IPs.
+  // We use an Image load timing trick which works cross-origin.
   const results: PingResult[] = [];
   for (let seq = 0; seq < count; seq++) {
     const start = performance.now();
     try {
-      // Use a no-cors fetch as a timing probe — we don't need the response
-      await fetch(`https://${host}`, { mode: "no-cors", cache: "no-store" });
+      await new Promise<void>((resolve, reject) => {
+        const img = new Image();
+        const timeout = setTimeout(() => { img.src = ""; reject(new Error("Timeout")); }, 3000);
+        img.onload = img.onerror = () => { clearTimeout(timeout); resolve(); };
+        img.src = `http://${host}:27015/?_=${Date.now()}_${seq}`;
+      });
       const elapsed = performance.now() - start;
+      // onerror fires quickly if host is reachable (connection refused = reachable)
       results.push({ seq, host, latency_ms: elapsed, success: true, error: null });
     } catch {
-      const elapsed = performance.now() - start;
-      // Connection refused still gives us timing
-      results.push({ seq, host, latency_ms: elapsed, success: true, error: null });
+      results.push({ seq, host, latency_ms: 3000, success: false, error: "Timeout" });
     }
     if (seq < count - 1) await new Promise((r) => setTimeout(r, 300));
   }
@@ -130,32 +135,26 @@ async function pingAllPopsBrowser(): Promise<Array<[string, number]>> {
   const config = await fetchSDRConfigBrowser();
   const results: Array<[string, number]> = [];
 
-  // Ping concurrently, limited batch
+  // Browser ping via Image load timing — works cross-origin
   const popsWithRelays = config.pops.filter((p) => p.relays.length > 0);
-  const batchSize = 10;
+  const batchSize = 15;
 
   for (let i = 0; i < popsWithRelays.length; i += batchSize) {
     const batch = popsWithRelays.slice(i, i + batchSize);
     const batchResults = await Promise.all(
       batch.map(async (pop) => {
         const ip = pop.relays[0].ipv4;
+        const port = pop.relays[0].port_range?.[0] ?? 27015;
         const start = performance.now();
         try {
-          const controller = new AbortController();
-          const timeout = setTimeout(() => controller.abort(), 2000);
-          await fetch(`https://${ip}`, {
-            mode: "no-cors",
-            cache: "no-store",
-            signal: controller.signal,
+          await new Promise<void>((resolve, reject) => {
+            const img = new Image();
+            const timeout = setTimeout(() => { img.src = ""; reject(new Error("Timeout")); }, 2000);
+            img.onload = img.onerror = () => { clearTimeout(timeout); resolve(); };
+            img.src = `http://${ip}:${port}/?_=${Date.now()}`;
           });
-          clearTimeout(timeout);
           return [pop.code, performance.now() - start] as [string, number];
         } catch {
-          const elapsed = performance.now() - start;
-          // If we got a quick refusal, the host is reachable
-          if (elapsed < 1900) {
-            return [pop.code, elapsed] as [string, number];
-          }
           return [pop.code, -1] as [string, number];
         }
       })
