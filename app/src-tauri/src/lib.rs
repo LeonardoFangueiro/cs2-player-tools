@@ -1,6 +1,6 @@
 mod network;
 
-use network::{SDRConfig, PingResult, VpnProfile};
+use network::{SDRConfig, PingResult, VpnProfile, VpsCredentials};
 
 #[tauri::command]
 async fn fetch_sdr_config() -> Result<SDRConfig, String> {
@@ -79,6 +79,17 @@ fn vpn_get_valve_ips() -> String {
     network::get_valve_allowed_ips()
 }
 
+// VPS Deploy commands
+#[tauri::command]
+async fn vps_test_connection(creds: VpsCredentials) -> Result<String, String> {
+    network::test_connection(creds).await
+}
+
+#[tauri::command]
+async fn vps_deploy_wireguard(creds: VpsCredentials, client_address: String) -> Result<network::DeployResult, String> {
+    network::deploy_wireguard(creds, client_address).await
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -99,6 +110,8 @@ pub fn run() {
             vpn_deactivate,
             vpn_list_profiles,
             vpn_get_valve_ips,
+            vps_test_connection,
+            vps_deploy_wireguard,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

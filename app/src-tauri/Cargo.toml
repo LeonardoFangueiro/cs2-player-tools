@@ -23,3 +23,4 @@ surge-ping = "0.8"
 dns-lookup = "2"
 hostname = "0.4"
 chrono = { version = "0.4", features = ["serde"] }
+ssh2 = "0.9"

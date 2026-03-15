@@ -303,6 +303,22 @@ export async function invoke<T>(cmd: string, args?: Record<string, unknown>): Pr
         error: "VPN requires desktop app",
       } as unknown as Promise<T>;
 
+    case "vps_test_connection":
+      return {
+        success: false,
+        message: "VPS SSH connection requires the desktop app (.exe). This is a web preview.",
+      } as unknown as Promise<T>;
+
+    case "vps_deploy_wireguard":
+      return {
+        success: false,
+        message: "WireGuard deployment requires the desktop app (.exe). This is a web preview.",
+        server_public_key: "",
+        client_private_key: "",
+        client_public_key: "",
+        endpoint: "",
+      } as unknown as Promise<T>;
+
     case "vpn_activate":
     case "vpn_deactivate":
       return vpnStubResult() as unknown as Promise<T>;
