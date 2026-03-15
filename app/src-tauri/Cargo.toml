@@ -1,0 +1,24 @@
+[package]
+name = "cs2-player-tools"
+version = "0.1.0"
+description = "CS2 Player Tools - Network diagnostics and optimization"
+authors = ["medinho"]
+edition = "2021"
+
+[lib]
+name = "app_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tauri-plugin-opener = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+reqwest = { version = "0.12", features = ["json", "rustls-tls"], default-features = false }
+tokio = { version = "1", features = ["full"] }
+surge-ping = "0.8"
+dns-lookup = "2"
+hostname = "0.4"
