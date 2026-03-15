@@ -22,3 +22,4 @@ tokio = { version = "1", features = ["full"] }
 surge-ping = "0.8"
 dns-lookup = "2"
 hostname = "0.4"
+chrono = { version = "0.4", features = ["serde"] }
