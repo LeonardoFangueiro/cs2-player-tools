@@ -297,10 +297,9 @@ export async function reportCrash(
   } catch {}
 }
 
-/** Check if we're in dev mode */
+/** Check if we're in dev mode — always true during v0.x development */
 export function isDevMode(): boolean {
-  // Dev mode when: running in browser (not Tauri), or env flag is set
-  return !("__TAURI_INTERNALS__" in window) ||
-    window.location.hostname === "localhost" ||
-    window.location.hostname === "cs2-player-tools.maltinha.club";
+  // During development (v0.x), always show dev tools
+  // In production (v1.0+), this will check remote config
+  return true;
 }
