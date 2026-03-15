@@ -134,18 +134,17 @@ export default function Sidebar() {
 
       {/* Update Banner */}
       {update?.available && (
-        <div className="mx-3 mb-2">
+        <div className="mx-3 mb-2 overflow-hidden">
           <button
             onClick={handleUpdate}
             disabled={updating}
-            className="w-full flex items-center gap-2 px-3 py-2.5 bg-success/10 border border-success/30 rounded-lg text-xs text-success hover:bg-success/20 transition"
+            className="w-full flex items-center gap-2 px-2.5 py-2 bg-success/10 border border-success/30 rounded-lg text-[11px] text-success hover:bg-success/20 transition overflow-hidden"
           >
-            <ArrowUpCircle size={16} className={updating ? "animate-spin" : "animate-bounce"} />
-            <div className="flex-1 text-left">
-              <div className="font-semibold">Update v{update.version}</div>
-              <div className="text-[10px] text-success/70 truncate">{update.changelog}</div>
+            <ArrowUpCircle size={14} className={`shrink-0 ${updating ? "animate-spin" : "animate-bounce"}`} />
+            <div className="flex-1 min-w-0 text-left overflow-hidden">
+              <div className="font-semibold truncate">v{update.version}</div>
+              <div className="text-[9px] text-success/70 truncate">{update.changelog}</div>
             </div>
-            <Download size={12} />
           </button>
         </div>
       )}
