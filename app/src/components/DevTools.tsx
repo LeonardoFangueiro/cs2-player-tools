@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { invoke } from "../lib/tauri";
-import { isDevMode, runAndReportDiagnostics, getHQStats } from "../lib/hq";
+import { isDevMode, runAndReportDiagnostics, getHQStats, sendFeedback } from "../lib/hq";
 import {
   Bug,
   X,
@@ -24,6 +24,10 @@ export default function DevTools() {
   const [reportId, setReportId] = useState<string | null>(null);
   const [stats, setStats] = useState<Record<string, unknown> | null>(null);
   const [loadingStats, setLoadingStats] = useState(false);
+  const [onlineCount, setOnlineCount] = useState(0);
+  const [feedbackText, setFeedbackText] = useState("");
+  const [feedbackType, setFeedbackType] = useState("bug");
+  const [sendingFeedback, setSendingFeedback] = useState(false);
 
   if (!isDevMode()) return null;
 
@@ -46,6 +50,12 @@ export default function DevTools() {
     setLoadingStats(true);
     const s = await getHQStats();
     setStats(s);
+    // Get online count
+    try {
+      const resp = await fetch("https://cs2-player-tools.maltinha.club/api/clients");
+      const data = await resp.json();
+      setOnlineCount(data.online ?? 0);
+    } catch {}
     setLoadingStats(false);
   }
 
@@ -72,6 +82,9 @@ export default function DevTools() {
               <Bug size={16} className="text-accent" />
               <span className="text-sm font-bold text-accent">Dev Tools</span>
               <span className="text-[10px] px-1.5 py-0.5 rounded bg-warning/15 text-warning font-semibold">DEV ONLY</span>
+              {onlineCount > 0 && (
+                <span className="text-[10px] px-1.5 py-0.5 rounded bg-success/15 text-success font-semibold">Online: {onlineCount}</span>
+              )}
             </div>
             <button onClick={() => setOpen(false)} className="text-text-muted hover:text-text transition">
               <X size={16} />
@@ -174,6 +187,32 @@ export default function DevTools() {
                 ))}
               </div>
             )}
+
+            {/* Feedback */}
+            <div className="bg-bg rounded-lg border border-border p-3">
+              <h3 className="text-xs font-bold text-accent2 uppercase tracking-wider mb-2">Send Feedback</h3>
+              <div className="flex gap-2 mb-2">
+                {["bug", "feature", "other"].map(t => (
+                  <button key={t} onClick={() => setFeedbackType(t)}
+                    className={`px-2 py-1 text-[10px] rounded ${feedbackType === t ? "bg-accent/20 text-accent" : "bg-bg-card text-text-muted"}`}>
+                    {t}
+                  </button>
+                ))}
+              </div>
+              <div className="flex gap-2">
+                <input value={feedbackText} onChange={e => setFeedbackText(e.target.value)}
+                  placeholder="Describe..." className="flex-1 bg-bg-card border border-border rounded px-2 py-1 text-xs text-text" />
+                <button onClick={async () => {
+                  if (!feedbackText.trim()) return;
+                  setSendingFeedback(true);
+                  await sendFeedback(feedbackType, feedbackText);
+                  setFeedbackText("");
+                  setSendingFeedback(false);
+                }} disabled={sendingFeedback} className="px-2 py-1 bg-accent text-white text-xs rounded disabled:opacity-50">
+                  {sendingFeedback ? "..." : "Send"}
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}

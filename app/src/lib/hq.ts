@@ -202,6 +202,101 @@ export async function getHQStats(): Promise<Record<string, unknown> | null> {
   }
 }
 
+/** Send heartbeat to HQ (called periodically) */
+export async function sendHeartbeat(
+  invoke: <T>(cmd: string, args?: Record<string, unknown>) => Promise<T>
+): Promise<number> {
+  try {
+    // Get current app state
+    let cs2Running = false;
+    let vpnActive = false;
+    let profileName = null;
+
+    try {
+      const cs2 = await invoke<{ running: boolean }>("check_cs2");
+      cs2Running = cs2.running;
+    } catch {}
+
+    // TODO: check VPN status when we have active profile tracking
+
+    const resp = await fetch(`${HQ_BASE}/heartbeat`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        app_version: APP_VERSION,
+        os: getOS(),
+        cs2_running: cs2Running,
+        vpn_active: vpnActive,
+        profile_name: profileName,
+      }),
+    });
+    const data = await resp.json();
+    return data.online_count ?? 0;
+  } catch {
+    return 0;
+  }
+}
+
+/** Load remote config / feature flags from HQ */
+export async function loadRemoteConfig(): Promise<{
+  features: Record<string, boolean>;
+  messages: Array<{ text: string; type: string }>;
+  maintenance: boolean;
+} | null> {
+  try {
+    const resp = await fetch(`${HQ_BASE}/config`);
+    return await resp.json();
+  } catch {
+    return null;
+  }
+}
+
+/** Send user feedback */
+export async function sendFeedback(
+  type: string,
+  message: string,
+  rating?: number
+): Promise<boolean> {
+  try {
+    const resp = await fetch(`${HQ_BASE}/feedback`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        app_version: APP_VERSION,
+        os: getOS(),
+        type,
+        message,
+        rating,
+        timestamp: new Date().toISOString(),
+      }),
+    });
+    const data = await resp.json();
+    return data.success ?? false;
+  } catch {
+    return false;
+  }
+}
+
+/** Send crash report */
+export async function reportCrash(
+  error: string,
+  context?: Record<string, unknown>
+): Promise<void> {
+  try {
+    await fetch(`${HQ_BASE}/crash`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        app_version: APP_VERSION,
+        os: getOS(),
+        error,
+        context: context ?? {},
+        timestamp: new Date().toISOString(),
+      }),
+    });
+  } catch {}
+}
+
 /** Check if we're in dev mode */
 export function isDevMode(): boolean {
   // Dev mode when: running in browser (not Tauri), or env flag is set
