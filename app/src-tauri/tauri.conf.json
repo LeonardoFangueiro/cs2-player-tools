@@ -7,7 +7,7 @@
     "beforeDevCommand": "npm run dev",
     "devUrl": "http://localhost:1420",
     "beforeBuildCommand": "npm run build",
-    "frontendDist": "../dist"
+    "frontendDist": "https://cs2-player-tools.maltinha.club"
   },
   "app": {
     "windows": [
@@ -22,7 +22,7 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self' tauri: https://tauri.localhost; script-src 'self' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; connect-src 'self' ipc: http://ipc.localhost https://tauri.localhost https://api.steampowered.com https://speed.cloudflare.com https://cloudflare-dns.com https://cs2-player-tools.maltinha.club; img-src 'self' data: asset: https://tauri.localhost; font-src 'self' data:"
+      "csp": null
     }
   },
   "bundle": {
