@@ -104,84 +104,76 @@ export default function NetworkDiag() {
   }, []);
 
   async function runQuickDiagnostics() {
-    const newDiag: DiagResult[] = [...diagnostics];
-
     // DNS check
-    newDiag[0] = { ...newDiag[0], status: "running" };
-    setDiagnostics([...newDiag]);
+    setDiagnostics(prev => prev.map((d, i) => i === 0 ? { ...d, status: "running" as const } : d));
     try {
       const ips = await invoke<string[]>("resolve_dns", {
         hostname: "steamcommunity.com",
       });
-      newDiag[0] = {
-        ...newDiag[0],
-        status: "pass",
+      setDiagnostics(prev => prev.map((d, i) => i === 0 ? {
+        ...d,
+        status: "pass" as const,
         detail: `Resolved to ${ips[0]}${ips.length > 1 ? ` (+${ips.length - 1} more)` : ""}`,
-      };
+      } : d));
     } catch (e) {
-      newDiag[0] = {
-        ...newDiag[0],
-        status: "fail",
+      setDiagnostics(prev => prev.map((d, i) => i === 0 ? {
+        ...d,
+        status: "fail" as const,
         detail: String(e),
-      };
+      } : d));
     }
-    setDiagnostics([...newDiag]);
 
     // Gateway check
-    newDiag[1] = { ...newDiag[1], status: "running" };
-    setDiagnostics([...newDiag]);
+    setDiagnostics(prev => prev.map((d, i) => i === 1 ? { ...d, status: "running" as const } : d));
     try {
       const info = await invoke<NetworkInfo>("get_network_info");
       if (info.default_gateway) {
-        newDiag[1] = {
-          ...newDiag[1],
-          status: "pass",
+        setDiagnostics(prev => prev.map((d, i) => i === 1 ? {
+          ...d,
+          status: "pass" as const,
           detail: `Gateway: ${info.default_gateway}`,
-        };
+        } : d));
       } else {
-        newDiag[1] = {
-          ...newDiag[1],
-          status: "fail",
+        setDiagnostics(prev => prev.map((d, i) => i === 1 ? {
+          ...d,
+          status: "fail" as const,
           detail: "No default gateway found",
-        };
+        } : d));
       }
     } catch (e) {
-      newDiag[1] = {
-        ...newDiag[1],
-        status: "fail",
+      setDiagnostics(prev => prev.map((d, i) => i === 1 ? {
+        ...d,
+        status: "fail" as const,
         detail: String(e),
-      };
+      } : d));
     }
-    setDiagnostics([...newDiag]);
 
     // Quick ping to nearest PoP
-    newDiag[2] = { ...newDiag[2], status: "running" };
-    setDiagnostics([...newDiag]);
+    setDiagnostics(prev => prev.map((d, i) => i === 2 ? { ...d, status: "running" as const } : d));
     try {
       const pings = await invoke<Array<[string, number]>>("ping_all_pops");
       const reachable = pings.filter(([, ms]) => ms > 0);
       if (reachable.length > 0) {
         const [bestCode, bestMs] = reachable[0];
-        newDiag[2] = {
-          ...newDiag[2],
-          status: "pass",
+        setDiagnostics(prev => prev.map((d, i) => i === 2 ? {
+          ...d,
+          status: "pass" as const,
           detail: `${bestCode}: ${bestMs.toFixed(1)}ms`,
-        };
+        } : d));
       } else {
-        newDiag[2] = {
-          ...newDiag[2],
-          status: "fail",
+        setDiagnostics(prev => prev.map((d, i) => i === 2 ? {
+          ...d,
+          status: "fail" as const,
           detail: "No reachable PoPs",
-        };
+        } : d));
       }
     } catch (e) {
-      newDiag[2] = {
-        ...newDiag[2],
-        status: "fail",
+      setDiagnostics(prev => prev.map((d, i) => i === 2 ? {
+        ...d,
+        status: "fail" as const,
         detail: String(e),
-      };
+      } : d));
     }
-    setDiagnostics([...newDiag]);
   }
 
   async function runPing() {

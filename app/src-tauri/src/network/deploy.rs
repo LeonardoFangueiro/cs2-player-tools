@@ -14,22 +14,21 @@ pub struct VpsCredentials {
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct TestConnectionResult {
+    pub success: bool,
+    pub message: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct DeployResult {
     pub success: bool,
     pub server_public_key: String,
-    pub server_endpoint: String,
+    pub endpoint: String,
     pub client_private_key: String,
     pub client_public_key: String,
     pub client_address: String,
     pub message: String,
     pub log: Vec<String>,
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct DeployStatus {
-    pub step: String,
-    pub progress: u8,
-    pub message: String,
 }
 
 fn ssh_connect(creds: &VpsCredentials) -> Result<Session, String> {
@@ -52,17 +51,22 @@ fn ssh_connect(creds: &VpsCredentials) -> Result<Session, String> {
         }
         "key" => {
             if let Some(key_content) = &creds.private_key {
-                // Write key to a temp file
-                let key_path = std::env::temp_dir().join("cs2pt_ssh_key");
+                let key_path = std::env::temp_dir().join(format!("cs2pt_ssh_{}", std::process::id()));
                 std::fs::write(&key_path, key_content)
                     .map_err(|e| format!("Failed to write SSH key: {}", e))?;
-                session.userauth_pubkey_file(
+                #[cfg(unix)]
+                {
+                    use std::os::unix::fs::PermissionsExt;
+                    std::fs::set_permissions(&key_path, std::fs::Permissions::from_mode(0o600)).ok();
+                }
+                let result = session.userauth_pubkey_file(
                     &creds.username,
                     None,
                     &key_path,
                     None,
-                ).map_err(|e| format!("Key auth failed: {}", e))?;
-                std::fs::remove_file(&key_path).ok();
+                );
+                let _ = std::fs::remove_file(&key_path); // Clean up
+                result.map_err(|e| format!("Key auth failed: {}", e))?;
             } else {
                 return Err("Private key content is required for key auth".to_string());
             }
@@ -104,11 +108,14 @@ fn ssh_exec(session: &Session, cmd: &str) -> Result<String, String> {
     Ok(output)
 }
 
-pub async fn test_connection(creds: VpsCredentials) -> Result<String, String> {
+pub async fn test_connection(creds: VpsCredentials) -> Result<TestConnectionResult, String> {
     tokio::task::spawn_blocking(move || {
         let session = ssh_connect(&creds)?;
         let output = ssh_exec(&session, "uname -a")?;
-        Ok(format!("Connected: {}", output.trim()))
+        Ok(TestConnectionResult {
+            success: true,
+            message: format!("Connected: {}", output.trim()),
+        })
     })
     .await
     .map_err(|e| format!("Task error: {}", e))?
@@ -144,15 +151,29 @@ pub async fn deploy_wireguard(creds: VpsCredentials, client_address: String) -> 
 
         // Generate server keypair
         log.push("Generating server keypair...".to_string());
-        let server_privkey = ssh_exec(&session, "wg genkey")?.trim().to_string();
-        let server_pubkey = ssh_exec(&session, &format!("echo '{}' | wg pubkey", server_privkey))?.trim().to_string();
-        log.push(format!("Server public key: {}...{}", &server_pubkey[..8], &server_pubkey[server_pubkey.len()-4..]));
+        let keypair_out = ssh_exec(&session, "privkey=$(wg genkey) && echo $privkey && echo $privkey | wg pubkey")?;
+        let lines: Vec<&str> = keypair_out.trim().lines().collect();
+        if lines.len() < 2 {
+            return Err("Failed to generate server keypair".to_string());
+        }
+        let server_privkey = lines[0].trim().to_string();
+        let server_pubkey = lines[1].trim().to_string();
+        let short_server_key = if server_pubkey.len() >= 8 { &server_pubkey[..8] } else { &server_pubkey };
+        let short_server_key_end = if server_pubkey.len() >= 4 { &server_pubkey[server_pubkey.len()-4..] } else { &server_pubkey };
+        log.push(format!("Server public key: {}...{}", short_server_key, short_server_key_end));
 
-        // Generate client keypair locally (via the VPS since it has wg tools)
+        // Generate client keypair (via the VPS since it has wg tools)
         log.push("Generating client keypair...".to_string());
-        let client_privkey = ssh_exec(&session, "wg genkey")?.trim().to_string();
-        let client_pubkey = ssh_exec(&session, &format!("echo '{}' | wg pubkey", client_privkey))?.trim().to_string();
-        log.push(format!("Client public key: {}...{}", &client_pubkey[..8], &client_pubkey[client_pubkey.len()-4..]));
+        let client_keypair_out = ssh_exec(&session, "privkey=$(wg genkey) && echo $privkey && echo $privkey | wg pubkey")?;
+        let client_lines: Vec<&str> = client_keypair_out.trim().lines().collect();
+        if client_lines.len() < 2 {
+            return Err("Failed to generate client keypair".to_string());
+        }
+        let client_privkey = client_lines[0].trim().to_string();
+        let client_pubkey = client_lines[1].trim().to_string();
+        let short_client_key = if client_pubkey.len() >= 8 { &client_pubkey[..8] } else { &client_pubkey };
+        let short_client_key_end = if client_pubkey.len() >= 4 { &client_pubkey[client_pubkey.len()-4..] } else { &client_pubkey };
+        log.push(format!("Client public key: {}...{}", short_client_key, short_client_key_end));
 
         // Detect main network interface
         let iface = ssh_exec(&session, "ip route show default | awk '{print $5}' | head -1")?.trim().to_string();
@@ -224,7 +245,7 @@ pub async fn deploy_wireguard(creds: VpsCredentials, client_address: String) -> 
         Ok(DeployResult {
             success: true,
             server_public_key: server_pubkey,
-            server_endpoint: endpoint,
+            endpoint,
             client_private_key: client_privkey,
             client_public_key: client_pubkey,
             client_address,

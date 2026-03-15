@@ -1,6 +1,6 @@
 mod network;
 
-use network::{SDRConfig, PingResult, VpnProfile, VpsCredentials};
+use network::{SDRConfig, PingResult, VpnProfile, TestConnectionResult, DeployResult};
 
 #[tauri::command]
 async fn fetch_sdr_config() -> Result<SDRConfig, String> {
@@ -81,12 +81,33 @@ fn vpn_get_valve_ips() -> String {
 
 // VPS Deploy commands
 #[tauri::command]
-async fn vps_test_connection(creds: VpsCredentials) -> Result<String, String> {
+async fn vps_test_connection(
+    host: String,
+    port: u16,
+    username: String,
+    auth_method: String,
+    password: Option<String>,
+    private_key: Option<String>,
+) -> Result<TestConnectionResult, String> {
+    let creds = network::VpsCredentials {
+        host, port, username, auth_method, password, private_key,
+    };
     network::test_connection(creds).await
 }
 
 #[tauri::command]
-async fn vps_deploy_wireguard(creds: VpsCredentials, client_address: String) -> Result<network::DeployResult, String> {
+async fn vps_deploy_wireguard(
+    host: String,
+    port: u16,
+    username: String,
+    auth_method: String,
+    password: Option<String>,
+    private_key: Option<String>,
+    client_address: String,
+) -> Result<DeployResult, String> {
+    let creds = network::VpsCredentials {
+        host, port, username, auth_method, password, private_key,
+    };
     network::deploy_wireguard(creds, client_address).await
 }
 

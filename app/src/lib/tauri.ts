@@ -308,6 +308,8 @@ export async function invoke<T>(cmd: string, args?: Record<string, unknown>): Pr
         client_private_key: "",
         client_public_key: "",
         endpoint: "",
+        client_address: "",
+        log: [],
       } as unknown as Promise<T>;
 
     case "vpn_activate":

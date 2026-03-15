@@ -52,11 +52,6 @@ interface VpnStatus {
   error: string | null;
 }
 
-interface VpsConnectionTestResult {
-  success: boolean;
-  message: string;
-}
-
 interface VpsDeployResult {
   success: boolean;
   message: string;
@@ -64,6 +59,8 @@ interface VpsDeployResult {
   client_private_key: string;
   client_public_key: string;
   endpoint: string;
+  client_address: string;
+  log: string[];
 }
 
 const DEFAULT_PROFILE: VpnProfile = {
@@ -137,7 +134,7 @@ export default function SmartVPN() {
   const [loading, setLoading] = useState(true);
   const [vpnStatus, setVpnStatus] = useState<VpnStatus | null>(null);
   const [activeProfile, setActiveProfile] = useState<string | null>(null);
-  const [connectingProfile, setConnectingProfile] = useState<string | null>(null);
+  const [connectingProfile, _setConnectingProfile] = useState<string | null>(null);
   const [previewConfig, setPreviewConfig] = useState<string | null>(null);
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
   const [showHowItWorks, setShowHowItWorks] = useState(false);
@@ -164,13 +161,13 @@ export default function SmartVPN() {
     try {
       setTestingConnection(true);
       setConnectionStatus(null);
-      const result = await invoke<VpsConnectionTestResult>("vps_test_connection", {
+      const result = await invoke<{ success: boolean; message: string }>("vps_test_connection", {
         host: vpsIp.trim(),
         port: parseInt(sshPort) || 22,
         username: sshUsername.trim() || "root",
-        authMethod,
-        password: authMethod === "password" ? sshPassword : undefined,
-        privateKey: authMethod === "key" ? sshKey : undefined,
+        authMethod: authMethod,
+        password: authMethod === "password" ? sshPassword : null,
+        privateKey: authMethod === "key" ? sshKey : null,
       });
       setConnectionStatus(result);
       if (result.success) {
@@ -216,9 +213,9 @@ export default function SmartVPN() {
         host: vpsIp.trim(),
         port: parseInt(sshPort) || 22,
         username: sshUsername.trim() || "root",
-        authMethod,
-        password: authMethod === "password" ? sshPassword : undefined,
-        privateKey: authMethod === "key" ? sshKey : undefined,
+        authMethod: authMethod,
+        password: authMethod === "password" ? sshPassword : null,
+        privateKey: authMethod === "key" ? sshKey : null,
         clientAddress: clientAddress.trim(),
       });
 
@@ -231,7 +228,7 @@ export default function SmartVPN() {
         setForm((prev) => ({
           ...prev,
           name: `VPN ${vpsIp}`,
-          server_endpoint: `${vpsIp}:51820`,
+          server_endpoint: result.endpoint || `${vpsIp}:51820`,
           server_public_key: result.server_public_key,
           client_private_key: result.client_private_key,
           client_address: clientAddress,
@@ -304,24 +301,8 @@ export default function SmartVPN() {
     }
   }
 
-  async function connectProfile(name: string) {
-    try {
-      setConnectingProfile(name);
-      const result = await invoke<{ success: boolean; message: string }>("vpn_activate", {
-        profile: { ...DEFAULT_PROFILE, name },
-      });
-      if (result.success) {
-        setActiveProfile(name);
-        setToast({ message: `Connected to "${name}"`, type: "success" });
-        await refreshStatus(name);
-      } else {
-        setToast({ message: result.message, type: "error" });
-      }
-    } catch (e) {
-      setToast({ message: String(e), type: "error" });
-    } finally {
-      setConnectingProfile(null);
-    }
+  async function connectProfile(_name: string) {
+    setToast({ message: `Reconnect for saved profiles coming soon. Use the wizard to set up a new connection.`, type: "error" });
   }
 
   async function disconnectProfile() {
@@ -1009,7 +990,7 @@ export default function SmartVPN() {
                         {isConnecting ? <Loader size={12} className="animate-spin" /> : <Wifi size={12} />} Connect
                       </button>
                     )}
-                    <button onClick={() => {}} className="p-1.5 text-text-muted hover:text-danger transition"><Trash2 size={14} /></button>
+                    <button onClick={() => setToast({ message: "Profile deletion coming in next update", type: "error" })} className="p-1.5 text-text-muted hover:text-danger transition"><Trash2 size={14} /></button>
                   </div>
                 </div>
               );

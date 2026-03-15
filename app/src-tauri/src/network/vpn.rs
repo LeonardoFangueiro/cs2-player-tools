@@ -89,10 +89,19 @@ pub fn generate_keypair() -> Result<(String, String), String> {
             .map_err(|e| format!("wg not installed: {}", e))?;
         let private_key = String::from_utf8_lossy(&privkey_out.stdout).trim().to_string();
 
-        let pubkey_out = Command::new("sh")
-            .args(["-c", &format!("echo '{}' | wg pubkey", private_key)])
-            .output()
-            .map_err(|e| format!("Failed to derive public key: {}", e))?;
+        let mut pubkey_child = Command::new("wg")
+            .arg("pubkey")
+            .stdin(std::process::Stdio::piped())
+            .stdout(std::process::Stdio::piped())
+            .spawn()
+            .map_err(|e| format!("Failed to run wg pubkey: {}", e))?;
+
+        if let Some(ref mut stdin) = pubkey_child.stdin {
+            use std::io::Write;
+            stdin.write_all(private_key.as_bytes()).ok();
+        }
+        let pubkey_out = pubkey_child.wait_with_output()
+            .map_err(|e| format!("Failed to get public key: {}", e))?;
         let public_key = String::from_utf8_lossy(&pubkey_out.stdout).trim().to_string();
 
         Ok((private_key, public_key))
@@ -161,7 +170,8 @@ fn parse_wg_dump(output: &str) -> (Option<String>, Option<String>, Option<String
         if fields.len() >= 7 {
             let endpoint = Some(fields[2].to_string()).filter(|s| s != "(none)");
             let handshake = fields[4].parse::<u64>().ok().map(|ts| {
-                if ts == 0 { "Never".to_string() } else { format!("{}s ago", chrono::Utc::now().timestamp() as u64 - ts) }
+                let now = chrono::Utc::now().timestamp() as u64;
+                if ts == 0 { "Never".to_string() } else if now >= ts { format!("{}s ago", now - ts) } else { "Just now".to_string() }
             });
             let rx = fields[5].parse::<u64>().ok().map(format_bytes);
             let tx = fields[6].parse::<u64>().ok().map(format_bytes);
