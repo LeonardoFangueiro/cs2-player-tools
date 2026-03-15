@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CS2 Player Tools — HQ</title>
+    <style>
+        :root {
+            --bg: #0a0a0f; --card: #12121a; --hover: #1a1a25; --border: #2a2a3a;
+            --text: #e0e0e8; --muted: #8888a0; --accent: #6c5ce7; --accent2: #00cec9;
+            --danger: #fd79a8; --warning: #fdcb6e; --success: #55efc4; --orange: #e17055;
+        }
+        * { margin:0; padding:0; box-sizing:border-box; }
+        body { font-family:'Segoe UI',-apple-system,sans-serif; background:var(--bg); color:var(--text); line-height:1.6; }
+        .container { max-width:1200px; margin:0 auto; padding:20px; }
+        h1 { font-size:28px; margin-bottom:4px; }
+        h1 span.accent { color:var(--accent); }
+        h1 span.muted { color:var(--muted); font-weight:400; font-size:16px; }
+        .subtitle { color:var(--muted); font-size:14px; margin-bottom:24px; }
+        .grid { display:grid; gap:16px; margin-bottom:24px; }
+        .grid-4 { grid-template-columns: repeat(4, 1fr); }
+        .grid-3 { grid-template-columns: repeat(3, 1fr); }
+        .grid-2 { grid-template-columns: repeat(2, 1fr); }
+        .card { background:var(--card); border:1px solid var(--border); border-radius:10px; padding:20px; }
+        .card:hover { border-color:rgba(108,92,231,0.3); }
+        .stat-card { text-align:center; }
+        .stat-card .value { font-size:36px; font-weight:800; font-family:'JetBrains Mono',monospace; }
+        .stat-card .label { font-size:11px; text-transform:uppercase; letter-spacing:1.5px; color:var(--muted); margin-top:4px; }
+        .text-accent { color:var(--accent); }
+        .text-accent2 { color:var(--accent2); }
+        .text-success { color:var(--success); }
+        .text-danger { color:var(--danger); }
+        .text-warning { color:var(--warning); }
+        .text-orange { color:var(--orange); }
+        .text-muted { color:var(--muted); }
+        .badge { display:inline-block; padding:2px 8px; border-radius:10px; font-size:10px; font-weight:700; text-transform:uppercase; }
+        .badge-success { background:rgba(85,239,196,0.15); color:var(--success); }
+        .badge-danger { background:rgba(253,121,168,0.15); color:var(--danger); }
+        .badge-warning { background:rgba(253,203,110,0.15); color:var(--warning); }
+        .badge-accent { background:rgba(108,92,231,0.15); color:var(--accent); }
+        table { width:100%; border-collapse:collapse; font-size:13px; }
+        th { text-align:left; padding:10px 12px; border-bottom:2px solid var(--border); color:var(--muted); font-size:11px; text-transform:uppercase; letter-spacing:0.5px; }
+        td { padding:10px 12px; border-bottom:1px solid var(--border); }
+        tr:hover { background:var(--hover); }
+        .mono { font-family:'JetBrains Mono','Cascadia Code',monospace; }
+        .btn { padding:8px 16px; border:1px solid var(--border); border-radius:8px; background:var(--card); color:var(--text); cursor:pointer; font-size:13px; transition:all 0.2s; display:inline-flex; align-items:center; gap:6px; }
+        .btn:hover { border-color:var(--accent); color:var(--accent); }
+        .btn-primary { background:var(--accent); border-color:var(--accent); color:#fff; }
+        .btn-primary:hover { opacity:0.85; }
+        .btn-success { background:rgba(85,239,196,0.15); border-color:rgba(85,239,196,0.3); color:var(--success); }
+        .btn-danger { background:rgba(253,121,168,0.15); border-color:rgba(253,121,168,0.3); color:var(--danger); }
+        .section-title { font-size:16px; font-weight:600; margin-bottom:12px; display:flex; align-items:center; gap:8px; }
+        .section-title .dot { width:8px; height:8px; border-radius:50%; display:inline-block; }
+        .header { display:flex; justify-content:space-between; align-items:center; margin-bottom:24px; border-bottom:1px solid var(--border); padding-bottom:16px; }
+        .header-actions { display:flex; gap:8px; }
+        .tabs { display:flex; gap:2px; margin-bottom:24px; background:var(--card); border-radius:10px; padding:4px; border:1px solid var(--border); }
+        .tab { padding:8px 20px; border-radius:8px; cursor:pointer; font-size:13px; color:var(--muted); transition:all 0.2s; }
+        .tab:hover { color:var(--text); }
+        .tab.active { background:var(--accent); color:#fff; }
+        .tab-content { display:none; }
+        .tab-content.active { display:block; }
+        .error-item { background:var(--bg); border:1px solid var(--border); border-radius:8px; padding:12px; margin-bottom:8px; }
+        .error-item:hover { border-color:var(--danger); }
+        .error-type { font-weight:600; color:var(--danger); }
+        .error-msg { color:var(--text); font-size:13px; margin-top:4px; }
+        .error-meta { color:var(--muted); font-size:11px; margin-top:6px; }
+        .diag-test { display:flex; align-items:center; gap:8px; padding:8px 12px; background:var(--bg); border-radius:6px; margin-bottom:4px; }
+        .diag-test .name { font-weight:600; font-size:12px; min-width:120px; }
+        .diag-test .detail { color:var(--muted); font-size:12px; flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+        .pulse { animation: pulse 2s infinite; }
+        @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.5} }
+        .download-card { text-align:center; padding:30px; }
+        .download-card .version { font-size:24px; font-weight:700; color:var(--accent); margin-bottom:8px; }
+        .download-card .date { color:var(--muted); font-size:13px; margin-bottom:20px; }
+        .loading { color:var(--muted); text-align:center; padding:40px; }
+        .empty { color:var(--muted); text-align:center; padding:30px; font-size:14px; }
+        ::-webkit-scrollbar { width:6px; } ::-webkit-scrollbar-track { background:var(--bg); }
+        ::-webkit-scrollbar-thumb { background:var(--border); border-radius:3px; }
+        @media(max-width:768px) { .grid-4,.grid-3 { grid-template-columns:1fr 1fr; } .grid-2 { grid-template-columns:1fr; } }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <div class="header">
+            <div>
+                <h1><span class="accent">CS2 Player Tools</span> <span class="muted">— Headquarters</span></h1>
+                <div class="subtitle">App monitoring, diagnostics, downloads & release management</div>
+            </div>
+            <div class="header-actions">
+                <button class="btn" onclick="refreshAll()">↻ Refresh</button>
+                <a href="/" class="btn">← App Preview</a>
+                <a href="/kb" class="btn">📚 Knowledge Base</a>
+            </div>
+        </div>
+
+        <!-- Stats -->
+        <div class="grid grid-4" id="stats-grid">
+            <div class="card stat-card"><div class="value text-danger" id="stat-errors">-</div><div class="label">Total Errors</div></div>
+            <div class="card stat-card"><div class="value text-warning" id="stat-errors-24h">-</div><div class="label">Errors (24h)</div></div>
+            <div class="card stat-card"><div class="value text-accent" id="stat-diagnostics">-</div><div class="label">Diagnostics</div></div>
+            <div class="card stat-card"><div class="value text-success" id="stat-users">-</div><div class="label">Users (24h)</div></div>
+        </div>
+
+        <!-- Tabs -->
+        <div class="tabs">
+            <div class="tab active" onclick="switchTab('overview')">Overview</div>
+            <div class="tab" onclick="switchTab('errors')">Errors</div>
+            <div class="tab" onclick="switchTab('diagnostics')">Diagnostics</div>
+            <div class="tab" onclick="switchTab('telemetry')">Telemetry</div>
+            <div class="tab" onclick="switchTab('downloads')">Downloads</div>
+            <div class="tab" onclick="switchTab('releases')">Releases</div>
+        </div>
+
+        <!-- Tab: Overview -->
+        <div class="tab-content active" id="tab-overview">
+            <div class="grid grid-2">
+                <div class="card">
+                    <div class="section-title"><span class="dot" style="background:var(--danger)"></span> Latest Errors</div>
+                    <div id="latest-errors"><div class="empty">No errors reported yet</div></div>
+                </div>
+                <div class="card">
+                    <div class="section-title"><span class="dot" style="background:var(--success)"></span> Quick Actions</div>
+                    <div style="display:flex;flex-direction:column;gap:8px;">
+                        <a href="https://github.com/LeonardoFangueiro/cs2-player-tools/actions" target="_blank" class="btn">🔨 GitHub Actions (Builds)</a>
+                        <a href="https://github.com/LeonardoFangueiro/cs2-player-tools" target="_blank" class="btn">📂 GitHub Repository</a>
+                        <button class="btn btn-danger" onclick="clearErrors()">🗑️ Clear All Errors</button>
+                        <button class="btn btn-success" onclick="triggerBuild()">🚀 Trigger Windows Build</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tab: Errors -->
+        <div class="tab-content" id="tab-errors">
+            <div class="card">
+                <div class="section-title"><span class="dot" style="background:var(--danger)"></span> Error Reports</div>
+                <div id="errors-list"><div class="loading">Loading errors...</div></div>
+            </div>
+        </div>
+
+        <!-- Tab: Diagnostics -->
+        <div class="tab-content" id="tab-diagnostics">
+            <div class="card">
+                <div class="section-title"><span class="dot" style="background:var(--accent)"></span> Diagnostics Reports</div>
+                <div id="diagnostics-list"><div class="loading">Loading diagnostics...</div></div>
+            </div>
+        </div>
+
+        <!-- Tab: Telemetry -->
+        <div class="tab-content" id="tab-telemetry">
+            <div class="card">
+                <div class="section-title"><span class="dot" style="background:var(--accent2)"></span> Telemetry Events</div>
+                <div id="telemetry-list"><div class="loading">Loading telemetry...</div></div>
+            </div>
+        </div>
+
+        <!-- Tab: Downloads -->
+        <div class="tab-content" id="tab-downloads">
+            <div class="grid grid-2">
+                <div class="card download-card">
+                    <div style="font-size:48px;margin-bottom:12px;">🛡️</div>
+                    <div class="version" id="dl-version">v0.1.0</div>
+                    <div class="date" id="dl-date">Windows 11 / 10</div>
+                    <div style="margin-bottom:16px;">
+                        <span class="badge badge-accent">Tauri v2</span>
+                        <span class="badge badge-success">WireGuard Bundled</span>
+                        <span class="badge badge-warning">Admin Required</span>
+                    </div>
+                    <a id="dl-exe-link" href="https://github.com/LeonardoFangueiro/cs2-player-tools/actions" target="_blank" class="btn btn-primary" style="font-size:15px;padding:12px 24px;">
+                        ⬇ Download .exe (NSIS Installer)
+                    </a>
+                    <div style="margin-top:12px;">
+                        <a id="dl-msi-link" href="https://github.com/LeonardoFangueiro/cs2-player-tools/actions" target="_blank" class="btn">
+                            ⬇ Download .msi (MSI Installer)
+                        </a>
+                    </div>
+                </div>
+                <div class="card">
+                    <div class="section-title">Installation Notes</div>
+                    <div style="font-size:13px;color:var(--muted);line-height:1.8;">
+                        <p><strong style="color:var(--text)">1.</strong> Download the NSIS (.exe) or MSI installer</p>
+                        <p><strong style="color:var(--text)">2.</strong> Run as Administrator (required for network optimizations)</p>
+                        <p><strong style="color:var(--text)">3.</strong> WebView2 runtime is included automatically</p>
+                        <p><strong style="color:var(--text)">4.</strong> WireGuard binaries are bundled — no separate install needed</p>
+                        <hr style="border:none;border-top:1px solid var(--border);margin:12px 0;">
+                        <p><strong style="color:var(--accent)">Features:</strong></p>
+                        <p>• Network Diagnostics (ping, traceroute, DNS, buffer bloat, MTU)</p>
+                        <p>• Windows Optimizer (7 tweaks with safety levels)</p>
+                        <p>• Smart VPN (auto SSH deploy WireGuard to VPS)</p>
+                        <p>• Server Picker (region lock via firewall)</p>
+                        <p>• CS2 Config Helper (autoexec.cfg optimization)</p>
+                        <p>• System Tray + CS2 Auto-Detection</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tab: Releases -->
+        <div class="tab-content" id="tab-releases">
+            <div class="card">
+                <div class="section-title"><span class="dot" style="background:var(--success)"></span> Register New Release</div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;">
+                    <input id="rel-version" placeholder="Version (e.g. 0.2.0)" style="background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:8px 12px;color:var(--text);font-size:13px;">
+                    <input id="rel-url" placeholder="Download URL" style="background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:8px 12px;color:var(--text);font-size:13px;">
+                </div>
+                <textarea id="rel-changelog" placeholder="Changelog" rows="3" style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:8px 12px;color:var(--text);font-size:13px;resize:vertical;margin-bottom:12px;"></textarea>
+                <button class="btn btn-primary" onclick="registerRelease()">Publish Release</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API = '/api';
+
+        // ── Tabs ──
+        function switchTab(name) {
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+            document.querySelector(`#tab-${name}`).classList.add('active');
+            event.target.classList.add('active');
+            if (name === 'errors') loadErrors();
+            if (name === 'diagnostics') loadDiagnostics();
+            if (name === 'telemetry') loadTelemetry();
+        }
+
+        // ── Stats ──
+        async function loadStats() {
+            try {
+                const r = await fetch(`${API}/stats`);
+                const d = await r.json();
+                document.getElementById('stat-errors').textContent = d.total_errors;
+                document.getElementById('stat-errors-24h').textContent = d.errors_24h;
+                document.getElementById('stat-diagnostics').textContent = d.total_diagnostics;
+                document.getElementById('stat-users').textContent = d.unique_users_24h;
+
+                // Latest errors
+                const el = document.getElementById('latest-errors');
+                if (d.latest_errors?.length > 0) {
+                    el.innerHTML = d.latest_errors.map(e => `
+                        <div class="error-item">
+                            <div class="error-type">${esc(e.error_type)}</div>
+                            <div class="error-msg">${esc(e.error_message).slice(0, 200)}</div>
+                            <div class="error-meta">${e.app_version} | ${e.os} | ${timeAgo(e.received_at)}</div>
+                        </div>
+                    `).join('');
+                } else {
+                    el.innerHTML = '<div class="empty">No errors — looking good! 🎉</div>';
+                }
+
+                // Update download info
+                if (d.latest_release) {
+                    document.getElementById('dl-version').textContent = `v${d.latest_release.version}`;
+                    document.getElementById('dl-date').textContent = d.latest_release.date?.split('T')[0] || 'Windows 11 / 10';
+                    if (d.latest_release.download_url) {
+                        document.getElementById('dl-exe-link').href = d.latest_release.download_url;
+                    }
+                }
+            } catch (e) {
+                console.error('Failed to load stats:', e);
+            }
+        }
+
+        // ── Errors ──
+        async function loadErrors() {
+            const el = document.getElementById('errors-list');
+            try {
+                const r = await fetch(`${API}/errors?limit=50`);
+                const d = await r.json();
+                if (d.errors.length === 0) { el.innerHTML = '<div class="empty">No errors reported</div>'; return; }
+                el.innerHTML = `<table><thead><tr><th>Type</th><th>Message</th><th>Version</th><th>OS</th><th>Time</th></tr></thead><tbody>` +
+                    d.errors.map(e => `<tr>
+                        <td><span class="badge badge-danger">${esc(e.error_type)}</span></td>
+                        <td class="mono" style="font-size:11px;max-width:400px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(e.error_message)}</td>
+                        <td class="text-muted">${esc(e.app_version)}</td>
+                        <td class="text-muted">${esc(e.os)}</td>
+                        <td class="text-muted" style="white-space:nowrap;">${timeAgo(e.received_at)}</td>
+                    </tr>`).join('') + '</tbody></table>';
+            } catch { el.innerHTML = '<div class="empty">Failed to load errors</div>'; }
+        }
+
+        // ── Diagnostics ──
+        async function loadDiagnostics() {
+            const el = document.getElementById('diagnostics-list');
+            try {
+                const r = await fetch(`${API}/diagnostics?limit=20`);
+                const d = await r.json();
+                if (d.diagnostics.length === 0) { el.innerHTML = '<div class="empty">No diagnostics reports yet</div>'; return; }
+                el.innerHTML = d.diagnostics.map(diag => {
+                    const tests = diag.tests || {};
+                    const summary = diag.summary || {};
+                    return `<div class="card" style="margin-bottom:12px;background:var(--bg);">
+                        <div style="display:flex;justify-content:space-between;margin-bottom:8px;">
+                            <div>
+                                <span class="badge badge-accent">${esc(diag.app_version || '?')}</span>
+                                <span class="text-muted" style="font-size:11px;margin-left:8px;">${esc(diag.os || '?')}</span>
+                            </div>
+                            <div class="text-muted" style="font-size:11px;">${timeAgo(diag.received_at)} | ID: ${esc(diag.id)}</div>
+                        </div>
+                        <div style="display:flex;gap:8px;margin-bottom:8px;">
+                            <span class="badge badge-success">${summary.passed || 0} passed</span>
+                            <span class="badge badge-danger">${summary.failed || 0} failed</span>
+                        </div>
+                        <div>${Object.entries(tests).map(([name, test]) => `
+                            <div class="diag-test">
+                                <span style="color:${test.status === 'pass' ? 'var(--success)' : 'var(--danger)'};">${test.status === 'pass' ? '✓' : '✗'}</span>
+                                <span class="name">${esc(name)}</span>
+                                <span class="detail mono">${test.status === 'pass' ? Object.entries(test).filter(([k]) => k !== 'status').map(([k,v]) => `${k}=${JSON.stringify(v)}`).join(', ') : (test.error || 'failed')}</span>
+                            </div>
+                        `).join('')}</div>
+                    </div>`;
+                }).join('');
+            } catch { el.innerHTML = '<div class="empty">Failed to load diagnostics</div>'; }
+        }
+
+        // ── Telemetry ──
+        async function loadTelemetry() {
+            const el = document.getElementById('telemetry-list');
+            try {
+                const r = await fetch(`${API}/telemetry`);
+                // The telemetry endpoint returns the array directly from the file, let's handle both cases
+                const raw = await r.json();
+                const events = Array.isArray(raw) ? raw.slice(-50).reverse() : (raw.events || []);
+                if (events.length === 0) { el.innerHTML = '<div class="empty">No telemetry events yet</div>'; return; }
+                el.innerHTML = `<table><thead><tr><th>Event</th><th>Version</th><th>OS</th><th>Data</th><th>Time</th></tr></thead><tbody>` +
+                    events.map(e => `<tr>
+                        <td><span class="badge badge-accent">${esc(e.event)}</span></td>
+                        <td class="text-muted">${esc(e.app_version)}</td>
+                        <td class="text-muted">${esc(e.os)}</td>
+                        <td class="mono text-muted" style="font-size:10px;max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(JSON.stringify(e.data || {}))}</td>
+                        <td class="text-muted" style="white-space:nowrap;">${timeAgo(e.timestamp)}</td>
+                    </tr>`).join('') + '</tbody></table>';
+            } catch { el.innerHTML = '<div class="empty">Failed to load telemetry</div>'; }
+        }
+
+        // ── Actions ──
+        async function clearErrors() {
+            if (!confirm('Clear all error reports?')) return;
+            await fetch(`${API}/errors`, { method: 'DELETE' });
+            await refreshAll();
+        }
+
+        async function triggerBuild() {
+            try {
+                const r = await fetch('https://api.github.com/repos/LeonardoFangueiro/cs2-player-tools/actions/workflows/build-windows.yml/dispatches', {
+                    method: 'POST',
+                    headers: { 'Accept': 'application/vnd.github+json', 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ ref: 'main' }),
+                });
+                if (r.status === 204) alert('Build triggered! Check GitHub Actions.');
+                else alert('Failed to trigger. You may need to trigger manually from GitHub.');
+            } catch { alert('Failed — trigger manually from GitHub Actions.'); }
+        }
+
+        async function registerRelease() {
+            const version = document.getElementById('rel-version').value;
+            const url = document.getElementById('rel-url').value;
+            const changelog = document.getElementById('rel-changelog').value;
+            if (!version) return alert('Version is required');
+            const r = await fetch(`${API}/releases`, {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ version, download_url: url, changelog, api_key: 'cs2pt-dev-key' }),
+            });
+            const d = await r.json();
+            alert(d.message || 'Done');
+            document.getElementById('rel-version').value = '';
+            document.getElementById('rel-url').value = '';
+            document.getElementById('rel-changelog').value = '';
+            await loadStats();
+        }
+
+        // ── Helpers ──
+        function esc(s) { const d = document.createElement('div'); d.textContent = String(s || ''); return d.innerHTML; }
+        function timeAgo(ts) {
+            if (!ts) return '?';
+            const d = (Date.now() - new Date(ts).getTime()) / 1000;
+            if (d < 60) return `${Math.round(d)}s ago`;
+            if (d < 3600) return `${Math.round(d/60)}m ago`;
+            if (d < 86400) return `${Math.round(d/3600)}h ago`;
+            return `${Math.round(d/86400)}d ago`;
+        }
+
+        async function refreshAll() { await loadStats(); }
+
+        // ── Init ──
+        refreshAll();
+        setInterval(refreshAll, 30000); // Auto-refresh every 30s
+    </script>
+</body>
+</html>

@@ -43,8 +43,9 @@
         "type": "embedBootstrapper"
       },
       "nsis": {
-        "installMode": "perMachine",
-        "displayLanguageSelector": false
+        "installMode": "both",
+        "displayLanguageSelector": false,
+        "allowDowngrades": true
       }
     }
   }

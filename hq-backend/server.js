@@ -121,6 +121,22 @@ app.get('/api/diagnostics', (req, res) => {
   });
 });
 
+// Delete all errors
+app.delete('/api/errors', (req, res) => {
+  saveJson('errors.json', []);
+  res.json({ success: true, message: 'All errors cleared' });
+});
+
+// Get telemetry events
+app.get('/api/telemetry', (req, res) => {
+  const telemetry = loadJson('telemetry.json');
+  const limit = parseInt(req.query.limit) || 50;
+  res.json({
+    total: telemetry.length,
+    events: telemetry.slice(-limit).reverse(),
+  });
+});
+
 // Telemetry (app startup, usage stats)
 app.post('/api/telemetry', (req, res) => {
   const { app_version, os, event, data } = req.body;
