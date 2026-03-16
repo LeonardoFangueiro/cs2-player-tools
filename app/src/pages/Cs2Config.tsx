@@ -8,8 +8,8 @@ import {
   Loader,
   Play,
   Terminal,
-  Info,
   AlertTriangle,
+  RefreshCw,
 } from "lucide-react";
 
 // ── Types ──
@@ -114,179 +114,112 @@ export default function Cs2Config() {
   return (
     <div>
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center justify-between mb-4">
         <div>
-          <h1 className="text-2xl font-bold text-accent">CS2 Config Helper</h1>
+          <h1 className="text-2xl font-bold text-accent">CS2 Config</h1>
           <p className="text-text-muted text-sm mt-1">
-            Optimize autoexec.cfg and launch options for CS2
+            {scanResult ? `${optimizedCount}/${totalCount} optimized` : "Scan to detect settings"}
+            {scanResult?.autoexec_path && (
+              <span className="ml-2 font-mono text-[10px]">{scanResult.autoexec_path}</span>
+            )}
           </p>
         </div>
-        <div className="flex gap-3">
-          <button
-            onClick={scanConfig}
-            disabled={scanning}
-            className="flex items-center gap-2 px-4 py-2 bg-bg-card border border-border rounded-lg text-sm text-text-muted hover:text-text hover:border-accent/50 transition disabled:opacity-50"
-          >
-            {scanning ? (
-              <Loader size={14} className="animate-spin" />
-            ) : (
-              <Scan size={14} />
-            )}
-            {scanning ? "Scanning..." : "Scan Config"}
-          </button>
+        <div className="flex items-center gap-1.5">
           {scanResult && scanResult.current_settings.length > 0 && (
             <button
               onClick={applyAll}
               disabled={applyingAll || scanning}
-              className="flex items-center gap-2 px-4 py-2 bg-accent text-white text-sm rounded-lg hover:bg-accent/80 transition disabled:opacity-50"
+              className="flex items-center gap-1 px-3 py-1.5 bg-accent text-white text-xs rounded-lg hover:bg-accent/80 transition disabled:opacity-50"
             >
-              {applyingAll ? (
-                <Loader size={14} className="animate-spin" />
-              ) : (
-                <Play size={14} />
-              )}
-              {applyingAll ? "Applying..." : "Apply Recommended"}
+              {applyingAll ? <Loader size={12} className="animate-spin" /> : <Play size={12} />}
+              {applyingAll ? "Applying..." : "Apply All"}
             </button>
           )}
+          <button
+            onClick={scanConfig}
+            disabled={scanning}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-bg-card border border-border rounded-lg text-xs text-text-muted hover:text-text hover:border-accent/30 transition disabled:opacity-50"
+          >
+            {scanning ? <Loader size={12} className="animate-spin" /> : <RefreshCw size={12} />}
+            Scan
+          </button>
         </div>
       </div>
-
-      {/* Info banner */}
-      <div className="bg-bg-card border border-border rounded-lg p-4 mb-6 flex items-start gap-3">
-        <Info size={16} className="text-accent2 mt-0.5 shrink-0" />
-        <div className="text-xs text-text-muted leading-relaxed">
-          <strong className="text-text">CS2 Config Helper</strong> scans your
-          autoexec.cfg for common performance settings and recommends optimal
-          values. Click "Scan Config" to get started.
-        </div>
-      </div>
-
-      {/* CS2 Path Status */}
-      {scanResult && (
-        <div className="grid grid-cols-3 gap-4 mb-6">
-          <div className="bg-bg-card border border-border rounded-lg p-4 text-center">
-            <div className="text-[10px] text-text-muted uppercase tracking-wider mb-1">
-              Autoexec Path
-            </div>
-            <div className="text-sm font-mono text-accent2 truncate">
-              {scanResult.autoexec_path ?? "Not detected"}
-            </div>
-          </div>
-          <div className="bg-bg-card border border-border rounded-lg p-4 text-center">
-            <div className="text-[10px] text-text-muted uppercase tracking-wider mb-1">
-              File Exists
-            </div>
-            <div className={`text-sm font-semibold ${scanResult.autoexec_exists ? "text-success" : "text-warning"}`}>
-              {scanResult.autoexec_exists ? "Yes" : "No"}
-            </div>
-          </div>
-          <div className="bg-bg-card border border-border rounded-lg p-4 text-center">
-            <div className="text-[10px] text-text-muted uppercase tracking-wider mb-1">
-              Optimized
-            </div>
-            <div className={`text-sm font-bold ${optimizedCount >= totalCount && totalCount > 0 ? "text-success" : optimizedCount > 0 ? "text-warning" : "text-danger"}`}>
-              {totalCount > 0 ? `${optimizedCount} / ${totalCount}` : "--"}
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* No scan yet */}
       {!scanResult && !scanning && (
-        <div className="bg-bg-card border border-border rounded-lg p-12 text-center">
-          <FileCode size={48} className="mx-auto mb-4 text-text-muted" />
-          <p className="text-text-muted text-sm">
-            Click "Scan Config" to detect your current CS2 configuration settings.
+        <div className="bg-bg-card border border-border rounded-lg p-8 text-center">
+          <FileCode size={32} className="mx-auto mb-3 text-text-muted" />
+          <p className="text-text-muted text-xs">
+            Click "Scan" to detect your current CS2 configuration settings.
           </p>
         </div>
       )}
 
       {/* Scanning skeleton */}
       {scanning && (
-        <div className="grid grid-cols-1 gap-4">
+        <div className="space-y-2">
           {[1, 2, 3, 4].map((i) => (
-            <div key={i} className="bg-bg-card border border-border rounded-lg p-5 animate-pulse">
-              <div className="flex items-start gap-4">
-                <div className="w-10 h-10 rounded-lg bg-border/40" />
-                <div className="flex-1 space-y-2">
-                  <div className="h-4 bg-border/40 rounded w-48" />
-                  <div className="h-3 bg-border/40 rounded w-full" />
-                </div>
-              </div>
-            </div>
+            <div key={i} className="h-12 bg-border/20 rounded-lg animate-pulse" />
           ))}
         </div>
       )}
 
-      {/* Config Settings Cards */}
+      {/* Config Settings — compact rows */}
       {!scanning && scanResult && scanResult.current_settings.length > 0 && (
-        <div className="grid grid-cols-1 gap-4 mb-6">
+        <div className="space-y-2 mb-4">
           {scanResult.current_settings.map((setting) => (
             <div
               key={setting.key}
-              className="bg-bg-card border border-border rounded-lg p-5 hover:border-accent/20 transition"
+              className="bg-bg-card border border-border rounded-lg p-3 hover:border-accent/20 transition"
             >
-              <div className="flex items-start gap-4">
-                {/* Icon */}
-                <div className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0 ${
-                  setting.is_optimized ? "bg-success/10" : "bg-accent/10"
-                }`}>
-                  <span className={setting.is_optimized ? "text-success" : "text-accent"}>
-                    {setting.is_optimized ? <CheckCircle size={20} /> : <AlertTriangle size={20} />}
-                  </span>
-                </div>
+              <div className="flex items-center gap-2.5">
+                {/* Status icon */}
+                <span className={`shrink-0 ${setting.is_optimized ? "text-success" : "text-accent"}`}>
+                  {setting.is_optimized ? <CheckCircle size={14} /> : <AlertTriangle size={14} />}
+                </span>
 
                 {/* Content */}
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-1">
-                    <h3 className="font-semibold text-text font-mono">{setting.key}</h3>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-xs font-semibold text-text font-mono">{setting.key}</span>
                     {setting.is_optimized ? (
-                      <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-success/15 text-success font-semibold uppercase">
-                        &#10003; Optimized
-                      </span>
+                      <span className="text-[9px] px-1 py-px rounded-full bg-success/15 text-success font-semibold uppercase">ok</span>
                     ) : (
-                      <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-accent/15 text-accent font-semibold uppercase">
-                        RECOMMENDED
-                      </span>
+                      <span className="text-[9px] px-1 py-px rounded-full bg-accent/15 text-accent font-semibold uppercase">rec</span>
                     )}
                   </div>
-                  <p className="text-text-muted text-sm mb-2">{setting.description}</p>
-                  <div className="flex items-center gap-4 text-xs">
-                    <span className="text-text-muted">
-                      Current:{" "}
-                      <span className={`font-mono font-semibold ${setting.is_optimized ? "text-success" : "text-warning"}`}>
-                        {setting.current_value ?? "not set"}
-                      </span>
+                  <p className="text-text-muted text-[10px] leading-tight mt-0.5 truncate">{setting.description}</p>
+                </div>
+
+                {/* Values */}
+                <div className="shrink-0 text-right text-[10px]">
+                  <span className="text-text-muted">
+                    <span className={`font-mono font-semibold ${setting.is_optimized ? "text-success" : "text-warning"}`}>
+                      {setting.current_value ?? "unset"}
                     </span>
-                    {!setting.is_optimized && (
-                      <span className="text-text-muted">
-                        Recommended:{" "}
-                        <span className="font-mono font-semibold text-accent2">
-                          {setting.recommended_value}
-                        </span>
-                      </span>
-                    )}
-                  </div>
+                  </span>
+                  {!setting.is_optimized && (
+                    <span className="text-text-muted ml-2">
+                      rec: <span className="font-mono font-semibold text-accent2">{setting.recommended_value}</span>
+                    </span>
+                  )}
                 </div>
 
                 {/* Apply button */}
                 <button
                   onClick={() => applySingle(setting)}
                   disabled={applyingKey === setting.key || setting.is_optimized}
-                  className={`shrink-0 px-4 py-2 text-sm rounded-lg border transition disabled:opacity-40 flex items-center gap-2 ${
+                  className={`shrink-0 px-2.5 py-1 text-[10px] rounded border transition disabled:opacity-40 flex items-center gap-1 ${
                     setting.is_optimized
                       ? "bg-success/10 border-success/30 text-success cursor-default"
                       : "bg-accent/10 text-accent border-accent/30 hover:bg-accent/20"
                   }`}
                 >
                   {applyingKey === setting.key ? (
-                    <>
-                      <Loader size={14} className="animate-spin" /> Applying...
-                    </>
+                    <><Loader size={10} className="animate-spin" /> ...</>
                   ) : setting.is_optimized ? (
-                    <>
-                      <CheckCircle size={14} /> Done
-                    </>
+                    <><CheckCircle size={10} /> Done</>
                   ) : (
                     "Apply"
                   )}
@@ -299,39 +232,36 @@ export default function Cs2Config() {
 
       {/* Empty settings after scan */}
       {!scanning && scanResult && scanResult.current_settings.length === 0 && (
-        <div className="bg-bg-card border border-border rounded-lg p-8 text-center mb-6">
-          <FileCode size={32} className="mx-auto mb-3 text-text-muted" />
-          <p className="text-text-muted text-sm">
-            No configurable settings detected. Make sure CS2 is installed and the autoexec.cfg path is accessible.
+        <div className="bg-bg-card border border-border rounded-lg p-6 text-center mb-4">
+          <FileCode size={24} className="mx-auto mb-2 text-text-muted" />
+          <p className="text-text-muted text-xs">
+            No configurable settings detected.
           </p>
         </div>
       )}
 
-      {/* Launch Options */}
+      {/* Launch Options — inline list */}
       {launchOptions.length > 0 && (
-        <div className="bg-bg-card border border-border rounded-lg p-5">
-          <h2 className="text-base font-semibold mb-4 flex items-center gap-2">
-            <Terminal size={16} className="text-accent2" />
-            Recommended Launch Options
-          </h2>
-          <div className="space-y-2 mb-4">
+        <div className="bg-bg-card border border-border rounded-lg p-3 mb-4">
+          <div className="flex items-center gap-2 mb-2">
+            <Terminal size={14} className="text-accent2" />
+            <span className="text-xs font-semibold">Launch Options</span>
+          </div>
+          <div className="flex flex-wrap gap-1.5 mb-2">
             {launchOptions.map(([option, desc]) => (
-              <div
+              <span
                 key={option}
-                className="flex items-center gap-3 px-3 py-2 bg-bg rounded-md border border-border"
+                className="inline-flex items-center gap-1.5 px-2 py-1 bg-bg rounded border border-border text-[10px]"
+                title={desc}
               >
-                <code className="text-sm font-mono text-accent2 font-semibold">
-                  {option}
-                </code>
-                <span className="text-xs text-text-muted">{desc}</span>
-              </div>
+                <code className="font-mono text-accent2 font-semibold">{option}</code>
+                <span className="text-text-muted hidden sm:inline">{desc}</span>
+              </span>
             ))}
           </div>
-          <div className="bg-bg rounded-lg border border-border p-3">
-            <div className="text-[10px] text-text-muted uppercase tracking-wider mb-1">
-              Copy to Steam Launch Options
-            </div>
-            <code className="text-sm font-mono text-accent2 select-all">
+          <div className="bg-bg rounded border border-border px-2.5 py-1.5">
+            <div className="text-[9px] text-text-muted uppercase tracking-wider mb-0.5">Copy to Steam</div>
+            <code className="text-xs font-mono text-accent2 select-all">
               {launchOptions.map(([opt]) => opt).join(" ")}
             </code>
           </div>
@@ -340,12 +270,12 @@ export default function Cs2Config() {
 
       {/* Current launch options from scan */}
       {scanResult?.launch_options && (
-        <div className="bg-bg-card border border-border rounded-lg p-5 mt-4">
-          <h2 className="text-base font-semibold mb-3 flex items-center gap-2">
-            <Terminal size={16} className="text-accent2" />
-            Current Launch Options
-          </h2>
-          <code className="text-sm font-mono text-text-muted">
+        <div className="bg-bg-card border border-border rounded-lg p-3">
+          <div className="flex items-center gap-2 mb-1.5">
+            <Terminal size={14} className="text-accent2" />
+            <span className="text-xs font-semibold">Current Launch Options</span>
+          </div>
+          <code className="text-xs font-mono text-text-muted">
             {scanResult.launch_options}
           </code>
         </div>
@@ -354,16 +284,16 @@ export default function Cs2Config() {
       {/* Toast */}
       {toast && (
         <div
-          className={`fixed bottom-6 right-6 px-5 py-3 rounded-lg shadow-lg border flex items-center gap-2 text-sm z-50 max-w-md ${
+          className={`fixed bottom-6 right-6 px-4 py-2.5 rounded-lg shadow-lg border flex items-center gap-2 text-xs z-50 max-w-md ${
             toast.type === "success"
               ? "bg-success/15 border-success/30 text-success"
               : "bg-danger/15 border-danger/30 text-danger"
           }`}
         >
           {toast.type === "success" ? (
-            <CheckCircle size={16} />
+            <CheckCircle size={12} />
           ) : (
-            <XCircle size={16} />
+            <XCircle size={12} />
           )}
           {toast.message}
         </div>

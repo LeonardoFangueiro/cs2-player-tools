@@ -14,8 +14,9 @@ import {
   Cpu,
   Play,
   RotateCcw,
-  Info,
   ShieldAlert,
+  Undo2,
+  RefreshCw,
 } from "lucide-react";
 
 // ── Types matching Rust backend exactly ──
@@ -54,6 +55,7 @@ type RiskLevel = "safe" | "caution" | "advanced";
 interface OptimizationItem {
   key: keyof Pick<SystemOptStatus, "nagle" | "throttling" | "autotuning" | "ecn" | "firewall" | "mmcss" | "dscp">;
   action: string;
+  revertAction: string;
   title: string;
   description: string;
   risk: RiskLevel;
@@ -67,72 +69,79 @@ const OPTIMIZATIONS: OptimizationItem[] = [
   {
     key: "nagle",
     action: "disable_nagle",
+    revertAction: "revert_nagle",
     title: "Disable Nagle's Algorithm",
-    description: "Sets TcpNoDelay=1 and TcpAckFrequency=1 on all active network adapters. Reduces latency for small TCP packets (Steam overlay, signaling). CS2 game traffic uses UDP and is unaffected.",
+    description: "Sets TcpNoDelay=1 and TcpAckFrequency=1. Reduces latency for small TCP packets.",
     risk: "safe",
-    icon: <Zap size={20} />,
+    icon: <Zap size={16} />,
     recommended: true,
     requiresReboot: false,
   },
   {
     key: "throttling",
     action: "disable_throttling",
+    revertAction: "revert_throttling",
     title: "Disable Network Throttling",
-    description: "Sets NetworkThrottlingIndex=0xFFFFFFFF (disabled) and SystemResponsiveness=0. Removes the default 10 packets/ms limit Windows applies to non-multimedia traffic.",
+    description: "Removes the default 10 packets/ms limit Windows applies to non-multimedia traffic.",
     risk: "safe",
-    icon: <Network size={20} />,
+    icon: <Network size={16} />,
     recommended: true,
     requiresReboot: true,
   },
   {
     key: "autotuning",
     action: "disable_tcp_autotuning",
+    revertAction: "revert_autotuning",
     title: "Disable TCP Auto-Tuning",
-    description: "Disables the automatic TCP receive window scaling. CS2 uses UDP so this does NOT affect game traffic directly.",
+    description: "Disables automatic TCP receive window scaling. CS2 uses UDP so game traffic is unaffected.",
     risk: "caution",
-    riskNote: "WARNING: Can reduce TCP download speeds (Steam, browser, updates) by up to 50%. Only use if you have a specific ISP routing issue. Revert with: netsh interface tcp set global autotuninglevel=normal",
-    icon: <Settings2 size={20} />,
+    riskNote: "Can reduce TCP download speeds by up to 50%.",
+    icon: <Settings2 size={16} />,
     recommended: false,
     requiresReboot: false,
   },
   {
     key: "ecn",
     action: "disable_ecn",
+    revertAction: "revert_ecn",
     title: "Disable ECN",
-    description: "Disables Explicit Congestion Notification. Some older routers and ISPs mishandle ECN, causing random packet drops. Safe to disable since most networks don't use it.",
+    description: "Some older routers mishandle ECN, causing random packet drops. Safe to disable.",
     risk: "safe",
-    icon: <AlertTriangle size={20} />,
+    icon: <AlertTriangle size={16} />,
     recommended: true,
     requiresReboot: false,
   },
   {
     key: "firewall",
     action: "add_cs2_firewall",
+    revertAction: "revert_firewall",
     title: "CS2 Firewall Rules",
-    description: "Adds Windows Firewall allow rules for cs2.exe (UDP + TCP inbound). Only ADDS allow rules — does not block anything. Auto-detects CS2 install path.",
+    description: "Adds Windows Firewall allow rules for cs2.exe (UDP + TCP inbound).",
     risk: "safe",
-    icon: <Shield size={20} />,
+    icon: <Shield size={16} />,
     recommended: true,
     requiresReboot: false,
   },
   {
     key: "mmcss",
     action: "gaming_mmcss",
+    revertAction: "revert_mmcss",
     title: "MMCSS Gaming Priority",
-    description: "Configures the Multimedia Class Scheduler to give Games higher CPU scheduling priority (Priority=6, GPU Priority=8, Scheduling Category=High, SFIO=High).",
+    description: "Gives Games higher CPU scheduling priority via Multimedia Class Scheduler.",
     risk: "safe",
-    icon: <Gamepad2 size={20} />,
+    icon: <Gamepad2 size={16} />,
     recommended: true,
     requiresReboot: true,
   },
   {
     key: "dscp",
     action: "dscp_qos",
+    revertAction: "revert_dscp",
     title: "DSCP / QoS Marking",
-    description: "Creates a QoS policy marking cs2.exe UDP traffic as DSCP 46 (Expedited Forwarding). Only useful if your router respects DSCP. No effect on most consumer routers.",
+    description: "Marks cs2.exe UDP traffic as DSCP 46. Only useful with enterprise routers.",
     risk: "advanced",
-    riskNote: "Only effective with enterprise/prosumer routers (pfSense, OpenWrt, Ubiquiti, MikroTik) that honor DSCP markings. Consumer routers typically ignore this.",
-    icon: <Tag size={20} />,
+    riskNote: "Only effective with pfSense, OpenWrt, Ubiquiti, MikroTik.",
+    icon: <Tag size={16} />,
     recommended: false,
     requiresReboot: false,
   },
@@ -146,7 +155,7 @@ const RISK_COLORS: Record<RiskLevel, { bg: string; border: string; text: string;
 
 // ── Component ──
 
-type ApplyStatus = "idle" | "applying" | "success" | "error";
+type ApplyStatus = "idle" | "applying" | "reverting" | "success" | "error";
 
 interface ApplyState {
   status: ApplyStatus;
@@ -200,7 +209,40 @@ export default function WinOptimizer() {
           [opt.key]: { status: "success", message: result.message, requiresReboot: result.requires_reboot },
         }));
         if (result.requires_reboot) setNeedsReboot(true);
-        setToast({ message: `${opt.title}: Applied successfully`, type: "success" });
+        setToast({ message: `${opt.title}: Applied`, type: "success" });
+        await scanSystem();
+      } else {
+        setApplyStates((prev) => ({
+          ...prev,
+          [opt.key]: { status: "error", message: result.message, requiresReboot: false },
+        }));
+        setToast({ message: `${opt.title}: ${result.message}`, type: "error" });
+      }
+    } catch (e) {
+      setApplyStates((prev) => ({
+        ...prev,
+        [opt.key]: { status: "error", message: String(e), requiresReboot: false },
+      }));
+      setToast({ message: `${opt.title}: ${String(e)}`, type: "error" });
+    }
+  }
+
+  async function revertOptimization(opt: OptimizationItem) {
+    setApplyStates((prev) => ({
+      ...prev,
+      [opt.key]: { status: "reverting", message: "", requiresReboot: false },
+    }));
+
+    try {
+      const result = await invoke<OptimizationResult>("apply_optimization", { action: opt.revertAction });
+
+      if (result.success) {
+        setApplyStates((prev) => ({
+          ...prev,
+          [opt.key]: { status: "idle", message: "", requiresReboot: false },
+        }));
+        setToast({ message: `${opt.title}: Reverted`, type: "success" });
+        await scanSystem();
       } else {
         setApplyStates((prev) => ({
           ...prev,
@@ -234,205 +276,169 @@ export default function WinOptimizer() {
   return (
     <div>
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center justify-between mb-4">
         <div>
           <h1 className="text-2xl font-bold text-accent">Windows Optimizer</h1>
-          <p className="text-text-muted text-sm mt-1">Network and system optimization for CS2</p>
+          <p className="text-text-muted text-sm mt-1">
+            {optimizedCount}/{OPTIMIZATIONS.length} optimized
+            {scanResult && !scanResult.is_admin && (
+              <span className="ml-2 text-danger">
+                <ShieldAlert size={11} className="inline -mt-0.5 mr-0.5" />
+                Not admin
+              </span>
+            )}
+            {scanResult?.adapter_name && (
+              <span className="ml-2">{scanResult.adapter_name}</span>
+            )}
+          </p>
         </div>
-        <div className="flex gap-3">
-          <button onClick={scanSystem} disabled={scanning} className="flex items-center gap-2 px-4 py-2 bg-bg-card border border-border rounded-lg text-sm text-text-muted hover:text-text hover:border-accent/50 transition disabled:opacity-50">
-            {scanning ? <Loader size={14} className="animate-spin" /> : <Cpu size={14} />}
-            {scanning ? "Scanning..." : "Re-scan"}
+        <div className="flex items-center gap-1.5">
+          <button onClick={applyAllRecommended} disabled={applyingAll || scanning}
+            className="flex items-center gap-1 px-3 py-1.5 bg-accent text-white text-xs rounded-lg hover:bg-accent/80 transition disabled:opacity-50">
+            {applyingAll ? <Loader size={12} className="animate-spin" /> : <Play size={12} />}
+            {applyingAll ? "Applying..." : "Apply All"}
           </button>
-          <button onClick={applyAllRecommended} disabled={applyingAll || scanning} className="flex items-center gap-2 px-4 py-2 bg-accent text-white text-sm rounded-lg hover:bg-accent/80 transition disabled:opacity-50">
-            {applyingAll ? <Loader size={14} className="animate-spin" /> : <Play size={14} />}
-            {applyingAll ? "Applying..." : "Apply All Recommended"}
+          <button onClick={scanSystem} disabled={scanning}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-bg-card border border-border rounded-lg text-xs text-text-muted hover:text-text hover:border-accent/30 transition disabled:opacity-50">
+            <RefreshCw size={12} className={scanning ? "animate-spin" : ""} />
           </button>
         </div>
       </div>
-
-      {/* Admin Warning */}
-      {scanResult && !scanResult.is_admin && (
-        <div className="bg-danger/10 border border-danger/30 rounded-lg p-4 mb-6 flex items-start gap-3">
-          <ShieldAlert size={18} className="text-danger mt-0.5 shrink-0" />
-          <div className="text-sm">
-            <span className="text-danger font-semibold">Not running as Administrator.</span>
-            <span className="text-text-muted"> All optimizations require admin privileges. Right-click the app and select "Run as administrator".</span>
-          </div>
-        </div>
-      )}
 
       {/* Reboot Notice */}
       {needsReboot && (
-        <div className="bg-warning/10 border border-warning/30 rounded-lg p-4 mb-6 flex items-center gap-3">
-          <RotateCcw size={16} className="text-warning" />
-          <span className="text-sm text-warning">Some changes require a <strong>system reboot</strong> to take full effect.</span>
+        <div className="bg-warning/10 border border-warning/30 rounded-lg p-2.5 mb-4 flex items-center gap-2">
+          <RotateCcw size={12} className="text-warning" />
+          <span className="text-xs text-warning">Some changes require a <strong>reboot</strong> to take effect.</span>
         </div>
       )}
-
-      {/* System Info Bar */}
-      {scanResult && (
-        <div className="grid grid-cols-4 gap-3 mb-6">
-          <div className="bg-bg-card border border-border rounded-lg p-3 text-center">
-            <div className="text-[10px] text-text-muted uppercase tracking-wider">Adapter</div>
-            <div className="text-sm font-mono text-accent2 truncate">{scanResult.adapter_name ?? "N/A"}</div>
-          </div>
-          <div className="bg-bg-card border border-border rounded-lg p-3 text-center">
-            <div className="text-[10px] text-text-muted uppercase tracking-wider">Speed</div>
-            <div className="text-sm font-mono text-accent2">{scanResult.adapter_speed ?? "N/A"}</div>
-          </div>
-          <div className="bg-bg-card border border-border rounded-lg p-3 text-center">
-            <div className="text-[10px] text-text-muted uppercase tracking-wider">CS2 Detected</div>
-            <div className={`text-sm font-semibold ${scanResult.cs2_path ? "text-success" : "text-warning"}`}>
-              {scanResult.cs2_path ? "Yes" : "Not found"}
-            </div>
-          </div>
-          <div className="bg-bg-card border border-border rounded-lg p-3 text-center">
-            <div className="text-[10px] text-text-muted uppercase tracking-wider">Optimized</div>
-            <div className={`text-sm font-bold ${optimizedCount >= 5 ? "text-success" : optimizedCount >= 3 ? "text-warning" : "text-danger"}`}>
-              {optimizedCount} / {OPTIMIZATIONS.length}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Info banner */}
-      <div className="bg-bg-card border border-border rounded-lg p-4 mb-6 flex items-start gap-3">
-        <Info size={16} className="text-accent2 mt-0.5 shrink-0" />
-        <div className="text-xs text-text-muted leading-relaxed">
-          <strong className="text-text">Safe optimizations</strong> are well-documented Microsoft settings that improve gaming latency without side effects.{" "}
-          <strong className="text-warning">Caution</strong> items may affect non-gaming performance (downloads, browsing).{" "}
-          <strong className="text-accent">Advanced</strong> items are only useful with specific hardware/network setups.
-          All changes can be reverted.
-        </div>
-      </div>
 
       {/* Scanning skeleton */}
       {scanning && (
-        <div className="grid grid-cols-1 gap-4">
+        <div className="space-y-2">
           {OPTIMIZATIONS.map((opt) => (
-            <div key={opt.key} className="bg-bg-card border border-border rounded-lg p-5 animate-pulse">
-              <div className="flex items-start gap-4">
-                <div className="w-10 h-10 rounded-lg bg-border/40" />
-                <div className="flex-1 space-y-2">
-                  <div className="h-4 bg-border/40 rounded w-48" />
-                  <div className="h-3 bg-border/40 rounded w-full" />
-                </div>
-              </div>
-            </div>
+            <div key={opt.key} className="h-14 bg-border/20 rounded-lg animate-pulse" />
           ))}
         </div>
       )}
 
-      {/* Optimization cards */}
+      {/* Optimization rows */}
       {!scanning && scanResult && (
-        <div className="grid grid-cols-1 gap-4">
+        <div className="space-y-2">
           {OPTIMIZATIONS.map((opt) => {
             const itemStatus = scanResult[opt.key];
             const applyState = applyStates[opt.key];
             const riskStyle = RISK_COLORS[opt.risk];
 
             return (
-              <div key={opt.key} className="bg-bg-card border border-border rounded-lg p-5 hover:border-accent/20 transition">
-                <div className="flex items-start gap-4">
-                  {/* Icon */}
-                  <div className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0 ${
-                    itemStatus.is_optimized ? "bg-success/10" : "bg-accent/10"
-                  }`}>
-                    <span className={itemStatus.is_optimized ? "text-success" : "text-accent"}>
-                      {opt.icon}
-                    </span>
-                  </div>
+              <div key={opt.key} className="bg-bg-card border border-border rounded-lg p-3 hover:border-accent/20 transition">
+                <div className="flex items-center gap-2.5">
+                  {/* Icon inline */}
+                  <span className={`shrink-0 ${itemStatus.is_optimized ? "text-success" : "text-accent"}`}>
+                    {opt.icon}
+                  </span>
 
                   {/* Content */}
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1 flex-wrap">
-                      <h3 className="font-semibold text-text">{opt.title}</h3>
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="text-xs font-semibold text-text">{opt.title}</span>
                       {opt.recommended && (
-                        <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-accent/15 text-accent font-semibold uppercase">
-                          Recommended
-                        </span>
+                        <span className="text-[9px] px-1 py-px rounded-full bg-accent/15 text-accent font-semibold uppercase">rec</span>
                       )}
-                      <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${riskStyle.bg} ${riskStyle.text} font-semibold uppercase`}>
+                      <span className={`text-[9px] px-1 py-px rounded-full ${riskStyle.bg} ${riskStyle.text} font-semibold uppercase`}>
                         {riskStyle.label}
                       </span>
                       {opt.requiresReboot && (
-                        <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-warning/10 text-warning font-semibold uppercase">
-                          Reboot
-                        </span>
+                        <span className="text-[9px] px-1 py-px rounded-full bg-warning/10 text-warning font-semibold uppercase">reboot</span>
                       )}
                     </div>
-
-                    <p className="text-text-muted text-sm mb-2">{opt.description}</p>
-
-                    {/* Risk note */}
+                    <p className="text-text-muted text-[10px] leading-tight mt-0.5 truncate">{opt.description}</p>
                     {opt.riskNote && (
-                      <div className={`text-xs p-2 rounded mb-2 ${riskStyle.bg} ${riskStyle.border} border`}>
-                        <span className={riskStyle.text}>{opt.riskNote}</span>
-                      </div>
+                      <p className={`text-[9px] mt-0.5 ${riskStyle.text}`}>{opt.riskNote}</p>
                     )}
-
-                    {/* Current status */}
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="text-[10px] text-text-muted uppercase tracking-wider">Status:</span>
-                      {itemStatus.is_optimized ? (
-                        <span className="flex items-center gap-1 text-xs text-success font-mono">
-                          <CheckCircle size={12} /> {itemStatus.current_value}
-                        </span>
-                      ) : (
-                        <span className="flex items-center gap-1 text-xs text-warning font-mono">
-                          <AlertTriangle size={12} /> {itemStatus.current_value}
-                        </span>
-                      )}
-
-                      {/* Apply result */}
-                      {applyState?.status === "success" && (
-                        <span className="flex items-center gap-1 text-xs text-success ml-2">
-                          <CheckCircle size={12} /> Applied
-                          {applyState.requiresReboot && " (reboot needed)"}
-                        </span>
-                      )}
-                      {applyState?.status === "error" && (
-                        <span className="flex items-center gap-1 text-xs text-danger ml-2 max-w-md truncate">
-                          <XCircle size={12} className="shrink-0" /> {applyState.message}
-                        </span>
-                      )}
-                    </div>
                   </div>
 
-                  {/* Apply button */}
-                  <button
-                    onClick={() => applyOptimization(opt)}
-                    disabled={applyState?.status === "applying" || itemStatus.is_optimized}
-                    className={`shrink-0 px-4 py-2 text-sm rounded-lg border transition disabled:opacity-40 flex items-center gap-2 ${
-                      itemStatus.is_optimized
-                        ? "bg-success/10 border-success/30 text-success cursor-default"
-                        : "bg-accent/10 text-accent border-accent/30 hover:bg-accent/20"
-                    }`}
-                  >
-                    {applyState?.status === "applying" ? (
-                      <><Loader size={14} className="animate-spin" /> Applying...</>
-                    ) : itemStatus.is_optimized ? (
-                      <><CheckCircle size={14} /> Done</>
+                  {/* Status */}
+                  <div className="shrink-0 text-right">
+                    {itemStatus.is_optimized ? (
+                      <span className="flex items-center gap-1 text-[10px] text-success font-mono">
+                        <CheckCircle size={10} /> {itemStatus.current_value}
+                      </span>
                     ) : (
-                      "Apply"
+                      <span className="flex items-center gap-1 text-[10px] text-warning font-mono">
+                        <AlertTriangle size={10} /> {itemStatus.current_value}
+                      </span>
                     )}
-                  </button>
+                  </div>
+
+                  {/* Action buttons */}
+                  <div className="shrink-0 flex items-center gap-1">
+                    {itemStatus.is_optimized ? (
+                      <>
+                        <span className="px-2 py-0.5 text-[10px] bg-success/10 border border-success/30 text-success rounded cursor-default flex items-center gap-1">
+                          <CheckCircle size={10} /> Applied
+                        </span>
+                        <button
+                          onClick={() => revertOptimization(opt)}
+                          disabled={applyState?.status === "reverting"}
+                          className="px-2 py-0.5 text-[10px] text-text-muted hover:text-danger border border-transparent hover:border-danger/30 rounded transition disabled:opacity-50 flex items-center gap-0.5"
+                        >
+                          {applyState?.status === "reverting" ? (
+                            <Loader size={10} className="animate-spin" />
+                          ) : (
+                            <Undo2 size={10} />
+                          )}
+                          Revert
+                        </button>
+                      </>
+                    ) : (
+                      <button
+                        onClick={() => applyOptimization(opt)}
+                        disabled={applyState?.status === "applying"}
+                        className="px-2.5 py-1 text-[10px] bg-accent/10 text-accent border border-accent/30 hover:bg-accent/20 rounded transition disabled:opacity-50 flex items-center gap-1"
+                      >
+                        {applyState?.status === "applying" ? (
+                          <><Loader size={10} className="animate-spin" /> ...</>
+                        ) : (
+                          "Apply"
+                        )}
+                      </button>
+                    )}
+                  </div>
                 </div>
+
+                {/* Error message */}
+                {applyState?.status === "error" && (
+                  <div className="mt-1.5 flex items-center gap-1 text-[10px] text-danger ml-6">
+                    <XCircle size={10} className="shrink-0" /> {applyState.message}
+                  </div>
+                )}
               </div>
             );
           })}
         </div>
       )}
 
+      {/* System info bar */}
+      {scanResult && (
+        <div className="flex items-center gap-3 mt-4 text-[10px] text-text-muted">
+          <Cpu size={10} />
+          <span>Adapter: <span className="font-mono text-accent2">{scanResult.adapter_name ?? "N/A"}</span></span>
+          <span className="text-border">|</span>
+          <span>Speed: <span className="font-mono text-accent2">{scanResult.adapter_speed ?? "N/A"}</span></span>
+          <span className="text-border">|</span>
+          <span>CS2: <span className={`font-semibold ${scanResult.cs2_path ? "text-success" : "text-warning"}`}>{scanResult.cs2_path ? "Detected" : "Not found"}</span></span>
+        </div>
+      )}
+
       {/* Toast */}
       {toast && (
-        <div className={`fixed bottom-6 right-6 px-5 py-3 rounded-lg shadow-lg border flex items-center gap-2 text-sm z-50 max-w-md ${
+        <div className={`fixed bottom-6 right-6 px-4 py-2.5 rounded-lg shadow-lg border flex items-center gap-2 text-xs z-50 max-w-md ${
           toast.type === "success" ? "bg-success/15 border-success/30 text-success"
             : toast.type === "warning" ? "bg-warning/15 border-warning/30 text-warning"
             : "bg-danger/15 border-danger/30 text-danger"
         }`}>
-          {toast.type === "success" ? <CheckCircle size={16} /> : toast.type === "warning" ? <AlertTriangle size={16} /> : <XCircle size={16} />}
+          {toast.type === "success" ? <CheckCircle size={12} /> : toast.type === "warning" ? <AlertTriangle size={12} /> : <XCircle size={12} />}
           {toast.message}
         </div>
       )}

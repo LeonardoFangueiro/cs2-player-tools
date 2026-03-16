@@ -66,7 +66,7 @@ const navSections: NavSection[] = [
   {
     label: "Booster",
     items: [
-      { to: "/optimizer", icon: Settings2, label: "Win Optimizer" },
+      { to: "/optimizer", icon: Settings2, label: "Windows" },
     ],
   },
   {

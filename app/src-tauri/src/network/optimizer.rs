@@ -450,6 +450,110 @@ fn apply_optimization_windows(action: &str) -> Result<OptimizationResult, String
             })
         },
 
+        // ══════ REVERT ACTIONS ══════
+
+        "revert_nagle" => {
+            let result = run_ps(r#"
+                Get-NetAdapter | Where-Object { $_.Status -eq 'Up' } | ForEach-Object {
+                    $guid = $_.InterfaceGuid
+                    $path = "HKLM:\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\$guid"
+                    Remove-ItemProperty -Path $path -Name 'TcpAckFrequency' -ErrorAction SilentlyContinue
+                    Remove-ItemProperty -Path $path -Name 'TCPNoDelay' -ErrorAction SilentlyContinue
+                }
+                Write-Output "OK"
+            "#);
+            Ok(OptimizationResult {
+                action: action.to_string(),
+                success: result.trim().contains("OK"),
+                message: "Nagle's algorithm restored to default.".to_string(),
+                previous_value: None,
+                requires_reboot: false,
+            })
+        },
+
+        "revert_throttling" => {
+            let (r1, _) = run_cmd_checked("reg", &[
+                "add", r"HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Multimedia\SystemProfile",
+                "/v", "NetworkThrottlingIndex", "/t", "REG_DWORD", "/d", "10", "/f",
+            ]);
+            let (r2, _) = run_cmd_checked("reg", &[
+                "add", r"HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Multimedia\SystemProfile",
+                "/v", "SystemResponsiveness", "/t", "REG_DWORD", "/d", "20", "/f",
+            ]);
+            Ok(OptimizationResult {
+                action: action.to_string(),
+                success: r1 && r2,
+                message: "Network throttling restored to defaults (index=10, responsiveness=20).".to_string(),
+                previous_value: None,
+                requires_reboot: true,
+            })
+        },
+
+        "revert_autotuning" => {
+            let (success, _) = run_cmd_checked("netsh", &["interface", "tcp", "set", "global", "autotuninglevel=normal"]);
+            Ok(OptimizationResult {
+                action: action.to_string(),
+                success,
+                message: "TCP auto-tuning restored to normal.".to_string(),
+                previous_value: None,
+                requires_reboot: false,
+            })
+        },
+
+        "revert_ecn" => {
+            let (success, _) = run_cmd_checked("netsh", &["interface", "tcp", "set", "global", "ecncapability=default"]);
+            Ok(OptimizationResult {
+                action: action.to_string(),
+                success,
+                message: "ECN restored to default.".to_string(),
+                previous_value: None,
+                requires_reboot: false,
+            })
+        },
+
+        "revert_firewall" => {
+            let (r1, _) = run_cmd_checked("netsh", &[
+                "advfirewall", "firewall", "delete", "rule", "name=CS2 Player Tools - CS2 UDP",
+            ]);
+            let (r2, _) = run_cmd_checked("netsh", &[
+                "advfirewall", "firewall", "delete", "rule", "name=CS2 Player Tools - CS2 TCP",
+            ]);
+            Ok(OptimizationResult {
+                action: action.to_string(),
+                success: r1 || r2,
+                message: "CS2 firewall rules removed.".to_string(),
+                previous_value: None,
+                requires_reboot: false,
+            })
+        },
+
+        "revert_mmcss" => {
+            let key_path = r"HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Multimedia\SystemProfile\Tasks\Games";
+            // Reset to Windows defaults
+            let (r1, _) = run_cmd_checked("reg", &["add", key_path, "/v", "GPU Priority", "/t", "REG_DWORD", "/d", "1", "/f"]);
+            let (r2, _) = run_cmd_checked("reg", &["add", key_path, "/v", "Priority", "/t", "REG_DWORD", "/d", "2", "/f"]);
+            let (r3, _) = run_cmd_checked("reg", &["add", key_path, "/v", "Scheduling Category", "/t", "REG_SZ", "/d", "Medium", "/f"]);
+            let (r4, _) = run_cmd_checked("reg", &["add", key_path, "/v", "SFIO Priority", "/t", "REG_SZ", "/d", "Normal", "/f"]);
+            Ok(OptimizationResult {
+                action: action.to_string(),
+                success: r1 && r2 && r3 && r4,
+                message: "MMCSS gaming priority restored to defaults.".to_string(),
+                previous_value: None,
+                requires_reboot: true,
+            })
+        },
+
+        "revert_dscp" => {
+            let _ = run_ps(r#"Remove-NetQosPolicy -Name "CS2 Gaming" -Confirm:$false -ErrorAction SilentlyContinue"#);
+            Ok(OptimizationResult {
+                action: action.to_string(),
+                success: true,
+                message: "DSCP QoS policy removed.".to_string(),
+                previous_value: None,
+                requires_reboot: false,
+            })
+        },
+
         _ => Ok(OptimizationResult {
             action: action.to_string(),
             success: false,

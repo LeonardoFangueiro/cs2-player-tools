@@ -52,34 +52,6 @@ function Skeleton({ className = "" }: { className?: string }) {
   );
 }
 
-function StatCard({
-  icon,
-  label,
-  value,
-  loading,
-  color,
-}: {
-  icon: React.ReactNode;
-  label: string;
-  value: string;
-  loading: boolean;
-  color: string;
-}) {
-  return (
-    <div className="bg-bg-card border border-border rounded-lg p-4 flex flex-col gap-2">
-      <div className="flex items-center gap-2 text-text-muted">
-        <span className={color}>{icon}</span>
-        <span className="text-xs uppercase tracking-wider">{label}</span>
-      </div>
-      {loading ? (
-        <Skeleton className="h-8 w-16" />
-      ) : (
-        <span className={`text-2xl font-bold ${color}`}>{value}</span>
-      )}
-    </div>
-  );
-}
-
 function getBarColor(ms: number): string {
   if (ms < 50) return "#2ecc71";
   if (ms < 100) return "#f1c40f";
@@ -137,7 +109,6 @@ export default function Dashboard() {
       const results = await invoke<Array<[string, number]>>("ping_all_pops");
       const reachable = results.filter(([, ms]) => ms > 0);
       if (reachable.length === 0) {
-        // Fallback: ping known Valve IPs directly (fetched dynamically)
         const knownDCs = await getTopDCs(10);
         const fallbackResults: Array<[string, number]> = [];
         for (const dc of knownDCs) {
@@ -199,132 +170,92 @@ export default function Dashboard() {
   return (
     <div>
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center justify-between mb-4">
         <div>
-          <h1 className="text-2xl font-bold">
-            <span className="text-accent">Dashboard</span>
-          </h1>
+          <h1 className="text-2xl font-bold text-accent">Dashboard</h1>
           <p className="text-text-muted text-sm mt-1">
-            Network overview & Valve infrastructure status
+            {sdrConfig ? `${sdrConfig.pops.length} PoPs` : "..."} · {totalRelays} relays · {europeCount} EU · rev {sdrConfig?.revision ?? "..."}
           </p>
         </div>
         <button onClick={handleRefresh} disabled={loading}
           className="flex items-center gap-1.5 px-3 py-1.5 bg-bg-card border border-border rounded-lg text-xs text-text-muted hover:text-text hover:border-accent/30 transition disabled:opacity-50">
           <RefreshCw size={12} className={loading ? "animate-spin" : ""} />
-          Refresh
         </button>
       </div>
 
-      {/* Status Cards */}
-      <div className="grid grid-cols-4 gap-4 mb-6">
-        <StatCard
-          icon={<Globe size={18} />}
-          label="Valve PoPs"
-          value={String(sdrConfig?.pops.length ?? 0)}
-          loading={loading}
-          color="text-accent"
-        />
-        <StatCard
-          icon={<Wifi size={18} />}
-          label="Total Relays"
-          value={String(totalRelays)}
-          loading={loading}
-          color="text-accent2"
-        />
-        <StatCard
-          icon={<Activity size={18} />}
-          label="EU Datacenters"
-          value={String(europeCount)}
-          loading={loading}
-          color="text-success"
-        />
-        <StatCard
-          icon={<Clock size={18} />}
-          label="SDR Revision"
-          value={String(sdrConfig?.revision ?? 0)}
-          loading={loading}
-          color="text-warning"
-        />
-      </div>
-
       {error && (
-        <div className="bg-danger/10 border border-danger/30 rounded-lg p-4 mb-6 flex items-center gap-3">
-          <AlertTriangle size={16} className="text-danger" />
-          <span className="text-sm text-danger">{error}</span>
+        <div className="bg-danger/10 border border-danger/30 rounded-lg p-3 mb-4 flex items-center gap-2">
+          <AlertTriangle size={14} className="text-danger" />
+          <span className="text-xs text-danger">{error}</span>
         </div>
       )}
 
-      {/* Network Info */}
-      <div className="bg-bg-card border border-border rounded-lg p-5 mb-6">
-        <h2 className="text-base font-semibold mb-4 flex items-center gap-2">
-          <Monitor size={16} className="text-accent2" />
-          Network Information
-        </h2>
-        {networkLoading ? (
-          <div className="grid grid-cols-3 gap-4">
-            {[1, 2, 3].map((i) => (
-              <div key={i} className="space-y-2">
-                <Skeleton className="h-3 w-16" />
-                <Skeleton className="h-5 w-32" />
-              </div>
-            ))}
-          </div>
-        ) : networkInfo ? (
-          <div className="grid grid-cols-3 gap-4">
-            <div>
-              <div className="text-[10px] text-text-muted uppercase tracking-wider mb-1">
-                Hostname
-              </div>
-              <div className="text-sm font-mono text-accent2">
-                {networkInfo.hostname}
-              </div>
+      {/* Stat badges inline */}
+      <div className="flex items-center gap-2 mb-4 flex-wrap">
+        <div className="flex items-center gap-1.5 px-3 py-1.5 bg-bg-card border border-border rounded-lg">
+          <Globe size={12} className="text-accent" />
+          <span className="text-[10px] text-text-muted">PoPs</span>
+          {loading ? <Skeleton className="h-4 w-6" /> : <span className="text-xs font-bold text-accent">{sdrConfig?.pops.length ?? 0}</span>}
+        </div>
+        <div className="flex items-center gap-1.5 px-3 py-1.5 bg-bg-card border border-border rounded-lg">
+          <Wifi size={12} className="text-accent2" />
+          <span className="text-[10px] text-text-muted">Relays</span>
+          {loading ? <Skeleton className="h-4 w-6" /> : <span className="text-xs font-bold text-accent2">{totalRelays}</span>}
+        </div>
+        <div className="flex items-center gap-1.5 px-3 py-1.5 bg-bg-card border border-border rounded-lg">
+          <Activity size={12} className="text-success" />
+          <span className="text-[10px] text-text-muted">EU DCs</span>
+          {loading ? <Skeleton className="h-4 w-6" /> : <span className="text-xs font-bold text-success">{europeCount}</span>}
+        </div>
+        <div className="flex items-center gap-1.5 px-3 py-1.5 bg-bg-card border border-border rounded-lg">
+          <Clock size={12} className="text-warning" />
+          <span className="text-[10px] text-text-muted">SDR Rev</span>
+          {loading ? <Skeleton className="h-4 w-6" /> : <span className="text-xs font-bold text-warning">{sdrConfig?.revision ?? 0}</span>}
+        </div>
+      </div>
+
+      {/* Network Info — compact inline row */}
+      <div className="bg-bg-card border border-border rounded-lg p-3 mb-4">
+        <div className="flex items-center gap-4">
+          <Monitor size={14} className="text-accent2 shrink-0" />
+          {networkLoading ? (
+            <div className="flex items-center gap-4 flex-1">
+              {[1, 2, 3].map((i) => <Skeleton key={i} className="h-4 w-24" />)}
             </div>
-            <div>
-              <div className="text-[10px] text-text-muted uppercase tracking-wider mb-1">
-                DNS Servers
-              </div>
-              <div className="text-sm font-mono text-accent2">
-                {networkInfo.dns_servers.length > 0
-                  ? networkInfo.dns_servers.join(", ")
-                  : "N/A"}
-              </div>
+          ) : networkInfo ? (
+            <div className="flex items-center gap-4 flex-wrap flex-1 text-xs">
+              <span className="text-text-muted">Host: <span className="font-mono text-accent2">{networkInfo.hostname}</span></span>
+              <span className="text-border">|</span>
+              <span className="text-text-muted">DNS: <span className="font-mono text-accent2">{networkInfo.dns_servers.length > 0 ? networkInfo.dns_servers.join(", ") : "N/A"}</span></span>
+              <span className="text-border">|</span>
+              <span className="text-text-muted">Gateway: <span className="font-mono text-accent2">{networkInfo.default_gateway ?? "N/A"}</span></span>
             </div>
-            <div>
-              <div className="text-[10px] text-text-muted uppercase tracking-wider mb-1">
-                Default Gateway
-              </div>
-              <div className="text-sm font-mono text-accent2">
-                {networkInfo.default_gateway ?? "N/A"}
-              </div>
-            </div>
-          </div>
-        ) : (
-          <p className="text-text-muted text-sm">
-            Failed to load network information.
-          </p>
-        )}
+          ) : (
+            <span className="text-text-muted text-xs">Failed to load network info</span>
+          )}
+        </div>
       </div>
 
       {/* Ping All PoPs */}
-      <div className="bg-bg-card border border-border rounded-lg p-5 mb-6">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-base font-semibold flex items-center gap-2">
-            <Server size={16} className="text-accent" />
-            Valve Relay Latency
-          </h2>
+      <div className="bg-bg-card border border-border rounded-lg p-3 mb-4">
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2">
+            <Server size={14} className="text-accent" />
+            <span className="text-xs font-semibold">Valve Relay Latency</span>
+          </div>
           <button
             onClick={pingAllPops}
             disabled={pinging || loading}
-            className="px-4 py-1.5 bg-accent text-white text-sm rounded-md hover:bg-accent/80 transition disabled:opacity-50 disabled:cursor-not-allowed"
+            className="px-2.5 py-1 bg-accent text-white text-[10px] rounded hover:bg-accent/80 transition disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {pinging ? "Pinging..." : "Ping All PoPs"}
           </button>
         </div>
 
         {pinging && (
-          <div className="space-y-2">
+          <div className="space-y-1.5">
             {[1, 2, 3].map((i) => (
-              <Skeleton key={i} className="h-10 w-full" />
+              <Skeleton key={i} className="h-8 w-full" />
             ))}
           </div>
         )}
@@ -332,40 +263,36 @@ export default function Dashboard() {
         {!pinging && popPings.length > 0 && (
           <>
             {/* Top 10 Closest */}
-            <div className="mb-5">
-              <h3 className="text-sm font-semibold text-text-muted mb-3 uppercase tracking-wider">
-                Top 10 Closest PoPs
-              </h3>
-              <div className="grid grid-cols-5 gap-2 mb-4">
+            <div className="mb-3">
+              <div className="text-[10px] font-semibold text-text-muted mb-2 uppercase tracking-wider">
+                Top 10 Closest
+              </div>
+              <div className="grid grid-cols-5 gap-1.5">
                 {top10.map(([code, ms], idx) => (
                   <div
                     key={code}
-                    className={`relative flex flex-col items-center justify-center px-3 py-3 rounded-lg border ${
+                    className={`relative flex flex-col items-center justify-center px-2 py-2 rounded-lg border ${
                       idx === 0
                         ? "bg-success/10 border-success/40"
                         : "bg-bg border-border"
                     }`}
                   >
                     {idx === 0 && (
-                      <span className="absolute -top-2 -right-2 text-[10px] px-1.5 py-0.5 bg-success text-bg rounded-full font-bold">
+                      <span className="absolute -top-1.5 -right-1.5 text-[8px] px-1 py-px bg-success text-bg rounded-full font-bold">
                         BEST
                       </span>
                     )}
-                    <span className="text-sm font-mono font-bold text-accent2">
+                    <span className="text-[10px] font-mono font-bold text-accent2">
                       {code}
                     </span>
                     <span
-                      className={`text-lg font-bold font-mono ${
-                        ms < 50
-                          ? "text-success"
-                          : ms < 100
-                          ? "text-warning"
-                          : "text-danger"
+                      className={`text-xs font-bold font-mono ${
+                        ms < 50 ? "text-success" : ms < 100 ? "text-warning" : "text-danger"
                       }`}
                     >
                       {ms.toFixed(1)}
                     </span>
-                    <span className="text-[10px] text-text-muted">ms</span>
+                    <span className="text-[8px] text-text-muted">ms</span>
                   </div>
                 ))}
               </div>
@@ -373,21 +300,21 @@ export default function Dashboard() {
 
             {/* Latency Bar Chart */}
             {chartData.length > 0 && (
-              <div className="mb-5">
-                <h3 className="text-sm font-semibold text-text-muted mb-3 uppercase tracking-wider">
-                  Latency Chart (Top 10)
-                </h3>
-                <div className="h-48 bg-bg rounded-lg border border-border p-2">
+              <div className="mb-3">
+                <div className="text-[10px] font-semibold text-text-muted mb-2 uppercase tracking-wider">
+                  Latency Chart
+                </div>
+                <div className="h-36 bg-bg rounded-lg border border-border p-1.5">
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={chartData}>
                       <XAxis
                         dataKey="code"
-                        tick={{ fill: "#8a8070", fontSize: 11 }}
+                        tick={{ fill: "#8a8070", fontSize: 10 }}
                         axisLine={{ stroke: "#2a2620" }}
                         tickLine={false}
                       />
                       <YAxis
-                        tick={{ fill: "#8a8070", fontSize: 11 }}
+                        tick={{ fill: "#8a8070", fontSize: 10 }}
                         axisLine={{ stroke: "#2a2620" }}
                         tickLine={false}
                         unit="ms"
@@ -398,7 +325,7 @@ export default function Dashboard() {
                           border: "1px solid #2a2620",
                           borderRadius: 8,
                           color: "#e8e4dc",
-                          fontSize: 12,
+                          fontSize: 11,
                         }}
                         formatter={(value) => [
                           `${value}ms`,
@@ -420,25 +347,21 @@ export default function Dashboard() {
             )}
 
             {/* Full Grid */}
-            <h3 className="text-sm font-semibold text-text-muted mb-3 uppercase tracking-wider">
-              All Reachable PoPs ({reachablePings.length})
-            </h3>
-            <div className="grid grid-cols-3 gap-2">
+            <div className="text-[10px] font-semibold text-text-muted mb-2 uppercase tracking-wider">
+              All Reachable ({reachablePings.length})
+            </div>
+            <div className="grid grid-cols-4 gap-1.5">
               {reachablePings.map(([code, ms]) => (
                 <div
                   key={code}
-                  className="flex items-center justify-between px-3 py-2 bg-bg rounded-md border border-border"
+                  className="flex items-center justify-between px-2 py-1.5 bg-bg rounded border border-border"
                 >
-                  <span className="text-sm font-mono font-semibold text-accent2">
+                  <span className="text-[10px] font-mono font-semibold text-accent2">
                     {code}
                   </span>
                   <span
-                    className={`text-sm font-mono ${
-                      ms < 50
-                        ? "text-success"
-                        : ms < 100
-                        ? "text-warning"
-                        : "text-danger"
+                    className={`text-[10px] font-mono ${
+                      ms < 50 ? "text-success" : ms < 100 ? "text-warning" : "text-danger"
                     }`}
                   >
                     {ms.toFixed(1)}ms
@@ -450,37 +373,36 @@ export default function Dashboard() {
         )}
 
         {!pinging && popPings.length === 0 && (
-          <p className="text-text-muted text-sm">
-            Click "Ping All PoPs" to measure latency to all Valve relay
-            clusters.
+          <p className="text-text-muted text-xs">
+            Click "Ping All PoPs" to measure latency to Valve relay clusters.
           </p>
         )}
       </div>
 
-      {/* PoP List */}
+      {/* PoP Table */}
       {loading && (
-        <div className="bg-bg-card border border-border rounded-lg p-5">
-          <Skeleton className="h-5 w-48 mb-4" />
-          <div className="space-y-2">
+        <div className="bg-bg-card border border-border rounded-lg p-3">
+          <Skeleton className="h-4 w-40 mb-3" />
+          <div className="space-y-1.5">
             {[1, 2, 3, 4, 5].map((i) => (
-              <Skeleton key={i} className="h-8 w-full" />
+              <Skeleton key={i} className="h-6 w-full" />
             ))}
           </div>
         </div>
       )}
       {!loading && sdrConfig && (
-        <div className="bg-bg-card border border-border rounded-lg p-5">
-          <h2 className="text-base font-semibold mb-4">
-            Valve Points of Presence ({sdrConfig.pops.length})
-          </h2>
+        <div className="bg-bg-card border border-border rounded-lg p-3">
+          <div className="text-xs font-semibold mb-2">
+            Valve PoPs ({sdrConfig.pops.length})
+          </div>
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+            <table className="w-full text-xs">
               <thead>
-                <tr className="border-b border-border text-text-muted text-xs uppercase tracking-wider">
-                  <th className="text-left py-2 px-3">Code</th>
-                  <th className="text-left py-2 px-3">Location</th>
-                  <th className="text-left py-2 px-3">Relays</th>
-                  <th className="text-left py-2 px-3">Coordinates</th>
+                <tr className="border-b border-border text-text-muted text-[10px] uppercase tracking-wider">
+                  <th className="text-left py-1.5 px-2">Code</th>
+                  <th className="text-left py-1.5 px-2">Location</th>
+                  <th className="text-left py-1.5 px-2">Relays</th>
+                  <th className="text-left py-1.5 px-2">Coordinates</th>
                 </tr>
               </thead>
               <tbody>
@@ -489,14 +411,14 @@ export default function Dashboard() {
                     key={pop.code}
                     className="border-b border-border/50 hover:bg-bg-hover transition"
                   >
-                    <td className="py-2 px-3 font-mono font-semibold text-accent2">
+                    <td className="py-1 px-2 font-mono font-semibold text-accent2">
                       {pop.code}
                     </td>
-                    <td className="py-2 px-3">{pop.desc || "\u2014"}</td>
-                    <td className="py-2 px-3 text-text-muted">
+                    <td className="py-1 px-2 text-text-muted">{pop.desc || "\u2014"}</td>
+                    <td className="py-1 px-2 text-text-muted">
                       {pop.relays.length}
                     </td>
-                    <td className="py-2 px-3 text-text-muted text-xs font-mono">
+                    <td className="py-1 px-2 text-text-muted font-mono text-[10px]">
                       {pop.geo.length >= 2
                         ? `${pop.geo[0].toFixed(2)}, ${pop.geo[1].toFixed(2)}`
                         : "\u2014"}

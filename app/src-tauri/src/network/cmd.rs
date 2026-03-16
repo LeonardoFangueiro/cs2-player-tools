@@ -2,6 +2,7 @@
 use std::process::Command;
 
 /// Create a Command that won't show a console window on Windows.
+#[allow(unused_mut)]
 pub fn hidden(program: &str) -> Command {
     let mut cmd = Command::new(program);
     #[cfg(target_os = "windows")]
