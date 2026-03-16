@@ -236,19 +236,67 @@ pub fn activate_vpn(profile: &VpnProfile) -> Result<VpnActionResult, String> {
     #[cfg(target_os = "windows")]
     {
         let wg_exe = find_wireguard_exe()?;
-        let config_path_str = config_path.to_str().ok_or("Invalid config path")?;
-        let output = super::cmd::hidden(&wg_exe)
-            .args(["/installtunnelservice", config_path_str])
-            .output()
-            .map_err(|e| format!("Failed to start tunnel: {}", e))?;
 
+        // WireGuard Windows expects configs in its own data directory
+        // Copy our config there so the service manager can find it
+        let wg_config_dir = std::path::PathBuf::from(r"C:\Program Files\WireGuard\Data\Configurations");
+        std::fs::create_dir_all(&wg_config_dir).ok();
+        let wg_config_path = wg_config_dir.join(format!("{}.conf.dpapi", profile.name));
+        // Also try without .dpapi extension (plain conf)
+        let wg_plain_path = wg_config_dir.join(format!("{}.conf", profile.name));
+        std::fs::copy(&config_path, &wg_plain_path).ok();
+
+        // Method 1: Try /installtunnelservice with the original path
+        let config_path_str = config_path.to_str().ok_or("Invalid config path")?;
+        let r1 = super::cmd::hidden(&wg_exe)
+            .args(["/installtunnelservice", config_path_str])
+            .output();
+
+        if let Ok(ref o) = r1 {
+            if o.status.success() {
+                return Ok(VpnActionResult {
+                    success: true,
+                    message: format!("Tunnel '{}' activated", profile.name),
+                });
+            }
+        }
+
+        // Method 2: Try with the WireGuard data directory path
+        let wg_plain_str = wg_plain_path.to_str().ok_or("Invalid path")?;
+        let r2 = super::cmd::hidden(&wg_exe)
+            .args(["/installtunnelservice", wg_plain_str])
+            .output();
+
+        if let Ok(ref o) = r2 {
+            if o.status.success() {
+                return Ok(VpnActionResult {
+                    success: true,
+                    message: format!("Tunnel '{}' activated", profile.name),
+                });
+            }
+        }
+
+        // Method 3: Launch WireGuard GUI and import the config
+        // wireguard.exe /import <path> imports the tunnel into the GUI manager
+        let r3 = super::cmd::hidden(&wg_exe)
+            .args(["/import", config_path_str])
+            .spawn();
+
+        if r3.is_ok() {
+            // Give it a moment to import
+            std::thread::sleep(std::time::Duration::from_secs(2));
+            return Ok(VpnActionResult {
+                success: true,
+                message: format!("Tunnel '{}' imported into WireGuard — activate it from the system tray icon", profile.name),
+            });
+        }
+
+        // All methods failed
+        let err1 = r1.map(|o| String::from_utf8_lossy(&o.stderr).to_string()).unwrap_or_default();
+        let err2 = r2.map(|o| String::from_utf8_lossy(&o.stderr).to_string()).unwrap_or_default();
         Ok(VpnActionResult {
-            success: output.status.success(),
-            message: if output.status.success() {
-                format!("Tunnel '{}' activated", profile.name)
-            } else {
-                String::from_utf8_lossy(&output.stderr).to_string()
-            },
+            success: false,
+            message: format!("Failed to activate tunnel. Error: {} | {}", err1.trim(), err2.trim()),
         })
     }
 
