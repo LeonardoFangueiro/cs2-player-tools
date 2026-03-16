@@ -4,7 +4,7 @@ import { readFileSync, writeFileSync, existsSync, mkdirSync, readdirSync, statSy
 import { join, dirname, extname } from 'path';
 import { fileURLToPath } from 'url';
 import { execSync } from 'child_process';
-import { deployVpnServer, checkServerStatus, addPeer, detectLocation } from './vpn-deploy.js';
+import { deployVpnServer, checkServerStatus, addPeer, removePeer, listPeers, detectLocation, allocateClientIp, getValveAllowedIps } from './vpn-deploy.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -803,37 +803,94 @@ app.patch('/api/vpn-servers/:id', (req, res) => {
   res.json({ success: true, server: servers[idx] });
 });
 
-// Request VPN connection (app sends token, gets client config)
-app.post('/api/vpn-servers/:id/connect', (req, res) => {
+// Request VPN connection (app sends token + client public key, gets config + peer added to server)
+app.post('/api/vpn-servers/:id/connect', async (req, res) => {
   const { token, client_public_key } = req.body;
+  if (!client_public_key) return res.status(400).json({ error: 'client_public_key required' });
+
   // Validate token
   const tokens = loadJson('tokens.json');
-  const tokenEntry = tokens.find(t => t.token === (token || '').toUpperCase().trim());
-  if (!tokenEntry || !tokenEntry.active) {
+  const tokenIdx = tokens.findIndex(t => t.token === (token || '').toUpperCase().trim());
+  if (tokenIdx === -1 || !tokens[tokenIdx].active) {
     return res.status(401).json({ error: 'Invalid or inactive token' });
   }
+  if (tokens[tokenIdx].max_uses > 0 && tokens[tokenIdx].uses >= tokens[tokenIdx].max_uses) {
+    return res.status(403).json({ error: 'Token usage limit reached' });
+  }
+
   // Find server
   const servers = loadJson('vpn_servers.json');
   const server = servers.find(s => s.id === req.params.id && s.active);
-  if (!server) {
-    return res.status(404).json({ error: 'Server not found or inactive' });
+  if (!server) return res.status(404).json({ error: 'Server not found or inactive' });
+  if (!server._ssh_pass) return res.status(500).json({ error: 'Server SSH credentials not available' });
+
+  // Get existing peers to allocate unique IP
+  const existingPeers = await listPeers({
+    ip: server.ip, port: server.ssh_port || 22,
+    username: server.ssh_user || 'root', password: server._ssh_pass,
+  });
+
+  const clientIp = allocateClientIp(existingPeers);
+  if (!clientIp) return res.status(503).json({ error: 'No available IP addresses (server full)' });
+
+  // Add peer to server WITHOUT interrupting VPN (Point 1)
+  const addResult = await addPeer({
+    ip: server.ip, port: server.ssh_port || 22,
+    username: server.ssh_user || 'root', password: server._ssh_pass,
+    clientPublicKey: client_public_key, clientIp,
+  });
+
+  if (!addResult.success) {
+    return res.json({ success: false, error: `Failed to add peer: ${addResult.error}` });
   }
-  // Generate client config
-  // In production, this would allocate an IP and configure the server
-  // For now, return the server info needed for WireGuard config
-  const clientIp = `10.66.66.${2 + Math.floor(Math.random() * 250)}/32`;
+
+  // Track token usage
+  tokens[tokenIdx].uses++;
+  tokens[tokenIdx].last_used = ts();
+  tokens[tokenIdx].last_ip = req.ip;
+  saveJson('tokens.json', tokens);
+
+  // Return client config (Point 5: CS2-only split tunnel)
   res.json({
     success: true,
     config: {
       server_endpoint: server.endpoint,
       server_public_key: server.public_key,
-      client_address: clientIp,
-      dns: '1.1.1.1',
+      client_address: `${clientIp}/32`,
+      dns: '1.1.1.1, 8.8.8.8',
       mtu: 1420,
-      allowed_ips: '155.133.224.0/19, 162.254.192.0/21, 208.64.200.0/21, 185.25.180.0/22, 192.69.96.0/22, 205.196.6.0/24, 103.10.124.0/23, 103.28.54.0/23, 146.66.152.0/21, 208.78.164.0/22',
+      allowed_ips: getValveAllowedIps(), // CS2 only! (Point 5)
       persistent_keepalive: 25,
     },
   });
+});
+
+// List peers on a server (admin)
+app.get('/api/vpn-servers/:id/peers', async (req, res) => {
+  const servers = loadJson('vpn_servers.json');
+  const server = servers.find(s => s.id === req.params.id);
+  if (!server) return res.status(404).json({ error: 'Not found' });
+  if (!server._ssh_pass) return res.json({ peers: [], error: 'No SSH credentials' });
+
+  const peers = await listPeers({
+    ip: server.ip, port: server.ssh_port || 22,
+    username: server.ssh_user || 'root', password: server._ssh_pass,
+  });
+  res.json({ peers, total: peers.length });
+});
+
+// Remove peer from server (admin - Point 12)
+app.delete('/api/vpn-servers/:id/peers/:pubkey', async (req, res) => {
+  const servers = loadJson('vpn_servers.json');
+  const server = servers.find(s => s.id === req.params.id);
+  if (!server || !server._ssh_pass) return res.status(404).json({ error: 'Not found' });
+
+  const result = await removePeer({
+    ip: server.ip, port: server.ssh_port || 22,
+    username: server.ssh_user || 'root', password: server._ssh_pass,
+    clientPublicKey: decodeURIComponent(req.params.pubkey),
+  });
+  res.json(result);
 });
 
 // ══════════════════════════════════════════
