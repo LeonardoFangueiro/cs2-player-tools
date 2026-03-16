@@ -90,6 +90,7 @@ export default function Home() {
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [favoriteId, setFavoriteId] = useState<string>("");
   const [connectionState, setConnectionState] = useState<ConnectionState>("disconnected");
+  const [connectError, setConnectError] = useState<string | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   // Load servers + favorite + connection state
@@ -100,9 +101,26 @@ export default function Home() {
 
     const connected = localStorage.getItem("cs2pt_vpn_connected") === "true";
     if (connected) {
-      setConnectionState("connected");
       const sid = localStorage.getItem("cs2pt_vpn_server_id") || "";
-      setSelectedServerId(sid);
+      const profileName = `smartvpn-${sid}`;
+      (async () => {
+        try {
+          const status = await invoke<{ active: boolean }>("vpn_get_status", { profileName });
+          if (!status.active) {
+            // Tunnel is dead, clear state
+            localStorage.removeItem("cs2pt_vpn_connected");
+            localStorage.removeItem("cs2pt_vpn_server_id");
+            localStorage.removeItem("cs2pt_vpn_ip");
+            setConnectionState("disconnected");
+          } else {
+            setConnectionState("connected");
+            setSelectedServerId(sid);
+          }
+        } catch {
+          setConnectionState("connected"); // Assume connected if can't check
+          setSelectedServerId(sid);
+        }
+      })();
     }
   }, []);
 
@@ -157,21 +175,49 @@ export default function Home() {
       setConnectionState("disconnecting");
       const serverId = localStorage.getItem("cs2pt_vpn_server_id") || selectedServerId;
       const profileName = `smartvpn-${serverId}`;
+
+      // Deactivate local tunnel
       try {
         await invoke("vpn_deactivate", { profileName });
       } catch {
         // ignore
       }
+
+      // Remove peer from server (best-effort)
+      try {
+        const token = localStorage.getItem("cs2pt_token") || "";
+        const clientPubKey = localStorage.getItem("cs2pt_vpn_client_pubkey") || "";
+        if (clientPubKey) {
+          await fetch(`${HQ_BASE}/vpn-servers/${serverId}/disconnect`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ token, client_public_key: clientPubKey }),
+          }).catch(() => {});
+        }
+      } catch {
+        // ignore
+      }
+
       localStorage.removeItem("cs2pt_vpn_connected");
       localStorage.removeItem("cs2pt_vpn_server_id");
       localStorage.removeItem("cs2pt_vpn_ip");
       localStorage.removeItem("cs2pt_vpn_connect_time");
+      localStorage.removeItem("cs2pt_vpn_client_pubkey");
       setConnectionState("disconnected");
       return;
     }
 
     if (!selectedServerId) return;
     setConnectionState("connecting");
+    setConnectError(null);
+
+    // Clean up any previous tunnel
+    const prevServerId = localStorage.getItem("cs2pt_vpn_server_id");
+    if (prevServerId) {
+      try {
+        await invoke("vpn_deactivate", { profileName: `smartvpn-${prevServerId}` });
+      } catch {}
+    }
 
     try {
       const token = localStorage.getItem("cs2pt_token") || "";
@@ -181,7 +227,9 @@ export default function Home() {
       const clientPrivateKey = keypair[0];
       const clientPublicKey = keypair[1];
 
-      // Step 2: Request connection from HQ
+      // Step 2: Request connection from HQ (with 15s timeout)
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 15000);
       const configResp = await fetch(
         `${HQ_BASE}/vpn-servers/${selectedServerId}/connect`,
         {
@@ -191,8 +239,10 @@ export default function Home() {
             token,
             client_public_key: clientPublicKey,
           }),
+          signal: controller.signal,
         }
       );
+      clearTimeout(timeout);
 
       const configData = await configResp.json();
       if (!configData.success) {
@@ -231,8 +281,10 @@ export default function Home() {
       localStorage.setItem("cs2pt_vpn_server_id", selectedServerId);
       localStorage.setItem("cs2pt_vpn_ip", clientIp);
       localStorage.setItem("cs2pt_vpn_connect_time", Date.now().toString());
+      localStorage.setItem("cs2pt_vpn_client_pubkey", clientPublicKey);
       setConnectionState("connected");
-    } catch {
+    } catch (e) {
+      setConnectError(e instanceof Error ? e.message : String(e));
       setConnectionState("disconnected");
     }
   }
@@ -461,6 +513,11 @@ export default function Home() {
 
       {/* VPN Server selector + Connect */}
       {renderVpnDropdown()}
+
+      {/* Connection error */}
+      {connectError && (
+        <div className="text-[10px] text-danger text-center mb-2">{connectError}</div>
+      )}
 
       {/* Menu Grid — Gaming Style */}
       <div className="grid grid-cols-4 gap-3 w-full max-w-3xl mb-6">

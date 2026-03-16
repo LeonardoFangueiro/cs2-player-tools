@@ -516,8 +516,20 @@ pub fn save_profile_meta(profile: &VpnProfile) -> Result<(), String> {
     let config_dir = get_config_dir()?;
     std::fs::create_dir_all(&config_dir).map_err(|e| e.to_string())?;
 
+    // Save meta WITHOUT private key
+    let meta = serde_json::json!({
+        "name": profile.name,
+        "server_endpoint": profile.server_endpoint,
+        "server_public_key": profile.server_public_key,
+        "client_address": profile.client_address,
+        "dns": profile.dns,
+        "mtu": profile.mtu,
+        "allowed_ips": profile.allowed_ips,
+        "persistent_keepalive": profile.persistent_keepalive,
+    });
+
     let meta_path = config_dir.join(format!("{}.json", profile.name));
-    let json = serde_json::to_string_pretty(profile).map_err(|e| e.to_string())?;
+    let json = serde_json::to_string_pretty(&meta).map_err(|e| e.to_string())?;
     std::fs::write(&meta_path, json).map_err(|e| e.to_string())
 }
 
