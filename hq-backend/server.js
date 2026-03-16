@@ -4,6 +4,7 @@ import { readFileSync, writeFileSync, existsSync, mkdirSync, readdirSync, statSy
 import { join, dirname, extname } from 'path';
 import { fileURLToPath } from 'url';
 import { execSync } from 'child_process';
+import { deployVpnServer, checkServerStatus, addPeer, detectLocation } from './vpn-deploy.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -515,12 +516,24 @@ app.get('/api/feedback', (req, res) => {
 // ══════════════════════════════════════════
 
 app.post('/api/heartbeat', (req, res) => {
-  const { app_version, os, cs2_running, vpn_active, profile_name } = req.body;
+  const { app_version, os, cs2_running, vpn_active, profile_name, token, vpn_server_id, vpn_ip } = req.body;
   const clients = loadJson('clients.json');
+
+  // Resolve token to label
+  let tokenLabel = null;
+  if (token) {
+    const tokens = loadJson('tokens.json');
+    const t = tokens.find(t => t.token === token);
+    tokenLabel = t?.label || token.slice(0, 15) + '...';
+  }
+
   const existing = clients.findIndex(c => c.ip === req.ip);
   const client = {
     ip: req.ip,
-    app_version, os, cs2_running, vpn_active, profile_name,
+    token: token || null,
+    token_label: tokenLabel,
+    app_version, os, cs2_running, vpn_active,
+    profile_name, vpn_server_id, vpn_ip,
     last_seen: ts(),
   };
   if (existing >= 0) clients[existing] = client;
@@ -622,38 +635,129 @@ app.delete('/api/tokens/:token', (req, res) => {
 // ── VPN SERVERS (managed by admin, served to app)
 // ══════════════════════════════════════════
 
-// Add/update a VPN server (admin)
-app.post('/api/vpn-servers', (req, res) => {
-  const { api_key, id, name, location, country, flag, ip, port, public_key, endpoint, lat, lng, max_clients } = req.body;
+// Deploy a new VPN server (admin — auto-installs WireGuard via SSH)
+app.post('/api/vpn-servers', async (req, res) => {
+  const { api_key, ip, ssh_user, ssh_pass, ssh_port, name } = req.body;
+  if (api_key !== process.env.HQ_API_KEY && api_key !== 'cs2pt-dev-key') {
+    return res.status(401).json({ error: 'Invalid API key' });
+  }
+  if (!ip || !ssh_pass) return res.status(400).json({ error: 'IP and SSH password required' });
+
+  // 1. Auto-detect location from IP
+  const geo = await detectLocation(ip);
+
+  // 2. Deploy WireGuard
+  const result = await deployVpnServer({
+    ip,
+    port: ssh_port || 22,
+    username: ssh_user || 'root',
+    password: ssh_pass,
+  });
+
+  if (!result.success) {
+    return res.json({ success: false, log: result.log, error: result.error });
+  }
+
+  // 3. Save server
+  const servers = loadJson('vpn_servers.json');
+  const server = {
+    id: `vpn_${Date.now()}`,
+    name: name || (geo ? `VPN ${geo.city}` : `VPN ${ip}`),
+    location: geo?.location || '',
+    country: geo?.country || '',
+    country_code: geo?.countryCode || '',
+    flag: geo?.flag || '🌐',
+    ip,
+    ssh_user: ssh_user || 'root',
+    ssh_port: ssh_port || 22,
+    port: 51820,
+    public_key: result.server_public_key,
+    endpoint: result.endpoint,
+    lat: geo?.lat || 0,
+    lng: geo?.lng || 0,
+    max_clients: 50,
+    active: true,
+    status: 'online',
+    created_at: ts(),
+    deploy_log: result.log,
+    // SSH pass stored encrypted in practice; here stored for monitoring
+    _ssh_pass: ssh_pass,
+  };
+  servers.push(server);
+  saveJson('vpn_servers.json', servers);
+
+  res.json({ success: true, server: { ...server, _ssh_pass: undefined }, log: result.log });
+});
+
+// Add server manually (without SSH deploy — for pre-configured servers)
+app.post('/api/vpn-servers/manual', (req, res) => {
+  const { api_key, name, location, country, flag, ip, port, public_key, lat, lng, max_clients } = req.body;
   if (api_key !== process.env.HQ_API_KEY && api_key !== 'cs2pt-dev-key') {
     return res.status(401).json({ error: 'Invalid API key' });
   }
   const servers = loadJson('vpn_servers.json');
-  const serverId = id || `vpn_${Date.now()}`;
-  const existing = servers.findIndex(s => s.id === serverId);
   const server = {
-    id: serverId,
+    id: `vpn_${Date.now()}`,
     name: name || 'VPN Server',
-    location: location || '',
-    country: country || '',
-    flag: flag || '',
-    ip: ip || '',
-    port: port || 51820,
-    public_key: public_key || '',
-    endpoint: endpoint || `${ip}:${port || 51820}`,
-    lat: lat || 0,
-    lng: lng || 0,
-    max_clients: max_clients || 50,
-    active: true,
-    created_at: ts(),
+    location: location || '', country: country || '', flag: flag || '🌐',
+    ip: ip || '', port: port || 51820, public_key: public_key || '',
+    endpoint: `${ip}:${port || 51820}`,
+    lat: lat || 0, lng: lng || 0, max_clients: max_clients || 50,
+    active: true, status: 'unknown', created_at: ts(),
   };
-  if (existing >= 0) {
-    servers[existing] = { ...servers[existing], ...server, updated_at: ts() };
-  } else {
-    servers.push(server);
-  }
+  servers.push(server);
   saveJson('vpn_servers.json', servers);
   res.json({ success: true, server });
+});
+
+// Check server status (admin)
+app.get('/api/vpn-servers/:id/status', async (req, res) => {
+  const servers = loadJson('vpn_servers.json');
+  const server = servers.find(s => s.id === req.params.id);
+  if (!server) return res.status(404).json({ error: 'Not found' });
+  if (!server._ssh_pass) return res.json({ online: false, error: 'No SSH credentials stored' });
+
+  const status = await checkServerStatus({
+    ip: server.ip,
+    port: server.ssh_port || 22,
+    username: server.ssh_user || 'root',
+    password: server._ssh_pass,
+  });
+
+  // Update stored status
+  const idx = servers.findIndex(s => s.id === req.params.id);
+  if (idx >= 0) {
+    servers[idx].status = status.online ? 'online' : 'offline';
+    servers[idx].last_check = ts();
+    servers[idx].peers = status.peers || 0;
+    servers[idx].transfer_rx = status.transfer_rx || 0;
+    servers[idx].transfer_tx = status.transfer_tx || 0;
+    servers[idx].load = status.load || '0';
+    servers[idx].uptime = status.uptime || '';
+    saveJson('vpn_servers.json', servers);
+  }
+
+  res.json(status);
+});
+
+// Add peer to server (used when app client connects)
+app.post('/api/vpn-servers/:id/add-peer', async (req, res) => {
+  const { client_public_key, client_ip } = req.body;
+  const servers = loadJson('vpn_servers.json');
+  const server = servers.find(s => s.id === req.params.id);
+  if (!server) return res.status(404).json({ error: 'Not found' });
+  if (!server._ssh_pass) return res.json({ success: false, error: 'No SSH credentials' });
+
+  const result = await addPeer({
+    ip: server.ip,
+    port: server.ssh_port || 22,
+    username: server.ssh_user || 'root',
+    password: server._ssh_pass,
+    clientPublicKey: client_public_key,
+    clientIp: client_ip,
+  });
+
+  res.json(result);
 });
 
 // List VPN servers (public — app fetches this)

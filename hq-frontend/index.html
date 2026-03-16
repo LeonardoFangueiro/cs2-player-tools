@@ -407,6 +407,7 @@
             <div class="tab" data-tab="downloads">Downloads</div>
             <div class="tab" data-tab="clients">Clients</div>
             <div class="tab" data-tab="feedback">Feedback</div>
+            <div class="tab" data-tab="tokens">Tokens</div>
             <div class="tab" data-tab="vpn-servers">VPN Servers</div>
             <div class="tab" data-tab="config">Config</div>
         </div>
@@ -589,58 +590,79 @@
             </div>
         </div>
 
+        <!-- ═══ Tab: Tokens ═══ -->
+        <div class="tab-content" id="tab-tokens">
+            <div class="grid grid-2 mb-16">
+                <div class="card">
+                    <div class="card-header">
+                        <div class="card-title"><span class="dot" style="background:var(--accent)"></span> Create Token</div>
+                    </div>
+                    <form onsubmit="createToken(event)" style="display:flex;flex-direction:column;gap:10px;">
+                        <div>
+                            <label class="text-muted" style="font-size:11px;display:block;margin-bottom:4px;">Label (who is this token for?)</label>
+                            <input class="input" type="text" id="token-label" placeholder="e.g. Leonardo, Test User, etc." required>
+                        </div>
+                        <div>
+                            <label class="text-muted" style="font-size:11px;display:block;margin-bottom:4px;">Max Uses (0 = unlimited)</label>
+                            <input class="input" type="number" id="token-max-uses" value="0" min="0">
+                        </div>
+                        <button type="submit" class="btn btn-primary" style="align-self:flex-start;">🔑 Generate Token</button>
+                    </form>
+                    <div id="token-created" style="display:none;margin-top:12px;padding:12px;background:var(--bg);border:1px solid var(--success);border-radius:8px;">
+                        <div class="text-muted" style="font-size:11px;">New token created:</div>
+                        <div id="token-created-value" style="font-family:monospace;font-size:16px;font-weight:700;color:var(--accent);margin:8px 0;word-break:break-all;"></div>
+                        <button onclick="navigator.clipboard.writeText(document.getElementById('token-created-value').textContent);toast('Copied!','success')" class="btn btn-sm">📋 Copy</button>
+                    </div>
+                </div>
+                <div class="card">
+                    <div class="card-header">
+                        <div class="card-title"><span class="dot" style="background:var(--success)"></span> Active Tokens</div>
+                        <button class="btn btn-sm" onclick="loadTokens()">Refresh</button>
+                    </div>
+                    <div id="tokens-list"><div class="loading">Loading tokens...</div></div>
+                </div>
+            </div>
+        </div>
+
         <!-- ═══ Tab: VPN Servers ═══ -->
         <div class="tab-content" id="tab-vpn-servers">
             <div class="grid grid-2 mb-16">
-                <!-- Add VPN Server Form -->
+                <!-- Deploy VPN Server (SSH auto-install) -->
                 <div class="card">
                     <div class="card-header">
-                        <div class="card-title"><span class="dot" style="background:var(--accent)"></span> Add VPN Server</div>
+                        <div class="card-title"><span class="dot" style="background:var(--accent)"></span> Deploy VPN Server</div>
                     </div>
-                    <form id="vpn-server-form" onsubmit="addVpnServer(event)" style="display:flex;flex-direction:column;gap:10px;">
+                    <p class="text-muted" style="font-size:12px;margin-bottom:12px;">
+                        Provide SSH access to an Ubuntu server. WireGuard will be installed automatically.<br>
+                        <span style="color:var(--warning);font-size:11px;">⚠ User must have sudo privileges.</span>
+                    </p>
+                    <form id="vpn-server-form" onsubmit="deployVpnServer(event)" style="display:flex;flex-direction:column;gap:10px;">
                         <div class="grid grid-2" style="gap:10px;">
                             <div>
-                                <label class="text-muted" style="font-size:11px;display:block;margin-bottom:4px;">Name</label>
-                                <input class="input" type="text" id="vpn-name" placeholder="Frankfurt 1" required>
-                            </div>
-                            <div>
-                                <label class="text-muted" style="font-size:11px;display:block;margin-bottom:4px;">Location</label>
-                                <input class="input" type="text" id="vpn-location" placeholder="Frankfurt, Germany" required>
-                            </div>
-                            <div>
-                                <label class="text-muted" style="font-size:11px;display:block;margin-bottom:4px;">Country</label>
-                                <input class="input" type="text" id="vpn-country" placeholder="Germany" required>
-                            </div>
-                            <div>
-                                <label class="text-muted" style="font-size:11px;display:block;margin-bottom:4px;">Flag Emoji</label>
-                                <input class="input" type="text" id="vpn-flag" placeholder="🇩🇪" required>
-                            </div>
-                            <div>
-                                <label class="text-muted" style="font-size:11px;display:block;margin-bottom:4px;">IP Address</label>
+                                <label class="text-muted" style="font-size:11px;display:block;margin-bottom:4px;">Server IP *</label>
                                 <input class="input" type="text" id="vpn-ip" placeholder="1.2.3.4" required>
                             </div>
                             <div>
-                                <label class="text-muted" style="font-size:11px;display:block;margin-bottom:4px;">Port</label>
-                                <input class="input" type="number" id="vpn-port" placeholder="51820" value="51820" required>
+                                <label class="text-muted" style="font-size:11px;display:block;margin-bottom:4px;">SSH Port</label>
+                                <input class="input" type="number" id="vpn-ssh-port" placeholder="22" value="22">
+                            </div>
+                            <div>
+                                <label class="text-muted" style="font-size:11px;display:block;margin-bottom:4px;">SSH User</label>
+                                <input class="input" type="text" id="vpn-ssh-user" placeholder="root" value="root">
+                            </div>
+                            <div>
+                                <label class="text-muted" style="font-size:11px;display:block;margin-bottom:4px;">SSH Password *</label>
+                                <input class="input" type="password" id="vpn-ssh-pass" placeholder="Password" required>
                             </div>
                             <div style="grid-column:span 2;">
-                                <label class="text-muted" style="font-size:11px;display:block;margin-bottom:4px;">Public Key</label>
-                                <input class="input" type="text" id="vpn-pubkey" placeholder="WireGuard server public key" required>
-                            </div>
-                            <div>
-                                <label class="text-muted" style="font-size:11px;display:block;margin-bottom:4px;">Latitude</label>
-                                <input class="input" type="number" step="any" id="vpn-lat" placeholder="50.1109" required>
-                            </div>
-                            <div>
-                                <label class="text-muted" style="font-size:11px;display:block;margin-bottom:4px;">Longitude</label>
-                                <input class="input" type="number" step="any" id="vpn-lng" placeholder="8.6821" required>
-                            </div>
-                            <div>
-                                <label class="text-muted" style="font-size:11px;display:block;margin-bottom:4px;">Max Clients</label>
-                                <input class="input" type="number" id="vpn-max-clients" placeholder="50" value="50" required>
+                                <label class="text-muted" style="font-size:11px;display:block;margin-bottom:4px;">Server Name (optional — auto-detected from IP)</label>
+                                <input class="input" type="text" id="vpn-name" placeholder="e.g. EU Frankfurt 1">
                             </div>
                         </div>
-                        <button type="submit" class="btn btn-primary" style="margin-top:8px;align-self:flex-start;">Add VPN Server</button>
+                        <div id="deploy-log" style="display:none;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px;max-height:200px;overflow-y:auto;font-family:monospace;font-size:11px;color:var(--accent2);margin-top:8px;"></div>
+                        <button type="submit" id="deploy-btn" class="btn btn-primary" style="margin-top:8px;align-self:flex-start;">
+                            🚀 Deploy WireGuard
+                        </button>
                     </form>
                 </div>
                 <!-- Current VPN Servers List -->
@@ -728,6 +750,7 @@
             downloads: loadDownloads,
             clients: loadClients,
             feedback: loadFeedback,
+            tokens: loadTokens,
             'vpn-servers': loadVpnServers,
             config: loadConfig,
         };
@@ -1388,26 +1411,39 @@
     async function loadVpnServers() {
         const el = document.getElementById('vpn-servers-list');
         try {
-            const r = await fetch(`${API}/vpn-servers`);
+            const r = await fetch(`${API}/vpn-servers/admin`);
             const d = await r.json();
             const servers = d.servers || [];
             if (servers.length === 0) {
-                el.innerHTML = '<div class="empty">No VPN servers configured</div>';
+                el.innerHTML = '<div class="empty">No VPN servers deployed yet</div>';
                 return;
             }
             el.innerHTML = servers.map(s => `
-                <div class="flex justify-between items-center" style="padding:10px;background:var(--bg);border:1px solid var(--border);border-radius:8px;margin-bottom:6px;">
-                    <div>
-                        <div class="flex items-center gap-8">
-                            <span style="font-size:18px;">${esc(s.flag || '')}</span>
-                            <span style="font-weight:600;font-size:13px;">${esc(s.name)}</span>
-                            <span class="badge badge-accent2">${esc(s.location)}</span>
+                <div style="padding:12px;background:var(--bg);border:1px solid var(--border);border-radius:8px;margin-bottom:8px;">
+                    <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+                        <div>
+                            <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
+                                <span style="font-size:20px;">${esc(s.flag || '🌐')}</span>
+                                <span style="font-weight:700;font-size:14px;">${esc(s.name)}</span>
+                                <span class="badge ${s.status === 'online' ? 'badge-success' : 'badge-danger'}">${s.status || 'unknown'}</span>
+                            </div>
+                            <div class="text-muted" style="font-size:11px;">
+                                ${esc(s.location)} | ${esc(s.ip)}:${s.port}
+                            </div>
+                            <div class="text-muted" style="font-size:10px;margin-top:4px;">
+                                Peers: ${s.peers || 0} | Max: ${s.max_clients} |
+                                Load: ${s.load || '?'} | Uptime: ${esc(s.uptime || '?')} |
+                                RX: ${formatBytes(s.transfer_rx || 0)} TX: ${formatBytes(s.transfer_tx || 0)}
+                            </div>
+                            <div class="text-dim" style="font-size:9px;margin-top:2px;">
+                                Key: ${esc((s.public_key || '').slice(0,20))}... | Created: ${s.created_at?.slice(0,10) || '?'}
+                            </div>
                         </div>
-                        <div class="text-muted" style="font-size:11px;margin-top:4px;">
-                            ${esc(s.ip)}:${s.port} | Max: ${s.max_clients} clients | ${s.lat}, ${s.lng}
+                        <div style="display:flex;gap:6px;">
+                            <button class="btn btn-sm" onclick="checkVpnServer('${esc(s.id)}')">🔍 Status</button>
+                            <button class="btn btn-sm btn-danger" onclick="deleteVpnServer('${esc(s.id)}')">Delete</button>
                         </div>
                     </div>
-                    <button class="btn btn-sm btn-danger" onclick="deleteVpnServer('${esc(s.id)}')">Delete</button>
                 </div>
             `).join('');
         } catch {
@@ -1415,20 +1451,44 @@
         }
     }
 
-    async function addVpnServer(e) {
+    function formatBytes(b) {
+        if (!b || b === 0) return '0 B';
+        if (b < 1024) return b + ' B';
+        if (b < 1048576) return (b/1024).toFixed(1) + ' KB';
+        if (b < 1073741824) return (b/1048576).toFixed(1) + ' MB';
+        return (b/1073741824).toFixed(2) + ' GB';
+    }
+
+    async function checkVpnServer(id) {
+        toast('Checking server status...', 'info');
+        try {
+            const r = await fetch(`${API}/vpn-servers/${id}/status`);
+            const d = await r.json();
+            toast(d.online ? `Online — ${d.peers || 0} peers, load: ${d.load || '?'}` : `Offline: ${d.error || 'unreachable'}`, d.online ? 'success' : 'error');
+            loadVpnServers();
+        } catch {
+            toast('Status check failed', 'error');
+        }
+    }
+
+    async function deployVpnServer(e) {
         e.preventDefault();
+        const btn = document.getElementById('deploy-btn');
+        const logEl = document.getElementById('deploy-log');
+        btn.disabled = true;
+        btn.textContent = '⏳ Deploying...';
+        logEl.style.display = 'block';
+        logEl.innerHTML = '<div class="text-muted">Starting deployment...</div>';
+
         const body = {
-            name: document.getElementById('vpn-name').value.trim(),
-            location: document.getElementById('vpn-location').value.trim(),
-            country: document.getElementById('vpn-country').value.trim(),
-            flag: document.getElementById('vpn-flag').value.trim(),
+            api_key: 'cs2pt-dev-key',
             ip: document.getElementById('vpn-ip').value.trim(),
-            port: parseInt(document.getElementById('vpn-port').value) || 51820,
-            public_key: document.getElementById('vpn-pubkey').value.trim(),
-            lat: parseFloat(document.getElementById('vpn-lat').value) || 0,
-            lng: parseFloat(document.getElementById('vpn-lng').value) || 0,
-            max_clients: parseInt(document.getElementById('vpn-max-clients').value) || 50,
+            ssh_port: parseInt(document.getElementById('vpn-ssh-port').value) || 22,
+            ssh_user: document.getElementById('vpn-ssh-user').value.trim() || 'root',
+            ssh_pass: document.getElementById('vpn-ssh-pass').value,
+            name: document.getElementById('vpn-name').value.trim() || undefined,
         };
+
         try {
             const r = await fetch(`${API}/vpn-servers`, {
                 method: 'POST',
@@ -1436,17 +1496,25 @@
                 body: JSON.stringify(body),
             });
             const d = await r.json();
+            if (d.log) {
+                logEl.innerHTML = d.log.map(l =>
+                    `<div style="color:${l.includes('ERROR') ? 'var(--danger)' : l.includes('complete') ? 'var(--success)' : 'var(--accent2)'};">${esc(l)}</div>`
+                ).join('');
+            }
             if (d.success) {
-                toast('VPN server added', 'success');
+                toast('VPN server deployed successfully!', 'success');
                 document.getElementById('vpn-server-form').reset();
-                document.getElementById('vpn-port').value = '51820';
-                document.getElementById('vpn-max-clients').value = '50';
+                document.getElementById('vpn-ssh-port').value = '22';
+                document.getElementById('vpn-ssh-user').value = 'root';
                 loadVpnServers();
             } else {
-                toast('Failed: ' + (d.error || 'Unknown error'), 'error');
+                toast('Deployment failed: ' + (d.error || 'Unknown error'), 'error');
             }
-        } catch {
-            toast('Failed to add VPN server', 'error');
+        } catch (err) {
+            toast('Deployment error: ' + err.message, 'error');
+        } finally {
+            btn.disabled = false;
+            btn.textContent = '🚀 Deploy WireGuard';
         }
     }
 
@@ -1464,6 +1532,92 @@
         } catch {
             toast('Failed to delete VPN server', 'error');
         }
+    }
+
+    // ══════════════════════════════════════════
+    // ── TOKENS
+    // ══════════════════════════════════════════
+
+    async function loadTokens() {
+        const el = document.getElementById('tokens-list');
+        try {
+            const r = await fetch(`${API}/tokens`);
+            const d = await r.json();
+            const tokens = d.tokens || [];
+            if (tokens.length === 0) {
+                el.innerHTML = '<div class="empty">No tokens created yet</div>';
+                return;
+            }
+            el.innerHTML = tokens.map(t => `
+                <div style="padding:10px;background:var(--bg);border:1px solid ${t.active ? 'var(--border)' : 'var(--danger)'};border-radius:8px;margin-bottom:6px;${t.active ? '' : 'opacity:0.6;'}">
+                    <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+                        <div>
+                            <div style="display:flex;align-items:center;gap:6px;">
+                                <span style="font-weight:700;font-size:12px;">${esc(t.label || 'Unnamed')}</span>
+                                <span class="badge ${t.active ? 'badge-success' : 'badge-danger'}">${t.active ? 'Active' : 'Disabled'}</span>
+                            </div>
+                            <div style="font-family:monospace;font-size:11px;color:var(--accent);margin:4px 0;">${esc(t.token)}</div>
+                            <div class="text-muted" style="font-size:10px;">
+                                Uses: ${t.uses}${t.max_uses > 0 ? '/' + t.max_uses : ' (unlimited)'} |
+                                Last: ${t.last_used ? timeAgo(t.last_used) : 'never'} |
+                                IP: ${t.last_ip || 'n/a'} |
+                                Created: ${t.created_at?.slice(0,10) || '?'}
+                            </div>
+                        </div>
+                        <div style="display:flex;gap:4px;">
+                            <button class="btn btn-sm" onclick="toggleToken('${esc(t.token)}', ${!t.active})">${t.active ? '⏸ Disable' : '▶ Enable'}</button>
+                            <button class="btn btn-sm btn-danger" onclick="deleteToken('${esc(t.token)}')">🗑</button>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+        } catch {
+            el.innerHTML = '<div class="empty">Failed to load tokens</div>';
+        }
+    }
+
+    async function createToken(e) {
+        e.preventDefault();
+        const label = document.getElementById('token-label').value.trim();
+        const maxUses = parseInt(document.getElementById('token-max-uses').value) || 0;
+        try {
+            const r = await fetch(`${API}/tokens`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ api_key: 'cs2pt-dev-key', label, max_uses: maxUses }),
+            });
+            const d = await r.json();
+            if (d.success) {
+                document.getElementById('token-created').style.display = 'block';
+                document.getElementById('token-created-value').textContent = d.token;
+                document.getElementById('token-label').value = '';
+                toast('Token created!', 'success');
+                loadTokens();
+            } else {
+                toast('Failed: ' + (d.error || ''), 'error');
+            }
+        } catch { toast('Failed to create token', 'error'); }
+    }
+
+    async function toggleToken(token, active) {
+        try {
+            await fetch(`${API}/tokens/${token}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ api_key: 'cs2pt-dev-key', active }),
+            });
+            toast(active ? 'Token enabled' : 'Token disabled', 'success');
+            loadTokens();
+        } catch { toast('Failed', 'error'); }
+    }
+
+    async function deleteToken(token) {
+        if (!confirm('Delete this token permanently?')) return;
+        try {
+            await fetch(`${API}/tokens/${token}`, { method: 'DELETE' });
+            toast('Token deleted', 'success');
+            loadTokens();
+        } catch { toast('Failed', 'error'); }
     }
 
     // ══════════════════════════════════════════
