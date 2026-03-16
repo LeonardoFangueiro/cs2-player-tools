@@ -94,8 +94,10 @@ function formatDuration(seconds: number): string {
   return `${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
 }
 
-function extractHost(endpoint: string): string {
-  return endpoint.split(":")[0];
+// VPN servers have SSH open (port 22), use that for TCP ping since WireGuard is UDP-only
+function extractPingTarget(endpoint: string): string {
+  const ip = endpoint.split(":")[0];
+  return `${ip}:22`;
 }
 
 function latencyQuality(ms: number): { label: string; color: string } {
@@ -669,7 +671,7 @@ export default function SmartVPN() {
 
     async function pingAll() {
       for (const server of servers) {
-        const host = extractHost(server.endpoint);
+        const host = extractPingTarget(server.endpoint);
         try {
           const results = await invoke<PingResult[]>("ping_host", { host, count: 1 });
           const successful = results.filter((r) => r.success);
@@ -763,7 +765,7 @@ export default function SmartVPN() {
       status: "pinging",
     });
 
-    const host = extractHost(server.endpoint);
+    const host = extractPingTarget(server.endpoint);
     try {
       const results = await invoke<PingResult[]>("ping_host", { host, count: 3 });
       const successful = results.filter((r) => r.success);
