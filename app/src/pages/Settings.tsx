@@ -152,8 +152,8 @@ export default function SettingsPage() {
     return (
       <div>
         <div className="mb-4">
-          <h1 className="text-2xl font-bold text-accent">Settings</h1>
-          <p className="text-text-muted text-sm mt-1">Application configuration</p>
+          <h1 className="text-xl font-bold text-accent">Settings</h1>
+          <p className="text-text-muted text-xs mt-0.5">Application configuration</p>
         </div>
         <div className="space-y-2">
           {[1, 2, 3, 4].map((i) => (
@@ -174,8 +174,8 @@ export default function SettingsPage() {
     <div className="pb-16">
       {/* Header */}
       <div className="mb-4">
-        <h1 className="text-2xl font-bold text-accent">Settings</h1>
-        <p className="text-text-muted text-sm mt-1">Configure behavior and preferences</p>
+        <h1 className="text-xl font-bold text-accent">Settings</h1>
+        <p className="text-text-muted text-xs mt-0.5">Configure behavior and preferences</p>
       </div>
 
       {/* VPN Settings */}

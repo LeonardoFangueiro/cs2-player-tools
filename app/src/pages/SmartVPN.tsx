@@ -994,9 +994,7 @@ export default function SmartVPN() {
         <ToastContainer toasts={toasts} onDismiss={dismissToast} />
         <div className="flex items-center justify-between mb-4">
           <div>
-            <h1 className="text-sm font-bold">
-              <span className="text-accent">Smart</span> VPN
-            </h1>
+            <h1 className="text-xl font-bold text-accent">Smart VPN</h1>
             <p className="text-text-muted text-xs mt-0.5">
               One-click VPN for optimized CS2 routing
             </p>
@@ -1052,9 +1050,7 @@ export default function SmartVPN() {
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
         <div>
-          <h1 className="text-sm font-bold">
-            <span className="text-accent">Smart</span> VPN
-          </h1>
+          <h1 className="text-xl font-bold text-accent">Smart VPN</h1>
           <p className="text-text-muted text-xs mt-0.5">
             One-click VPN for optimized CS2 routing
           </p>

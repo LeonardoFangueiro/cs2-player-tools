@@ -178,8 +178,8 @@ export default function Cs2Config() {
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
         <div>
-          <h1 className="text-2xl font-bold text-accent">CS2 Config</h1>
-          <p className="text-text-muted text-sm mt-1">
+          <h1 className="text-xl font-bold text-accent">CS2 Config</h1>
+          <p className="text-text-muted text-xs mt-0.5">
             {activeTab === "config"
               ? scanResult ? `${optimizedCount}/${totalCount} optimized` : "Scan to detect settings"
               : `${proPlayers.length} pro players`

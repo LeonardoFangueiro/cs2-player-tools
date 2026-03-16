@@ -293,8 +293,8 @@ export default function ServerPicker() {
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
         <div>
-          <h1 className="text-2xl font-bold text-accent">Server Picker</h1>
-          <p className="text-text-muted text-sm mt-1">
+          <h1 className="text-xl font-bold text-accent">Server Picker</h1>
+          <p className="text-text-muted text-xs mt-0.5">
             {totalPops} PoPs · <span className="text-success">{allowedCount} allowed</span> · <span className="text-danger">{blockedCount} blocked</span>
           </p>
         </div>

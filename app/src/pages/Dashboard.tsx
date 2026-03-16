@@ -168,8 +168,8 @@ export default function Dashboard() {
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
         <div>
-          <h1 className="text-2xl font-bold text-accent">Dashboard</h1>
-          <p className="text-text-muted text-sm mt-1">
+          <h1 className="text-xl font-bold text-accent">Dashboard</h1>
+          <p className="text-text-muted text-xs mt-0.5">
             {sdrConfig ? `${sdrConfig.pops.length} PoPs` : "..."} · {totalRelays} relays · {europeCount} EU · rev {sdrConfig?.revision ?? "..."}
           </p>
         </div>

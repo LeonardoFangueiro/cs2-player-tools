@@ -278,8 +278,8 @@ export default function WinOptimizer() {
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
         <div>
-          <h1 className="text-2xl font-bold text-accent">Windows Optimizer</h1>
-          <p className="text-text-muted text-sm mt-1">
+          <h1 className="text-xl font-bold text-accent">Windows Optimizer</h1>
+          <p className="text-text-muted text-xs mt-0.5">
             {optimizedCount}/{OPTIMIZATIONS.length} optimized
             {scanResult && !scanResult.is_admin && (
               <span className="ml-2 text-danger">

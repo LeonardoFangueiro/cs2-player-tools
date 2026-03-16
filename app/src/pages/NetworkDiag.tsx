@@ -343,13 +343,16 @@ export default function NetworkDiag() {
       {/* Header + Quick Diagnostics */}
       <div className="bg-bg-card border border-border rounded-lg px-4 py-2.5">
         <div className="flex items-center justify-between mb-2">
-          <h1 className="text-lg font-bold text-accent">Diagnostics</h1>
+          <div>
+            <h1 className="text-xl font-bold text-accent">Diagnostics</h1>
+            <p className="text-text-muted text-xs mt-0.5">Network health and connectivity tests</p>
+          </div>
           <button
             onClick={runQuickDiagnostics}
-            className="p-1.5 rounded hover:bg-bg-hover transition text-text-muted hover:text-accent"
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-bg-card border border-border rounded-lg text-xs text-text-muted hover:text-text hover:border-accent/30 transition"
             title="Refresh diagnostics"
           >
-            <RefreshCw size={14} />
+            <RefreshCw size={12} />
           </button>
         </div>
         <div className="flex items-center gap-4 text-xs">
