@@ -13,12 +13,10 @@
     "windows": [
       {
         "title": "CS2 Player Tools",
-        "width": 1280,
-        "height": 720,
-        "minWidth": 1024,
-        "minHeight": 600,
+        "width": 1024,
+        "height": 600,
         "decorations": true,
-        "resizable": true
+        "resizable": false
       }
     ],
     "security": {

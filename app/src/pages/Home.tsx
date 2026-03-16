@@ -78,7 +78,7 @@ export default function Home() {
     <div className="h-full flex flex-col items-center justify-center px-8 py-6">
       {/* Logo */}
       <div className="mb-6">
-        <img src="/logo.png" alt="CS2 Player Tools" className="h-24 w-auto mx-auto" />
+        <img src="/logo.png" alt="CS2 Player Tools" className="h-40 w-auto mx-auto" />
       </div>
 
       {/* Menu Grid */}
