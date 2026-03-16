@@ -237,12 +237,21 @@ pub fn activate_vpn(profile: &VpnProfile) -> Result<VpnActionResult, String> {
     {
         let wg_exe = find_wireguard_exe()?;
 
+        // ALWAYS clean up previous tunnel with the same name first
+        // This prevents "Command Line Options" error on reconnect
+        let _ = super::cmd::hidden(&wg_exe)
+            .args(["/uninstalltunnelservice", &profile.name])
+            .output();
+        // Small delay to let the service fully stop
+        std::thread::sleep(std::time::Duration::from_millis(500));
+
         // WireGuard Windows expects configs in its own data directory
-        // Copy our config there so the service manager can find it
         let wg_config_dir = std::path::PathBuf::from(r"C:\Program Files\WireGuard\Data\Configurations");
         std::fs::create_dir_all(&wg_config_dir).ok();
-        let wg_config_path = wg_config_dir.join(format!("{}.conf.dpapi", profile.name));
-        // Also try without .dpapi extension (plain conf)
+        // Remove old config files
+        let _ = std::fs::remove_file(wg_config_dir.join(format!("{}.conf.dpapi", profile.name)));
+        let _ = std::fs::remove_file(wg_config_dir.join(format!("{}.conf", profile.name)));
+        // Copy fresh config
         let wg_plain_path = wg_config_dir.join(format!("{}.conf", profile.name));
         std::fs::copy(&config_path, &wg_plain_path).ok();
 
