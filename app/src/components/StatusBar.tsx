@@ -37,10 +37,12 @@ export default function StatusBar() {
     latencyMs: number | null;
   } | null>(null);
   const [update, setUpdate] = useState<{ version: string; url: string | null } | null>(null);
+  const [reconnecting, setReconnecting] = useState(false);
 
   // Cache server info so we don't re-fetch every 2s
   const serverInfoRef = useRef<VpnServerInfo | null>(null);
   const lastServerIdRef = useRef<string>("");
+  const reconnectAttemptsRef = useRef(0);
 
   const fetchServerInfo = useCallback(async (serverId: string): Promise<VpnServerInfo | null> => {
     if (serverId === lastServerIdRef.current && serverInfoRef.current) {
@@ -90,13 +92,42 @@ export default function StatusBar() {
       const serverLabel = srvInfo ? `${srvInfo.name} — ${srvInfo.location}, ${srvInfo.country}` : serverId;
       const countryCode = srvInfo?.country_code || "";
 
-      // Get transfer stats
+      // Get transfer stats + detect tunnel drops
       let rx = "0 B";
       let tx = "0 B";
       try {
-        const status = await invoke<{ transfer_rx: string | null; transfer_tx: string | null }>("vpn_get_status", { profileName });
+        const status = await invoke<{ active: boolean; transfer_rx: string | null; transfer_tx: string | null }>("vpn_get_status", { profileName });
         rx = status.transfer_rx || "0 B";
         tx = status.transfer_tx || "0 B";
+
+        // H7: Auto-reconnect when VPN tunnel drops
+        if (connected && !status.active) {
+          reconnectAttemptsRef.current++;
+          if (reconnectAttemptsRef.current <= 3) {
+            setReconnecting(true);
+            try {
+              await invoke("vpn_reconnect", { profileName });
+              // Reconnect succeeded — reset counter
+              reconnectAttemptsRef.current = 0;
+              setReconnecting(false);
+            } catch {
+              setReconnecting(false);
+              if (reconnectAttemptsRef.current >= 3) {
+                // Give up after 3 failed attempts
+                localStorage.removeItem("cs2pt_vpn_connected");
+                localStorage.removeItem("cs2pt_vpn_server_id");
+                localStorage.removeItem("cs2pt_vpn_ip");
+                setVpnConnected(false);
+                setVpnDetails(null);
+                return;
+              }
+            }
+          }
+        } else if (status.active) {
+          // Tunnel is healthy — reset counter
+          reconnectAttemptsRef.current = 0;
+          setReconnecting(false);
+        }
       } catch {
         // Keep previous values or defaults
       }
@@ -151,7 +182,9 @@ export default function StatusBar() {
         </div>
         <span className="text-border">|</span>
         <div className="flex items-center gap-1.5">
-          {vpnConnected ? (
+          {reconnecting ? (
+            <><Wifi size={12} className="text-warning animate-pulse" /><span className="text-warning text-[10px] animate-pulse">Reconnecting...</span></>
+          ) : vpnConnected ? (
             <><Wifi size={12} className="text-success" /><span className="text-success">VPN Connected</span></>
           ) : (
             <><WifiOff size={12} className="text-text-muted/40" /><span>VPN Off</span></>

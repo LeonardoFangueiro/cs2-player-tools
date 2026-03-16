@@ -5,7 +5,7 @@ import { join, dirname, extname } from 'path';
 import { fileURLToPath } from 'url';
 import { execSync } from 'child_process';
 import { createCipheriv, createDecipheriv, randomBytes } from 'crypto';
-import { deployVpnServer, checkServerStatus, addPeer, removePeer, listPeers, detectLocation, allocateClientIp, getValveAllowedIps, uninstallVpnServer, isValidWgKey } from './vpn-deploy.js';
+import { deployVpnServer, checkServerStatus, addPeer, removePeer, listPeers, listAndAddPeer, detectLocation, allocateClientIp, getValveAllowedIps, uninstallVpnServer, isValidWgKey } from './vpn-deploy.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -902,36 +902,23 @@ app.post('/api/vpn-servers/:id/connect', async (req, res) => {
     // C1: Decrypt SSH password
     const sshPassword = decryptField(server._ssh_pass);
 
-    // Get existing peers to allocate unique IP
-    const existingPeers = await listPeers({
+    // H8: Single SSH session — list peers + add peer in one connection
+    const result = await listAndAddPeer({
       ip: server.ip, port: server.ssh_port || 22,
       username: server.ssh_user || 'root', password: sshPassword,
+      clientPublicKey: client_public_key,
+      // clientIp omitted — listAndAddPeer will allocate from peer list
     });
 
-    // H3: Check if this is a reconnect (client_public_key already exists as peer)
-    const isReconnect = existingPeers.some(p => p.public_key === client_public_key);
+    if (!result.success) {
+      return res.json({ success: false, error: result.error || 'Failed to add peer' });
+    }
 
-    let clientIp;
-    if (isReconnect) {
-      // Reconnect — reuse existing IP, don't add peer again
-      const existingPeer = existingPeers.find(p => p.public_key === client_public_key);
-      clientIp = existingPeer.allowed_ips?.replace('/32', '');
-    } else {
-      clientIp = allocateClientIp(existingPeers);
-      if (!clientIp) return res.status(503).json({ error: 'No available IP addresses (server full)' });
+    const isReconnect = result.isReconnect;
+    const clientIp = isReconnect ? result.existingIp : result.clientIp;
 
-      // Add peer to server WITHOUT interrupting VPN (Point 1)
-      const addResult = await addPeer({
-        ip: server.ip, port: server.ssh_port || 22,
-        username: server.ssh_user || 'root', password: sshPassword,
-        clientPublicKey: client_public_key, clientIp,
-      });
-
-      if (!addResult.success) {
-        return res.json({ success: false, error: `Failed to add peer: ${addResult.error}` });
-      }
-
-      // H3: Only increment token usage on NEW sessions, not reconnects
+    // H3: Only increment token usage on NEW sessions, not reconnects
+    if (!isReconnect) {
       tokens[tokenIdx].uses++;
       tokens[tokenIdx].last_used = ts();
       tokens[tokenIdx].last_ip = req.ip;

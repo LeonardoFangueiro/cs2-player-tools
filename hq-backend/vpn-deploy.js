@@ -419,6 +419,81 @@ export async function detectLocation(ip) {
 }
 
 /**
+ * List peers AND add a new peer in a SINGLE SSH session
+ * Reduces connect latency by ~50% (1 SSH connection instead of 2)
+ */
+export async function listAndAddPeer({ ip, port = 22, username = 'root', password, clientPublicKey, clientIp }) {
+  if (!isValidWgKey(clientPublicKey)) {
+    return { success: false, peers: [], error: 'Invalid WireGuard public key format' };
+  }
+
+  return new Promise((resolve) => {
+    const conn = new Client();
+    const timeout = setTimeout(() => { conn.end(); resolve({ success: false, peers: [], error: 'timeout' }); }, 20000);
+
+    conn.on('error', (err) => { clearTimeout(timeout); resolve({ success: false, peers: [], error: err.message }); });
+    conn.on('ready', async () => {
+      try {
+        // Step 1: List current peers (same session)
+        const dump = await exec(conn, 'wg show wg0 dump 2>/dev/null || echo ""');
+        const peers = [];
+        for (const line of dump.trim().split('\n').slice(1)) {
+          const fields = line.split('\t');
+          if (fields.length >= 8) {
+            peers.push({
+              public_key: fields[0],
+              endpoint: fields[3] !== '(none)' ? fields[3] : null,
+              allowed_ips: fields[4],
+              latest_handshake: parseInt(fields[5]) || 0,
+              transfer_rx: parseInt(fields[6]) || 0,
+              transfer_tx: parseInt(fields[7]) || 0,
+            });
+          }
+        }
+
+        // Check if this key already exists (reconnect scenario)
+        const existingPeer = peers.find(p => p.public_key === clientPublicKey);
+        if (existingPeer) {
+          // Reconnect — reuse existing IP
+          clearTimeout(timeout);
+          conn.end();
+          resolve({ success: true, peers, existingIp: existingPeer.allowed_ips?.replace('/32', ''), isReconnect: true });
+          return;
+        }
+
+        // Allocate client IP from the peer list if not provided
+        if (!clientIp) {
+          clientIp = allocateClientIp(peers);
+          if (!clientIp) {
+            clearTimeout(timeout);
+            conn.end();
+            resolve({ success: false, peers, error: 'No available IP addresses (server full)' });
+            return;
+          }
+        }
+
+        // Step 2: Add peer (same session — no new SSH connection!)
+        await exec(conn, `wg set wg0 peer ${clientPublicKey} allowed-ips ${clientIp}/32`);
+
+        // Persist to config
+        const peerBlock = `\n[Peer]\nPublicKey = ${clientPublicKey}\nAllowedIPs = ${clientIp}/32\n`;
+        await exec(conn, `cat >> /etc/wireguard/wg0.conf << 'PEEREOF'\n${peerBlock}\nPEEREOF`);
+
+        clearTimeout(timeout);
+        conn.end();
+        resolve({ success: true, peers, clientIp, isReconnect: false });
+      } catch (err) {
+        clearTimeout(timeout);
+        conn.end();
+        resolve({ success: false, peers: [], error: err.message });
+      }
+    });
+
+    conn.connect({ host: ip, port, username, password, readyTimeout: 10000 });
+  });
+}
+
+/**
  * Allocate next available client IP
  */
 export function allocateClientIp(existingPeers = []) {
