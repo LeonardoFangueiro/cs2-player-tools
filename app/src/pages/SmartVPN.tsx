@@ -194,6 +194,7 @@ function ToastContainer({
 }
 
 // ── Pre-Connect Quality Check Modal ──
+// Auto-connects if ping is good (<100ms). Only shows buttons if ping is bad or failed.
 
 function PreConnectModal({
   check,
@@ -206,22 +207,29 @@ function PreConnectModal({
 }) {
   const quality =
     check.avgLatency !== null ? latencyQuality(check.avgLatency) : null;
+  const isGoodPing = check.avgLatency !== null && check.avgLatency <= 100;
   const isHighLatency = check.avgLatency !== null && check.avgLatency > 150;
+
+  // Auto-connect if ping is good
+  useEffect(() => {
+    if (check.status === "done" && isGoodPing) {
+      const timer = setTimeout(onProceed, 500); // Small delay so user sees the result
+      return () => clearTimeout(timer);
+    }
+  }, [check.status, isGoodPing]);
 
   return (
     <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/60">
       <div className="bg-bg-card border border-border rounded-lg p-6 max-w-sm w-full mx-4 shadow-2xl">
         <h3 className="font-semibold text-base mb-4 flex items-center gap-2">
           <Zap size={18} className="text-accent" />
-          Quality Check: {check.serverName}
+          {check.serverName}
         </h3>
 
         {check.status === "pinging" && (
           <div className="flex items-center gap-3 py-4">
             <Loader size={20} className="text-accent animate-spin" />
-            <span className="text-sm text-text-muted">
-              Running ping test (3 pings)...
-            </span>
+            <span className="text-sm text-text-muted">Testing connection quality...</span>
           </div>
         )}
 
@@ -230,15 +238,22 @@ function PreConnectModal({
             <div className="bg-bg/50 rounded-lg p-3 flex items-center justify-between">
               <span className="text-sm text-text-muted">Latency</span>
               <span className={`text-sm font-mono font-semibold ${quality.color}`}>
-                {Math.round(check.avgLatency)}ms &mdash; {quality.label} for CS2
+                {Math.round(check.avgLatency)}ms — {quality.label}
               </span>
             </div>
+
+            {isGoodPing && (
+              <div className="flex items-center gap-2 text-success text-sm">
+                <Loader size={14} className="animate-spin" />
+                Connecting...
+              </div>
+            )}
 
             {isHighLatency && (
               <div className="bg-danger/10 border border-danger/30 rounded-lg p-3 flex items-start gap-2">
                 <AlertTriangle size={16} className="text-danger shrink-0 mt-0.5" />
                 <span className="text-xs text-danger">
-                  High latency &mdash; gaming experience may be affected
+                  High latency — gaming experience may be affected
                 </span>
               </div>
             )}
@@ -246,19 +261,20 @@ function PreConnectModal({
         )}
 
         {check.status === "error" && (
-          <div className="bg-danger/10 border border-danger/30 rounded-lg p-3 flex items-start gap-2">
-            <XCircle size={16} className="text-danger shrink-0 mt-0.5" />
-            <span className="text-xs text-danger">
-              Ping test failed. You can still connect.
+          <div className="bg-warning/10 border border-warning/30 rounded-lg p-3 flex items-start gap-2">
+            <AlertTriangle size={16} className="text-warning shrink-0 mt-0.5" />
+            <span className="text-xs text-warning">
+              Could not measure latency. You can still connect.
             </span>
           </div>
         )}
 
-        {check.status !== "pinging" && (
+        {/* Only show buttons if ping is bad (>100ms) or failed */}
+        {check.status !== "pinging" && !isGoodPing && (
           <div className="flex gap-2 mt-5">
             <button
               onClick={onCancel}
-              className="flex-1 px-4 py-2 bg-bg border border-border rounded-lg text-sm text-text-muted hover:text-text hover:border-border/80 transition"
+              className="flex-1 px-4 py-2 bg-bg border border-border rounded-lg text-sm text-text-muted hover:text-text transition"
             >
               Cancel
             </button>

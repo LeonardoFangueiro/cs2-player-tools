@@ -41,15 +41,40 @@ interface UpdateInfo {
 
 const APP_VERSION = "0.1.0";
 
-const navItems = [
-  { to: "/", icon: LayoutDashboard, label: "Dashboard" },
-  { to: "/network", icon: Network, label: "Network Diagnostics" },
-  { to: "/optimizer", icon: Settings2, label: "Windows Optimizer" },
-  { to: "/vpn", icon: Shield, label: "Smart VPN" },
-  { to: "/servers", icon: Globe, label: "Server Picker" },
-  { to: "/cs2config", icon: FileCode, label: "CS2 Config" },
-  { to: "/history", icon: BarChart3, label: "History" },
-  { to: "/settings", icon: Settings, label: "Settings" },
+interface NavSection {
+  label: string;
+  items: { to: string; icon: typeof LayoutDashboard; label: string }[];
+}
+
+const navSections: NavSection[] = [
+  {
+    label: "Networking",
+    items: [
+      { to: "/", icon: LayoutDashboard, label: "Dashboard" },
+      { to: "/network", icon: Network, label: "Diagnostics" },
+      { to: "/vpn", icon: Shield, label: "Smart VPN" },
+      { to: "/servers", icon: Globe, label: "Server Picker" },
+    ],
+  },
+  {
+    label: "Gameplay",
+    items: [
+      { to: "/cs2config", icon: FileCode, label: "CS2 Config" },
+      { to: "/history", icon: BarChart3, label: "History" },
+    ],
+  },
+  {
+    label: "Booster",
+    items: [
+      { to: "/optimizer", icon: Settings2, label: "Win Optimizer" },
+    ],
+  },
+  {
+    label: "Personal",
+    items: [
+      { to: "/settings", icon: Settings, label: "Settings" },
+    ],
+  },
 ];
 
 export default function Sidebar() {
@@ -147,23 +172,30 @@ export default function Sidebar() {
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 py-3 flex flex-col gap-0.5">
-        {navItems.map((item) => (
-          <NavLink
-            key={item.to}
-            to={item.to}
-            end={item.to === "/"}
-            className={({ isActive }) =>
-              `flex items-center gap-3 px-5 py-2.5 text-[13px] transition-all border-l-3 ${
-                isActive
-                  ? "text-accent border-accent bg-accent/8"
-                  : "text-text-muted border-transparent hover:text-text hover:bg-bg-hover hover:border-accent2"
-              }`
-            }
-          >
-            <item.icon size={16} />
-            <span>{item.label}</span>
-          </NavLink>
+      <nav className="flex-1 py-2 flex flex-col gap-0 overflow-y-auto">
+        {navSections.map((section) => (
+          <div key={section.label}>
+            <div className="px-5 pt-3 pb-1 text-[9px] font-bold uppercase tracking-[1.5px] text-text-muted/50">
+              {section.label}
+            </div>
+            {section.items.map((item) => (
+              <NavLink
+                key={item.to}
+                to={item.to}
+                end={item.to === "/"}
+                className={({ isActive }) =>
+                  `flex items-center gap-3 px-5 py-2 text-[12px] transition-all border-l-3 ${
+                    isActive
+                      ? "text-accent border-accent bg-accent/8"
+                      : "text-text-muted border-transparent hover:text-text hover:bg-bg-hover hover:border-accent2"
+                  }`
+                }
+              >
+                <item.icon size={14} />
+                <span>{item.label}</span>
+              </NavLink>
+            ))}
+          </div>
         ))}
       </nav>
 
