@@ -47,9 +47,10 @@ function decryptField(encrypted) {
 
 // ── Admin auth helper (C4) ──
 
+const ADMIN_API_KEY = process.env.HQ_API_KEY || 'cs2pt-dev-key-CHANGE-IN-PRODUCTION';
 function requireAdmin(req, res) {
   const key = req.query.api_key || req.headers['x-api-key'] || req.body?.api_key;
-  if (key !== process.env.HQ_API_KEY && key !== 'cs2pt-dev-key') {
+  if (key !== ADMIN_API_KEY) {
     res.status(401).json({ error: 'Admin authentication required' });
     return false;
   }
@@ -168,10 +169,8 @@ app.get('/api/releases', (req, res) => {
 });
 
 app.post('/api/releases', (req, res) => {
-  const { version, download_url, download_url_msi, changelog, api_key } = req.body;
-  if (api_key !== process.env.HQ_API_KEY && api_key !== 'cs2pt-dev-key') {
-    return res.status(401).json({ error: 'Invalid API key' });
-  }
+  if (!requireAdmin(req, res)) return;
+  const { version, download_url, download_url_msi, changelog } = req.body;
   if (!version) return res.status(400).json({ error: 'Version required' });
   const releases = loadJson('releases.json');
   releases.unshift({ version, download_url, download_url_msi, changelog, date: ts() });
@@ -232,6 +231,7 @@ app.post('/api/errors', (req, res) => {
 });
 
 app.get('/api/errors', (req, res) => {
+  if (!requireAdmin(req, res)) return;
   const errors = loadJson('errors.json');
   const limit = Math.min(parseInt(req.query.limit) || 50, 200);
   const type = req.query.type;
@@ -254,6 +254,7 @@ app.get('/api/errors', (req, res) => {
 });
 
 app.patch('/api/errors/:id', (req, res) => {
+  if (!requireAdmin(req, res)) return;
   const errors = loadJson('errors.json');
   const idx = errors.findIndex(e => e.id === req.params.id);
   if (idx === -1) return res.status(404).json({ error: 'Not found' });
@@ -263,11 +264,13 @@ app.patch('/api/errors/:id', (req, res) => {
 });
 
 app.delete('/api/errors', (req, res) => {
+  if (!requireAdmin(req, res)) return;
   saveJson('errors.json', []);
   res.json({ success: true, message: 'All errors cleared' });
 });
 
 app.delete('/api/errors/:id', (req, res) => {
+  if (!requireAdmin(req, res)) return;
   const errors = loadJson('errors.json');
   const filtered = errors.filter(e => e.id !== req.params.id);
   saveJson('errors.json', filtered);
@@ -293,6 +296,7 @@ app.post('/api/diagnostics', (req, res) => {
 });
 
 app.get('/api/diagnostics', (req, res) => {
+  if (!requireAdmin(req, res)) return;
   const diags = loadJson('diagnostics.json');
   const limit = Math.min(parseInt(req.query.limit) || 20, 100);
   res.json({ total: diags.length, diagnostics: diags.slice(-limit).reverse() });
@@ -306,6 +310,7 @@ app.get('/api/diagnostics/:id', (req, res) => {
 });
 
 app.delete('/api/diagnostics', (req, res) => {
+  if (!requireAdmin(req, res)) return;
   saveJson('diagnostics.json', []);
   res.json({ success: true });
 });
@@ -330,6 +335,7 @@ app.post('/api/telemetry', (req, res) => {
 });
 
 app.get('/api/telemetry', (req, res) => {
+  if (!requireAdmin(req, res)) return;
   const telemetry = loadJson('telemetry.json');
   const limit = Math.min(parseInt(req.query.limit) || 50, 200);
   const event = req.query.event;
@@ -344,6 +350,7 @@ app.get('/api/telemetry', (req, res) => {
 });
 
 app.delete('/api/telemetry', (req, res) => {
+  if (!requireAdmin(req, res)) return;
   saveJson('telemetry.json', []);
   res.json({ success: true });
 });
@@ -353,6 +360,7 @@ app.delete('/api/telemetry', (req, res) => {
 // ══════════════════════════════════════════
 
 app.get('/api/stats', (req, res) => {
+  if (!requireAdmin(req, res)) return;
   const errors = loadJson('errors.json');
   const diags = loadJson('diagnostics.json');
   const telemetry = loadJson('telemetry.json');
@@ -459,6 +467,7 @@ app.get('/api/builds', async (req, res) => {
 });
 
 app.post('/api/builds/trigger', async (req, res) => {
+  if (!requireAdmin(req, res)) return;
   if (!GH_TOKEN) return res.status(400).json({ error: 'GH_TOKEN not configured' });
   try {
     const r = await fetch(`https://api.github.com/repos/${GH_REPO}/actions/workflows/build-windows.yml/dispatches`, {
@@ -491,6 +500,7 @@ app.post('/api/crash', (req, res) => {
 });
 
 app.get('/api/crashes', (req, res) => {
+  if (!requireAdmin(req, res)) return;
   const crashes = loadJson('crashes.json');
   res.json({ total: crashes.length, crashes: crashes.slice(-20).reverse() });
 });
@@ -521,10 +531,7 @@ app.get('/api/config', (req, res) => {
 });
 
 app.post('/api/config', (req, res) => {
-  const { api_key } = req.body;
-  if (api_key !== process.env.HQ_API_KEY && api_key !== 'cs2pt-dev-key') {
-    return res.status(401).json({ error: 'Invalid API key' });
-  }
+  if (!requireAdmin(req, res)) return;
   const { features, messages, maintenance } = req.body;
   saveJson('remote_config.json', { features, messages, maintenance, updated_at: ts() });
   res.json({ success: true });
@@ -549,6 +556,7 @@ app.post('/api/feedback', (req, res) => {
 });
 
 app.get('/api/feedback', (req, res) => {
+  if (!requireAdmin(req, res)) return;
   const feedbacks = loadJson('feedback.json');
   const limit = Math.min(parseInt(req.query.limit) || 30, 100);
   res.json({ total: feedbacks.length, feedback: feedbacks.slice(-limit).reverse() });
@@ -589,6 +597,7 @@ app.post('/api/heartbeat', (req, res) => {
 });
 
 app.get('/api/clients', (req, res) => {
+  if (!requireAdmin(req, res)) return;
   const clients = loadJson('clients.json');
   const cutoff = new Date(Date.now() - 300000).toISOString();
   const active = clients.filter(c => c.last_seen > cutoff);
@@ -610,10 +619,8 @@ app.get('/api/pro-settings', (req, res) => {
 });
 
 app.post('/api/pro-settings', (req, res) => {
-  const { api_key, players } = req.body;
-  if (api_key !== process.env.HQ_API_KEY && api_key !== 'cs2pt-dev-key') {
-    return res.status(401).json({ error: 'Invalid API key' });
-  }
+  if (!requireAdmin(req, res)) return;
+  const { players } = req.body;
   saveJson('pro_settings.json', players);
   res.json({ success: true, total: players.length });
 });
@@ -624,10 +631,8 @@ app.post('/api/pro-settings', (req, res) => {
 
 // Create a token (admin only)
 app.post('/api/tokens', (req, res) => {
-  const { api_key, label, max_uses } = req.body;
-  if (api_key !== process.env.HQ_API_KEY && api_key !== 'cs2pt-dev-key') {
-    return res.status(401).json({ error: 'Invalid API key' });
-  }
+  if (!requireAdmin(req, res)) return;
+  const { label, max_uses } = req.body;
   const token = `CS2PT-${randomHex(4)}-${randomHex(4)}-${randomHex(4)}-${randomHex(4)}`.toUpperCase();
   const tokens = loadJson('tokens.json');
   tokens.push({
@@ -661,8 +666,7 @@ app.post('/api/tokens/validate', (req, res) => {
   const t = tokens[idx];
   if (!t.active) return res.json({ valid: false, error: 'Token deactivated' });
   if (t.max_uses > 0 && t.uses >= t.max_uses) return res.json({ valid: false, error: 'Token usage limit reached' });
-  // Update usage
-  tokens[idx].uses++;
+  // Usage only increments during VPN connect, not validation
   tokens[idx].last_used = ts();
   tokens[idx].last_ip = req.ip;
   saveJson('tokens.json', tokens);
@@ -697,10 +701,8 @@ app.delete('/api/tokens/:token', (req, res) => {
 
 // Deploy a new VPN server (admin — auto-installs WireGuard via SSH)
 app.post('/api/vpn-servers', async (req, res) => {
-  const { api_key, ip, ssh_user, ssh_pass, ssh_port, name } = req.body;
-  if (api_key !== process.env.HQ_API_KEY && api_key !== 'cs2pt-dev-key') {
-    return res.status(401).json({ error: 'Invalid API key' });
-  }
+  if (!requireAdmin(req, res)) return;
+  const { ip, ssh_user, ssh_pass, ssh_port, name } = req.body;
   if (!ip || !ssh_pass) return res.status(400).json({ error: 'IP and SSH password required' });
 
   // 1. Auto-detect location from IP
@@ -751,10 +753,8 @@ app.post('/api/vpn-servers', async (req, res) => {
 
 // Add server manually (without SSH deploy — for pre-configured servers)
 app.post('/api/vpn-servers/manual', (req, res) => {
-  const { api_key, name, location, country, flag, ip, port, public_key, lat, lng, max_clients } = req.body;
-  if (api_key !== process.env.HQ_API_KEY && api_key !== 'cs2pt-dev-key') {
-    return res.status(401).json({ error: 'Invalid API key' });
-  }
+  if (!requireAdmin(req, res)) return;
+  const { name, location, country, flag, ip, port, public_key, lat, lng, max_clients } = req.body;
   const servers = loadJson('vpn_servers.json');
   const server = {
     id: `vpn_${Date.now()}`,
@@ -1024,4 +1024,10 @@ app.listen(PORT, '127.0.0.1', () => {
   console.log(`CS2 Player Tools HQ Backend v${getAppVersion()} on port ${PORT}`);
   console.log(`Data: ${DATA_DIR}`);
   console.log(`Git: ${JSON.stringify(getGitInfo())}`);
+  if (!process.env.HQ_ENCRYPT_KEY) {
+    console.warn('WARNING: HQ_ENCRYPT_KEY not set — using default. Set it in production!');
+  }
+  if (!process.env.HQ_API_KEY) {
+    console.warn('WARNING: HQ_API_KEY not set — using default. Set it in production!');
+  }
 });

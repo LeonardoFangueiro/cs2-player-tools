@@ -352,15 +352,13 @@ export async function sendHeartbeat(
   try {
     // Get current app state
     let cs2Running = false;
-    let vpnActive = false;
+    const vpnActive = localStorage.getItem("cs2pt_vpn_connected") === "true";
     let profileName = null;
 
     try {
       const cs2 = await invoke<{ running: boolean }>("check_cs2");
       cs2Running = cs2.running;
     } catch {}
-
-    // TODO: check VPN status when we have active profile tracking
 
     const resp = await fetch(`${HQ_BASE}/heartbeat`, {
       method: "POST",

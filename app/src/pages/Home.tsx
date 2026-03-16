@@ -91,6 +91,7 @@ export default function Home() {
   const [favoriteId, setFavoriteId] = useState<string>("");
   const [connectionState, setConnectionState] = useState<ConnectionState>("disconnected");
   const [connectError, setConnectError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   // Load servers + favorite + connection state
@@ -137,7 +138,11 @@ export default function Home() {
 
   async function fetchServers() {
     try {
-      const resp = await fetch(`${HQ_BASE}/vpn-servers`);
+      setLoading(true);
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 10000);
+      const resp = await fetch(`${HQ_BASE}/vpn-servers`, { signal: controller.signal });
+      clearTimeout(timeout);
       const data = await resp.json();
       const srvs: VpnServer[] = data.servers || [];
       setServers(srvs);
@@ -155,6 +160,8 @@ export default function Home() {
       }
     } catch {
       // Silent
+    } finally {
+      setLoading(false);
     }
   }
 
@@ -403,7 +410,7 @@ export default function Home() {
           {dropdownOpen && (
             <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-bg-card border border-border rounded-lg shadow-2xl max-h-64 overflow-y-auto">
               {sorted.length === 0 && (
-                <div className="px-3 py-4 text-center text-text-muted text-xs">No servers available</div>
+                <div className="px-3 py-4 text-center text-text-muted text-xs">{loading ? "Loading servers..." : "No servers available"}</div>
               )}
               {sorted.map(srv => (
                 <div
