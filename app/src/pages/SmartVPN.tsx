@@ -416,14 +416,7 @@ function ServerCard({
             onError={(e) => { (e.target as HTMLImageElement).src = ''; (e.target as HTMLImageElement).alt = server.flag || '🌐'; }}
           />
           <div>
-            <div className="font-semibold text-sm flex items-center gap-2">
-              {server.name}
-              {ping !== null && (
-                <span className={`text-sm font-mono font-bold ${getPingColor(ping)}`}>
-                  {Math.round(ping)}ms
-                </span>
-              )}
-            </div>
+            <div className="font-semibold text-sm">{server.name}</div>
             <div className="text-xs text-text-muted">
               {server.location || server.country}
             </div>

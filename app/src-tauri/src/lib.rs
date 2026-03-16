@@ -342,6 +342,66 @@ pub fn run() {
             clear_connection_history,
             export_all_data,
         ])
+        .on_window_event(|window, event| {
+            // Cleanup when app is closing
+            if let tauri::WindowEvent::Destroyed = event {
+                if window.label() == "main" {
+                    eprintln!("App closing — cleaning up VPN tunnels...");
+                    cleanup_on_exit();
+                }
+            }
+        })
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
+}
+
+/// Cleanup VPN tunnels and temp configs when app exits
+fn cleanup_on_exit() {
+    // Deactivate all VPN profiles we created
+    if let Ok(profiles) = network::list_profiles() {
+        for name in profiles {
+            if name.starts_with("smartvpn-") {
+                eprintln!("Deactivating VPN: {}", name);
+                let _ = network::deactivate_vpn(&name);
+            }
+        }
+    }
+
+    // On Windows: also try to uninstall any WireGuard tunnel services we created
+    #[cfg(target_os = "windows")]
+    {
+        if let Ok(profiles) = network::list_profiles() {
+            for name in profiles {
+                if name.starts_with("smartvpn-") {
+                    if let Ok(wg_exe) = find_wireguard_exe_for_cleanup() {
+                        let mut cmd = std::process::Command::new(&wg_exe);
+                        use std::os::windows::process::CommandExt;
+                        cmd.creation_flags(0x08000000); // CREATE_NO_WINDOW
+                        let _ = cmd.args(["/uninstalltunnelservice", &name]).output();
+                    }
+                }
+            }
+        }
+    }
+
+    eprintln!("Cleanup complete.");
+}
+
+#[cfg(target_os = "windows")]
+fn find_wireguard_exe_for_cleanup() -> Result<String, String> {
+    let paths = [
+        r"C:\Program Files\WireGuard\wireguard.exe",
+        r"C:\Program Files (x86)\WireGuard\wireguard.exe",
+    ];
+    for p in &paths {
+        if std::path::Path::new(p).exists() { return Ok(p.to_string()); }
+    }
+    // Check bundled
+    if let Ok(exe) = std::env::current_exe() {
+        if let Some(dir) = exe.parent() {
+            let bundled = dir.join("wireguard").join("wireguard.exe");
+            if bundled.exists() { return Ok(bundled.to_string_lossy().to_string()); }
+        }
+    }
+    Err("wireguard.exe not found".to_string())
 }
