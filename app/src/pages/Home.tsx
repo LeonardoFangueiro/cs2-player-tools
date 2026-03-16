@@ -47,7 +47,7 @@ export default function Home() {
   const navigate = useNavigate();
   const [cs2Status, setCs2Status] = useState<Cs2Status>({ running: false, pid: null });
   const [vpnConnected, setVpnConnected] = useState(false);
-  const [vpnDetails, setVpnDetails] = useState<{ server: string; ip: string; rx: string; tx: string } | null>(null);
+  const [vpnDetails, setVpnDetails] = useState<{ server: string; countryCode: string; ip: string; rx: string; tx: string } | null>(null);
   const [update, setUpdate] = useState<{ version: string; url: string | null } | null>(null);
 
   useEffect(() => {
@@ -59,6 +59,7 @@ export default function Home() {
 
     // VPN: fetch server info once, poll transfer stats frequently
     let serverLabel = "";
+    let serverCC = "";
     const initVpn = async () => {
       const connected = localStorage.getItem("cs2pt_vpn_connected") === "true";
       setVpnConnected(connected);
@@ -69,6 +70,7 @@ export default function Home() {
           const data = await resp.json();
           const srv = (data.servers || []).find((s: { id: string }) => s.id === serverId);
           serverLabel = srv ? `${srv.name} — ${srv.location}` : serverId;
+          serverCC = srv?.country_code || "";
         } catch {
           serverLabel = serverId;
         }
@@ -88,6 +90,7 @@ export default function Home() {
         const status = await invoke<{ transfer_rx: string | null; transfer_tx: string | null }>("vpn_get_status", { profileName });
         setVpnDetails({
           server: serverLabel || serverId,
+          countryCode: serverCC,
           ip,
           rx: status.transfer_rx || "0 B",
           tx: status.transfer_tx || "0 B",
@@ -195,8 +198,16 @@ export default function Home() {
         </div>
         {/* VPN details line (only when connected) */}
         {vpnConnected && vpnDetails && (
-          <div className="text-[10px] text-text-muted/70 font-mono text-center">
-            {vpnDetails.server} · {vpnDetails.ip} · ↓{vpnDetails.rx} ↑{vpnDetails.tx}
+          <div className="flex items-center justify-center gap-1.5 text-[10px] text-text-muted/70 font-mono">
+            {vpnDetails.countryCode && (
+              <img src={`https://flagcdn.com/w20/${vpnDetails.countryCode.toLowerCase()}.png`} alt="" className="w-4 h-3 rounded-sm object-cover" />
+            )}
+            <span>{vpnDetails.server}</span>
+            <span className="text-border">·</span>
+            <span>{vpnDetails.ip}</span>
+            <span className="text-border">·</span>
+            <span className="text-success">↓{vpnDetails.rx}</span>
+            <span className="text-orange">↑{vpnDetails.tx}</span>
           </div>
         )}
       </div>
