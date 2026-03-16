@@ -149,13 +149,13 @@ function ToastContainer({
   function getIcon(type: Toast["type"]) {
     switch (type) {
       case "success":
-        return <CheckCircle size={16} className="text-success shrink-0" />;
+        return <CheckCircle size={14} className="text-success shrink-0" />;
       case "error":
-        return <XCircle size={16} className="text-danger shrink-0" />;
+        return <XCircle size={14} className="text-danger shrink-0" />;
       case "warning":
-        return <AlertTriangle size={16} className="text-warning shrink-0" />;
+        return <AlertTriangle size={14} className="text-warning shrink-0" />;
       case "info":
-        return <Info size={16} className="text-accent shrink-0" />;
+        return <Info size={14} className="text-accent shrink-0" />;
     }
   }
 
@@ -180,7 +180,7 @@ function ToastContainer({
           className={`bg-bg-card border ${getBorderColor(toast.type)} rounded-lg p-3 flex items-start gap-2 shadow-lg animate-[slideIn_0.3s_ease-out]`}
         >
           {getIcon(toast.type)}
-          <span className="text-sm text-text flex-1">{toast.message}</span>
+          <span className="text-xs text-text flex-1">{toast.message}</span>
           <button
             onClick={() => onDismiss(toast.id)}
             className="text-text-muted hover:text-text transition shrink-0"
@@ -220,39 +220,39 @@ function PreConnectModal({
 
   return (
     <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/60">
-      <div className="bg-bg-card border border-border rounded-lg p-6 max-w-sm w-full mx-4 shadow-2xl">
-        <h3 className="font-semibold text-base mb-4 flex items-center gap-2">
-          <Zap size={18} className="text-accent" />
+      <div className="bg-bg-card border border-border rounded-lg p-4 max-w-xs w-full mx-4 shadow-2xl">
+        <h3 className="font-semibold text-sm mb-3 flex items-center gap-1.5">
+          <Zap size={14} className="text-accent" />
           {check.serverName}
         </h3>
 
         {check.status === "pinging" && (
-          <div className="flex items-center gap-3 py-4">
-            <Loader size={20} className="text-accent animate-spin" />
-            <span className="text-sm text-text-muted">Testing connection quality...</span>
+          <div className="flex items-center gap-2 py-2">
+            <Loader size={14} className="text-accent animate-spin" />
+            <span className="text-xs text-text-muted">Testing connection quality...</span>
           </div>
         )}
 
         {check.status === "done" && check.avgLatency !== null && quality && (
-          <div className="space-y-3">
-            <div className="bg-bg/50 rounded-lg p-3 flex items-center justify-between">
-              <span className="text-sm text-text-muted">Latency</span>
-              <span className={`text-sm font-mono font-semibold ${quality.color}`}>
+          <div className="space-y-2">
+            <div className="bg-bg/50 rounded-lg p-2 flex items-center justify-between">
+              <span className="text-xs text-text-muted">Latency</span>
+              <span className={`text-xs font-mono font-semibold ${quality.color}`}>
                 {Math.round(check.avgLatency)}ms — {quality.label}
               </span>
             </div>
 
             {isGoodPing && (
-              <div className="flex items-center gap-2 text-success text-sm">
-                <Loader size={14} className="animate-spin" />
+              <div className="flex items-center gap-1.5 text-success text-xs">
+                <Loader size={12} className="animate-spin" />
                 Connecting...
               </div>
             )}
 
             {isHighLatency && (
-              <div className="bg-danger/10 border border-danger/30 rounded-lg p-3 flex items-start gap-2">
-                <AlertTriangle size={16} className="text-danger shrink-0 mt-0.5" />
-                <span className="text-xs text-danger">
+              <div className="bg-danger/10 border border-danger/30 rounded-lg p-2 flex items-start gap-1.5">
+                <AlertTriangle size={14} className="text-danger shrink-0 mt-0.5" />
+                <span className="text-[10px] text-danger">
                   High latency — gaming experience may be affected
                 </span>
               </div>
@@ -261,9 +261,9 @@ function PreConnectModal({
         )}
 
         {check.status === "error" && (
-          <div className="bg-warning/10 border border-warning/30 rounded-lg p-3 flex items-start gap-2">
-            <AlertTriangle size={16} className="text-warning shrink-0 mt-0.5" />
-            <span className="text-xs text-warning">
+          <div className="bg-warning/10 border border-warning/30 rounded-lg p-2 flex items-start gap-1.5">
+            <AlertTriangle size={14} className="text-warning shrink-0 mt-0.5" />
+            <span className="text-[10px] text-warning">
               Could not measure latency. You can still connect.
             </span>
           </div>
@@ -271,16 +271,16 @@ function PreConnectModal({
 
         {/* Only show buttons if ping is bad (>100ms) or failed */}
         {check.status !== "pinging" && !isGoodPing && (
-          <div className="flex gap-2 mt-5">
+          <div className="flex gap-2 mt-3">
             <button
               onClick={onCancel}
-              className="flex-1 px-4 py-2 bg-bg border border-border rounded-lg text-sm text-text-muted hover:text-text transition"
+              className="flex-1 px-2.5 py-1 bg-bg border border-border rounded-lg text-[10px] text-text-muted hover:text-text transition"
             >
               Cancel
             </button>
             <button
               onClick={onProceed}
-              className="flex-1 px-4 py-2 bg-accent/15 border border-accent/30 text-accent rounded-lg text-sm font-medium hover:bg-accent/25 transition"
+              className="flex-1 px-3 py-1.5 bg-accent/15 border border-accent/30 text-accent rounded-lg text-xs font-medium hover:bg-accent/25 transition"
             >
               Connect Anyway
             </button>
@@ -303,78 +303,78 @@ function NetworkDiagram({ servers, connectedServerId, connectionState }: {
   const isConnecting = connectionState === "connecting";
 
   return (
-    <div className="bg-bg-card border border-border rounded-lg p-6 mb-6">
-      <div className="flex items-center justify-center gap-4">
+    <div className="bg-bg-card border border-border rounded-lg p-3 mb-4">
+      <div className="flex items-center justify-center gap-2">
         {/* Your Device */}
-        <div className={`flex flex-col items-center gap-2 px-6 py-4 rounded-xl border-2 ${
+        <div className={`flex flex-col items-center gap-1 px-3 py-2 rounded-lg border ${
           isConnected ? 'border-success/50 bg-success/5' : 'border-border bg-bg'
         }`}>
-          <Monitor size={32} className={isConnected ? 'text-success' : 'text-text-muted'} />
-          <span className="text-xs font-semibold">Your PC</span>
+          <Monitor size={14} className={isConnected ? 'text-success' : 'text-text-muted'} />
+          <span className="text-[10px] font-semibold">Your PC</span>
         </div>
 
         {/* Connection Line 1 */}
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-0.5">
           {isConnected || isConnecting ? (
             <>
-              <div className="w-8 h-0.5 bg-success rounded" />
-              <div className={`w-8 h-0.5 bg-success rounded ${isConnecting ? 'animate-pulse' : ''}`} />
-              <div className="w-8 h-0.5 bg-success rounded" />
+              <div className="w-5 h-px bg-success rounded" />
+              <div className={`w-5 h-px bg-success rounded ${isConnecting ? 'animate-pulse' : ''}`} />
+              <div className="w-5 h-px bg-success rounded" />
             </>
           ) : (
             <>
-              <div className="w-8 h-0.5 bg-border rounded" />
-              <div className="w-8 h-0.5 bg-border rounded" />
-              <div className="w-8 h-0.5 bg-border rounded" />
+              <div className="w-5 h-px bg-border rounded" />
+              <div className="w-5 h-px bg-border rounded" />
+              <div className="w-5 h-px bg-border rounded" />
             </>
           )}
         </div>
 
         {/* VPN Server */}
-        <div className={`flex flex-col items-center gap-2 px-6 py-4 rounded-xl border-2 ${
+        <div className={`flex flex-col items-center gap-1 px-3 py-2 rounded-lg border ${
           isConnected ? 'border-accent/50 bg-accent/5' : 'border-border bg-bg'
         }`}>
-          <Shield size={32} className={isConnected ? 'text-accent' : 'text-text-muted'} />
-          <span className="text-xs font-semibold">
+          <Shield size={14} className={isConnected ? 'text-accent' : 'text-text-muted'} />
+          <span className="text-[10px] font-semibold">
             {connectedServer ? connectedServer.name : 'VPN Server'}
           </span>
           {isConnected && (
-            <span className="text-[10px] text-success font-mono">Encrypted</span>
+            <span className="text-[8px] text-success font-mono">Encrypted</span>
           )}
         </div>
 
         {/* Connection Line 2 */}
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-0.5">
           {isConnected ? (
             <>
-              <div className="w-8 h-0.5 bg-accent rounded" />
-              <div className="w-8 h-0.5 bg-accent rounded" />
-              <div className="w-8 h-0.5 bg-accent rounded" />
+              <div className="w-5 h-px bg-accent rounded" />
+              <div className="w-5 h-px bg-accent rounded" />
+              <div className="w-5 h-px bg-accent rounded" />
             </>
           ) : (
             <>
-              <div className="w-8 h-0.5 bg-border rounded" />
-              <div className="w-8 h-0.5 bg-border rounded" />
-              <div className="w-8 h-0.5 bg-border rounded" />
+              <div className="w-5 h-px bg-border rounded" />
+              <div className="w-5 h-px bg-border rounded" />
+              <div className="w-5 h-px bg-border rounded" />
             </>
           )}
         </div>
 
         {/* Valve Servers */}
-        <div className={`flex flex-col items-center gap-2 px-6 py-4 rounded-xl border-2 ${
+        <div className={`flex flex-col items-center gap-1 px-3 py-2 rounded-lg border ${
           isConnected ? 'border-warning/50 bg-warning/5' : 'border-border bg-bg'
         }`}>
-          <Globe size={32} className={isConnected ? 'text-warning' : 'text-text-muted'} />
-          <span className="text-xs font-semibold">Valve CS2</span>
+          <Globe size={14} className={isConnected ? 'text-warning' : 'text-text-muted'} />
+          <span className="text-[10px] font-semibold">Valve CS2</span>
           {isConnected && (
-            <span className="text-[10px] text-warning font-mono">Low Latency</span>
+            <span className="text-[8px] text-warning font-mono">Low Latency</span>
           )}
         </div>
       </div>
 
       {/* Status text */}
-      <div className="text-center mt-4">
-        <span className={`text-xs ${isConnected ? 'text-success' : isConnecting ? 'text-accent animate-pulse' : 'text-text-muted'}`}>
+      <div className="text-center mt-2">
+        <span className={`text-[10px] ${isConnected ? 'text-success' : isConnecting ? 'text-accent animate-pulse' : 'text-text-muted'}`}>
           {isConnected ? 'Connected — Traffic encrypted through VPN' :
            isConnecting ? 'Connecting...' :
            'Not connected — Select a server below'}
@@ -411,73 +411,70 @@ function ServerCard({
 
   return (
     <div
-      className={`bg-bg-card border rounded-lg p-4 transition-all ${
+      className={`bg-bg-card border rounded-lg p-3 transition-all ${
         isConnected
-          ? "border-success/50 shadow-[0_0_20px_rgba(85,239,196,0.1)]"
+          ? "border-success/50 shadow-[0_0_15px_rgba(85,239,196,0.1)]"
           : isFavorite
-            ? "border-amber-500/50 shadow-[0_0_15px_rgba(245,158,11,0.1)]"
+            ? "border-amber-500/50 shadow-[0_0_10px_rgba(245,158,11,0.1)]"
             : isSelected
               ? "border-accent/50"
               : "border-border hover:border-border/80"
       }`}
     >
       {/* Header */}
-      <div className="flex items-center justify-between mb-3">
-        <div className="flex items-center gap-3">
-          {/* Flag: use flagcdn.com image since Windows WebView2 doesn't render flag emojis */}
+      <div className="flex items-center justify-between mb-2">
+        <div className="flex items-center gap-2">
+          {/* Flag */}
           <img
             src={`https://flagcdn.com/w80/${(server.country_code || 'xx').toLowerCase()}.png`}
             alt={server.flag || server.country}
-            className="w-10 h-7 rounded object-cover border border-border"
-            onError={(e) => { (e.target as HTMLImageElement).src = ''; (e.target as HTMLImageElement).alt = server.flag || '🌐'; }}
+            className="w-7 h-5 rounded object-cover border border-border"
+            onError={(e) => { (e.target as HTMLImageElement).src = ''; (e.target as HTMLImageElement).alt = server.flag || ''; }}
           />
           <div>
-            <div className="font-semibold text-sm">{server.name}</div>
-            <div className="text-xs text-text-muted">
+            <div className="font-semibold text-xs">{server.name}</div>
+            <div className="text-[10px] text-text-muted">
               {server.location || server.country}
             </div>
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5">
           <button
             onClick={(e) => {
               e.stopPropagation();
               onToggleFavorite();
             }}
-            className={`p-1 rounded transition ${
+            className={`p-0.5 rounded transition ${
               isFavorite
                 ? "text-amber-400 hover:text-amber-300"
                 : "text-text-muted/30 hover:text-text-muted"
             }`}
             title={isFavorite ? "Remove from favorites" : "Set as favorite"}
           >
-            <Star size={16} fill={isFavorite ? "currentColor" : "none"} />
+            <Star size={14} fill={isFavorite ? "currentColor" : "none"} />
           </button>
-          <div className="flex items-center gap-1.5">
-            <span className="w-2 h-2 rounded-full bg-success animate-pulse" />
-            <span className="text-[10px] text-text-muted uppercase">Online</span>
-          </div>
+          <span className="w-1.5 h-1.5 rounded-full bg-success animate-pulse" />
         </div>
       </div>
 
-      {/* Stats row */}
-      <div className="flex items-center gap-4 mb-3 text-xs text-text-muted">
-        <div className="flex items-center gap-1">
-          <Zap size={12} className={ping !== null ? getPingColor(ping) : ""} />
+      {/* Stats as inline badges */}
+      <div className="flex items-center gap-1.5 mb-2 flex-wrap">
+        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-bg rounded border border-border text-[10px]">
+          <Zap size={10} className={ping !== null ? getPingColor(ping) : ""} />
           {ping !== null ? (
             <span className={getPingColor(ping)}>{Math.round(ping)}ms</span>
           ) : (
             <span className="animate-pulse">...</span>
           )}
-        </div>
-        <div className="flex items-center gap-1">
-          <Users size={12} />
-          <span>{server.current_clients || 0}/{server.max_clients}</span>
-        </div>
-        <div className="flex items-center gap-1">
-          <Globe size={12} />
-          <span>{getContinent(server.country)}</span>
-        </div>
+        </span>
+        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-bg rounded border border-border text-[10px] text-text-muted">
+          <Users size={10} />
+          {server.current_clients || 0}/{server.max_clients}
+        </span>
+        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-bg rounded border border-border text-[10px] text-text-muted">
+          <Globe size={10} />
+          {getContinent(server.country)}
+        </span>
       </div>
 
       {/* Action button */}
@@ -485,16 +482,16 @@ function ServerCard({
         <button
           onClick={onDisconnect}
           disabled={isBusy}
-          className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-danger/15 border border-danger/30 text-danger rounded-lg text-sm font-medium hover:bg-danger/25 transition disabled:opacity-50"
+          className="w-full flex items-center justify-center gap-1.5 px-3 py-1.5 bg-danger/15 border border-danger/30 text-danger rounded-lg text-xs font-medium hover:bg-danger/25 transition disabled:opacity-50"
         >
           {connectionState === "disconnecting" ? (
             <>
-              <Loader size={14} className="animate-spin" />
+              <Loader size={12} className="animate-spin" />
               Disconnecting...
             </>
           ) : (
             <>
-              <WifiOff size={14} />
+              <WifiOff size={12} />
               Disconnect
             </>
           )}
@@ -503,16 +500,16 @@ function ServerCard({
         <button
           onClick={onConnect}
           disabled={isBusy || (connectionState === "connected" && !isConnected)}
-          className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-accent/15 border border-accent/30 text-accent rounded-lg text-sm font-medium hover:bg-accent/25 transition disabled:opacity-50"
+          className="w-full flex items-center justify-center gap-1.5 px-3 py-1.5 bg-accent/15 border border-accent/30 text-accent rounded-lg text-xs font-medium hover:bg-accent/25 transition disabled:opacity-50"
         >
           {connectionState === "connecting" && isSelected ? (
             <>
-              <Loader size={14} className="animate-spin" />
+              <Loader size={12} className="animate-spin" />
               Connecting...
             </>
           ) : (
             <>
-              <Shield size={14} />
+              <Shield size={12} />
               Connect
             </>
           )}
@@ -540,64 +537,49 @@ function ConnectedBanner({
   connectionState: ConnectionState;
 }) {
   return (
-    <div className="bg-success/5 border border-success/20 rounded-lg p-5 mb-6">
-      <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-full bg-success/20 flex items-center justify-center">
-            <Shield size={20} className="text-success" />
+    <div className="bg-success/5 border border-success/20 rounded-lg p-3 mb-4">
+      <div className="flex items-center justify-between mb-2">
+        <div className="flex items-center gap-2">
+          <div className="w-7 h-7 rounded-full bg-success/20 flex items-center justify-center">
+            <Shield size={14} className="text-success" />
           </div>
           <div>
-            <div className="font-semibold flex items-center gap-2">
+            <div className="font-semibold text-xs flex items-center gap-1.5">
               <span className="text-success">Connected</span>
-              <img src={`https://flagcdn.com/w40/${(server.country_code || 'xx').toLowerCase()}.png`} alt="" className="w-6 h-4 rounded object-cover" />
+              <img src={`https://flagcdn.com/w40/${(server.country_code || 'xx').toLowerCase()}.png`} alt="" className="w-5 h-3.5 rounded object-cover" />
               <span>{server.name}</span>
             </div>
-            <div className="text-xs text-text-muted">{server.location} &mdash; {server.country}</div>
+            <div className="text-[10px] text-text-muted">{server.location} &mdash; {server.country}</div>
           </div>
         </div>
         <button
           onClick={onDisconnect}
           disabled={connectionState === "disconnecting"}
-          className="flex items-center gap-2 px-4 py-2 bg-danger/15 border border-danger/30 text-danger rounded-lg text-sm font-medium hover:bg-danger/25 transition disabled:opacity-50"
+          className="flex items-center gap-1.5 px-2.5 py-1 bg-danger/15 border border-danger/30 text-danger rounded-lg text-[10px] font-medium hover:bg-danger/25 transition disabled:opacity-50"
         >
           {connectionState === "disconnecting" ? (
-            <Loader size={14} className="animate-spin" />
+            <Loader size={10} className="animate-spin" />
           ) : (
-            <WifiOff size={14} />
+            <WifiOff size={10} />
           )}
           Disconnect
         </button>
       </div>
 
-      {/* Connection details grid */}
-      <div className="grid grid-cols-4 gap-4">
-        <div className="bg-bg-card/50 rounded-lg p-3">
-          <div className="text-[10px] text-text-muted uppercase tracking-wider mb-1 flex items-center gap-1">
-            <Globe size={10} /> VPN IP
-          </div>
-          <div className="text-sm font-mono text-accent2">{vpnIp}</div>
-        </div>
-        <div className="bg-bg-card/50 rounded-lg p-3">
-          <div className="text-[10px] text-text-muted uppercase tracking-wider mb-1 flex items-center gap-1">
-            <Timer size={10} /> Duration
-          </div>
-          <div className="text-sm font-mono text-success">{formatDuration(duration)}</div>
-        </div>
-        <div className="bg-bg-card/50 rounded-lg p-3">
-          <div className="text-[10px] text-text-muted uppercase tracking-wider mb-1 flex items-center gap-1">
-            <ArrowDownUp size={10} /> ↓ Download
-          </div>
-          <div className="text-sm font-mono text-success">{status?.transfer_rx ?? "0 B"}</div>
-        </div>
-        <div className="bg-bg-card/50 rounded-lg p-3">
-          <div className="text-[10px] text-text-muted uppercase tracking-wider mb-1 flex items-center gap-1">
-            <ArrowDownUp size={10} /> ↑ Upload
-          </div>
-          <div className="text-sm font-mono text-orange">{status?.transfer_tx ?? "0 B"}</div>
-        </div>
-      </div>
-      <div className="text-[10px] text-text-muted/50 text-center mt-2">
-        CS2-only split tunnel — traffic only flows when connected to Valve servers (CS2, Steam)
+      {/* Connection details as inline badges */}
+      <div className="flex items-center gap-2 flex-wrap">
+        <span className="inline-flex items-center gap-1 px-2 py-1 bg-bg-card/50 rounded-lg text-[10px]">
+          <Globe size={10} className="text-text-muted" /> <span className="text-text-muted">IP:</span> <span className="font-mono text-accent2">{vpnIp}</span>
+        </span>
+        <span className="inline-flex items-center gap-1 px-2 py-1 bg-bg-card/50 rounded-lg text-[10px]">
+          <Timer size={10} className="text-text-muted" /> <span className="font-mono text-success">{formatDuration(duration)}</span>
+        </span>
+        <span className="inline-flex items-center gap-1 px-2 py-1 bg-bg-card/50 rounded-lg text-[10px]">
+          <ArrowDownUp size={10} className="text-text-muted" /> <span className="text-text-muted">↓</span> <span className="font-mono text-success">{status?.transfer_rx ?? "0 B"}</span>
+        </span>
+        <span className="inline-flex items-center gap-1 px-2 py-1 bg-bg-card/50 rounded-lg text-[10px]">
+          <ArrowDownUp size={10} className="text-text-muted" /> <span className="text-text-muted">↑</span> <span className="font-mono text-orange">{status?.transfer_tx ?? "0 B"}</span>
+        </span>
       </div>
     </div>
   );
@@ -1010,41 +992,41 @@ export default function SmartVPN() {
     return (
       <div>
         <ToastContainer toasts={toasts} onDismiss={dismissToast} />
-        <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center justify-between mb-4">
           <div>
-            <h1 className="text-2xl font-bold">
+            <h1 className="text-sm font-bold">
               <span className="text-accent">Smart</span> VPN
             </h1>
-            <p className="text-text-muted text-sm mt-1">
+            <p className="text-text-muted text-xs mt-0.5">
               One-click VPN for optimized CS2 routing
             </p>
           </div>
         </div>
 
-        <div className="bg-bg-card border border-border rounded-lg p-8 max-w-md mx-auto mt-12">
-          <div className="flex flex-col items-center gap-4 text-center">
-            <div className="w-16 h-16 rounded-full bg-accent/10 flex items-center justify-center">
-              <Lock size={28} className="text-accent" />
+        <div className="bg-bg-card border border-border rounded-lg p-6 max-w-sm mx-auto mt-8">
+          <div className="flex flex-col items-center gap-3 text-center">
+            <div className="w-10 h-10 rounded-full bg-accent/10 flex items-center justify-center">
+              <Lock size={14} className="text-accent" />
             </div>
-            <h2 className="text-lg font-semibold">Access Token Required</h2>
-            <p className="text-sm text-text-muted">
-              Enter your access token to connect to VPN servers. Tokens are managed by the HQ admin.
+            <h2 className="text-sm font-semibold">Access Token Required</h2>
+            <p className="text-xs text-text-muted">
+              Enter your access token to connect to VPN servers.
             </p>
-            <div className="w-full flex gap-2 mt-2">
+            <div className="w-full flex gap-2 mt-1">
               <input
                 type="password"
                 value={tokenInput}
                 onChange={(e) => setTokenInput(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && handleSaveToken()}
                 placeholder="Paste your token..."
-                className="flex-1 bg-bg border border-border rounded-lg px-3 py-2 text-sm text-text placeholder:text-text-muted/50 focus:outline-none focus:border-accent/50"
+                className="flex-1 bg-bg border border-border rounded-lg px-2.5 py-1.5 text-xs text-text placeholder:text-text-muted/50 focus:outline-none focus:border-accent/50"
               />
               <button
                 onClick={handleSaveToken}
                 disabled={!tokenInput.trim()}
-                className="px-4 py-2 bg-accent text-white rounded-lg text-sm font-medium hover:bg-accent/90 transition disabled:opacity-50"
+                className="px-3 py-1.5 bg-accent text-white rounded-lg text-xs font-medium hover:bg-accent/90 transition disabled:opacity-50"
               >
-                <Key size={14} />
+                <Key size={12} />
               </button>
             </div>
           </div>
@@ -1068,28 +1050,27 @@ export default function SmartVPN() {
       )}
 
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center justify-between mb-4">
         <div>
-          <h1 className="text-2xl font-bold">
+          <h1 className="text-sm font-bold">
             <span className="text-accent">Smart</span> VPN
           </h1>
-          <p className="text-text-muted text-sm mt-1">
+          <p className="text-text-muted text-xs mt-0.5">
             One-click VPN for optimized CS2 routing
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5">
           <button
             onClick={handleClearToken}
-            className="flex items-center gap-2 px-3 py-2 bg-bg-card border border-border rounded-lg text-xs text-text-muted hover:text-danger hover:border-danger/30 transition"
+            className="flex items-center gap-1 px-2.5 py-1 bg-bg-card border border-border rounded-lg text-[10px] text-text-muted hover:text-danger hover:border-danger/30 transition"
             title="Clear token"
           >
-            <Key size={12} />
+            <Key size={10} />
             Clear Token
           </button>
           <button onClick={fetchServers} disabled={loading}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-bg-card border border-border rounded-lg text-xs text-text-muted hover:text-text hover:border-accent/30 transition disabled:opacity-50">
-            <RefreshCw size={12} className={loading ? "animate-spin" : ""} />
-            Refresh
+            className="flex items-center gap-1 px-2.5 py-1 bg-bg-card border border-border rounded-lg text-[10px] text-text-muted hover:text-text hover:border-accent/30 transition disabled:opacity-50">
+            <RefreshCw size={10} className={loading ? "animate-spin" : ""} />
           </button>
         </div>
       </div>
@@ -1108,11 +1089,11 @@ export default function SmartVPN() {
 
       {/* Connecting overlay */}
       {connectionState === "connecting" && (
-        <div className="bg-accent/5 border border-accent/20 rounded-lg p-5 mb-6 flex items-center gap-4">
-          <Loader size={24} className="text-accent animate-spin" />
+        <div className="bg-accent/5 border border-accent/20 rounded-lg p-3 mb-4 flex items-center gap-3">
+          <Loader size={14} className="text-accent animate-spin" />
           <div>
-            <div className="font-semibold text-sm">Connecting to VPN...</div>
-            <div className="text-xs text-text-muted mt-1">
+            <div className="font-semibold text-xs">Connecting to VPN...</div>
+            <div className="text-[10px] text-text-muted mt-0.5">
               Generating keys and establishing secure tunnel
             </div>
           </div>
@@ -1121,21 +1102,20 @@ export default function SmartVPN() {
 
       {/* Error banner */}
       {error && (
-        <div className="bg-danger/10 border border-danger/30 rounded-lg p-4 mb-6 flex items-center gap-3">
-          <XCircle size={16} className="text-danger shrink-0" />
-          <span className="text-sm text-danger">{error}</span>
+        <div className="bg-danger/10 border border-danger/30 rounded-lg p-3 mb-4 flex items-center gap-2">
+          <XCircle size={14} className="text-danger shrink-0" />
+          <span className="text-xs text-danger">{error}</span>
         </div>
       )}
 
       {/* WireGuard not installed warning */}
       {!wgAvailable && (
-        <div className="bg-warning/10 border border-warning/30 rounded-lg p-4 mb-6 flex items-start gap-3">
-          <AlertTriangle size={16} className="text-warning mt-0.5 shrink-0" />
-          <div className="text-sm">
+        <div className="bg-warning/10 border border-warning/30 rounded-lg p-3 mb-4 flex items-start gap-2">
+          <AlertTriangle size={14} className="text-warning mt-0.5 shrink-0" />
+          <div className="text-xs">
             <span className="text-warning font-semibold">WireGuard not installed.</span>
-            <span className="text-text-muted"> Download and install WireGuard from </span>
+            <span className="text-text-muted"> Download from </span>
             <a href="https://www.wireguard.com/install/" target="_blank" rel="noopener noreferrer" className="text-accent underline">wireguard.com</a>
-            <span className="text-text-muted"> to use the VPN features.</span>
           </div>
         </div>
       )}
@@ -1148,50 +1128,50 @@ export default function SmartVPN() {
       />
 
       {/* Server List */}
-      <div className="mb-4 flex items-center gap-2">
-        <Server size={16} className="text-accent2" />
-        <h2 className="text-base font-semibold">Available Servers</h2>
-        <span className="text-xs text-text-muted ml-auto">
+      <div className="mb-3 flex items-center gap-1.5">
+        <Server size={14} className="text-accent2" />
+        <h2 className="text-xs font-semibold">Available Servers</h2>
+        <span className="text-[10px] text-text-muted ml-auto">
           {servers.length} server{servers.length !== 1 ? "s" : ""}
         </span>
       </div>
 
       {loading ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
           {[1, 2, 3].map((i) => (
-            <div key={i} className="bg-bg-card border border-border rounded-lg p-4">
-              <div className="animate-pulse space-y-3">
+            <div key={i} className="bg-bg-card border border-border rounded-lg p-3">
+              <div className="animate-pulse space-y-2">
                 <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 rounded bg-border/40" />
+                  <div className="w-7 h-5 rounded bg-border/40" />
                   <div className="flex-1 space-y-1">
-                    <div className="h-4 w-24 bg-border/40 rounded" />
-                    <div className="h-3 w-32 bg-border/40 rounded" />
+                    <div className="h-3 w-20 bg-border/40 rounded" />
+                    <div className="h-2.5 w-28 bg-border/40 rounded" />
                   </div>
                 </div>
-                <div className="h-3 w-full bg-border/40 rounded" />
-                <div className="h-9 w-full bg-border/40 rounded" />
+                <div className="h-2.5 w-full bg-border/40 rounded" />
+                <div className="h-7 w-full bg-border/40 rounded" />
               </div>
             </div>
           ))}
         </div>
       ) : servers.length === 0 ? (
-        <div className="bg-bg-card border border-border rounded-lg p-8 text-center">
-          <div className="flex flex-col items-center gap-3">
-            <Wifi size={32} className="text-text-muted/30" />
-            <p className="text-text-muted text-sm">
+        <div className="bg-bg-card border border-border rounded-lg p-6 text-center">
+          <div className="flex flex-col items-center gap-2">
+            <Wifi size={20} className="text-text-muted/30" />
+            <p className="text-text-muted text-xs">
               No VPN servers available at the moment.
             </p>
             <button
               onClick={fetchServers}
-              className="flex items-center gap-2 px-4 py-2 bg-accent/15 border border-accent/30 text-accent rounded-lg text-sm hover:bg-accent/25 transition"
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-accent/15 border border-accent/30 text-accent rounded-lg text-xs hover:bg-accent/25 transition"
             >
-              <RefreshCw size={14} />
+              <RefreshCw size={12} />
               Retry
             </button>
           </div>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
           {sortedServers.map((server) => (
             <ServerCard
               key={server.id}
@@ -1214,9 +1194,9 @@ export default function SmartVPN() {
       )}
 
       {/* Footer info */}
-      <div className="mt-6 flex items-center gap-2 text-xs text-text-muted/50">
-        <CheckCircle size={12} />
-        <span>All connections are encrypted with WireGuard. Keys are generated locally and never leave your device.</span>
+      <div className="mt-4 flex items-center gap-1.5 text-[10px] text-text-muted/50">
+        <CheckCircle size={10} />
+        <span>Encrypted with WireGuard. Keys generated locally.</span>
       </div>
     </div>
   );

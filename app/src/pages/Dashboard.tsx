@@ -2,10 +2,6 @@ import { useEffect, useState, useMemo } from "react";
 import { invoke } from "../lib/tauri";
 import { getTopDCs } from "../lib/valve";
 import {
-  Activity,
-  Globe,
-  Wifi,
-  Clock,
   AlertTriangle,
   RefreshCw,
   Monitor,
@@ -190,30 +186,6 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* Stat badges inline */}
-      <div className="flex items-center gap-2 mb-4 flex-wrap">
-        <div className="flex items-center gap-1.5 px-3 py-1.5 bg-bg-card border border-border rounded-lg">
-          <Globe size={12} className="text-accent" />
-          <span className="text-[10px] text-text-muted">PoPs</span>
-          {loading ? <Skeleton className="h-4 w-6" /> : <span className="text-xs font-bold text-accent">{sdrConfig?.pops.length ?? 0}</span>}
-        </div>
-        <div className="flex items-center gap-1.5 px-3 py-1.5 bg-bg-card border border-border rounded-lg">
-          <Wifi size={12} className="text-accent2" />
-          <span className="text-[10px] text-text-muted">Relays</span>
-          {loading ? <Skeleton className="h-4 w-6" /> : <span className="text-xs font-bold text-accent2">{totalRelays}</span>}
-        </div>
-        <div className="flex items-center gap-1.5 px-3 py-1.5 bg-bg-card border border-border rounded-lg">
-          <Activity size={12} className="text-success" />
-          <span className="text-[10px] text-text-muted">EU DCs</span>
-          {loading ? <Skeleton className="h-4 w-6" /> : <span className="text-xs font-bold text-success">{europeCount}</span>}
-        </div>
-        <div className="flex items-center gap-1.5 px-3 py-1.5 bg-bg-card border border-border rounded-lg">
-          <Clock size={12} className="text-warning" />
-          <span className="text-[10px] text-text-muted">SDR Rev</span>
-          {loading ? <Skeleton className="h-4 w-6" /> : <span className="text-xs font-bold text-warning">{sdrConfig?.revision ?? 0}</span>}
-        </div>
-      </div>
-
       {/* Network Info — compact inline row */}
       <div className="bg-bg-card border border-border rounded-lg p-3 mb-4">
         <div className="flex items-center gap-4">
@@ -236,12 +208,23 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Ping All PoPs */}
+      {/* Valve Infrastructure Section */}
       <div className="bg-bg-card border border-border rounded-lg p-3 mb-4">
         <div className="flex items-center justify-between mb-3">
-          <div className="flex items-center gap-2">
-            <Server size={14} className="text-accent" />
-            <span className="text-xs font-semibold">Valve Relay Latency</span>
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-1.5">
+              <Server size={14} className="text-accent" />
+              <span className="text-xs font-semibold">Valve Infrastructure</span>
+            </div>
+            {!loading && sdrConfig && (
+              <div className="flex items-center gap-2 text-[10px] text-text-muted">
+                <span><span className="font-bold text-accent">{sdrConfig.pops.length}</span> PoPs</span>
+                <span>·</span>
+                <span><span className="font-bold text-accent2">{totalRelays}</span> Relays</span>
+                <span>·</span>
+                <span><span className="font-bold text-success">{europeCount}</span> EU</span>
+              </div>
+            )}
           </div>
           <button
             onClick={pingAllPops}
@@ -377,23 +360,12 @@ export default function Dashboard() {
             Click "Ping All PoPs" to measure latency to Valve relay clusters.
           </p>
         )}
-      </div>
 
-      {/* PoP Table */}
-      {loading && (
-        <div className="bg-bg-card border border-border rounded-lg p-3">
-          <Skeleton className="h-4 w-40 mb-3" />
-          <div className="space-y-1.5">
-            {[1, 2, 3, 4, 5].map((i) => (
-              <Skeleton key={i} className="h-6 w-full" />
-            ))}
-          </div>
-        </div>
-      )}
-      {!loading && sdrConfig && (
-        <div className="bg-bg-card border border-border rounded-lg p-3">
-          <div className="text-xs font-semibold mb-2">
-            Valve PoPs ({sdrConfig.pops.length})
+        {/* PoP Table — inside Valve Infrastructure section */}
+        {!loading && sdrConfig && (
+          <div className="mt-3 pt-3 border-t border-border">
+          <div className="text-[10px] font-semibold text-text-muted mb-2 uppercase tracking-wider">
+            All PoPs ({sdrConfig.pops.length})
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-xs">
@@ -428,8 +400,9 @@ export default function Dashboard() {
               </tbody>
             </table>
           </div>
-        </div>
-      )}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
