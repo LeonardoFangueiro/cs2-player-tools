@@ -1,5 +1,6 @@
 import { useEffect, useState, useMemo } from "react";
 import { invoke } from "../lib/tauri";
+import { getTopDCs } from "../lib/valve";
 import {
   Activity,
   Globe,
@@ -136,19 +137,8 @@ export default function Dashboard() {
       const results = await invoke<Array<[string, number]>>("ping_all_pops");
       const reachable = results.filter(([, ms]) => ms > 0);
       if (reachable.length === 0) {
-        // Fallback: ping known Valve IPs directly
-        const knownDCs = [
-          { code: "fra", ip: "155.133.240.55" },
-          { code: "ams", ip: "155.133.226.71" },
-          { code: "lhr", ip: "162.254.197.36" },
-          { code: "mad", ip: "155.133.248.41" },
-          { code: "sto", ip: "162.254.199.36" },
-          { code: "waw", ip: "155.133.234.41" },
-          { code: "vie", ip: "155.133.236.71" },
-          { code: "iad", ip: "208.78.164.10" },
-          { code: "gru", ip: "205.196.6.75" },
-          { code: "sgp", ip: "103.10.124.36" },
-        ];
+        // Fallback: ping known Valve IPs directly (fetched dynamically)
+        const knownDCs = await getTopDCs(10);
         const fallbackResults: Array<[string, number]> = [];
         for (const dc of knownDCs) {
           try {

@@ -6,6 +6,8 @@
 // Full URL required here because the Tauri app runs locally (localhost),
 // so relative paths would not reach the remote HQ backend.
 const HQ_BASE = "https://cs2-player-tools.maltinha.club/api";
+import { getDefaultPingTarget } from "./valve";
+
 const APP_VERSION = "0.1.0";
 
 /** Get stored auth token */
@@ -241,17 +243,18 @@ export async function runAndReportDiagnostics(
     tests["version_check"] = { status: "fail", error: String(e) };
   }
 
-  // Test 17: Ping to Valve Frankfurt DC (direct latency test)
+  // Test 17: Ping to nearest Valve DC (direct latency test)
   try {
-    const pings = await invoke<Array<{ latency_ms: number; success: boolean }>>("ping_host", { host: "155.133.240.55", count: 3 });
+    const valveTarget = await getDefaultPingTarget();
+    const pings = await invoke<Array<{ latency_ms: number; success: boolean }>>("ping_host", { host: valveTarget, count: 3 });
     const successful = pings.filter(p => p.success);
     if (successful.length > 0) {
       const avg = successful.reduce((s, p) => s + p.latency_ms, 0) / successful.length;
       const min = Math.min(...successful.map(p => p.latency_ms));
       const max = Math.max(...successful.map(p => p.latency_ms));
-      tests["valve_dc_ping"] = { status: "pass", target: "fra (Frankfurt)", avg_ms: Math.round(avg * 10) / 10, min_ms: Math.round(min * 10) / 10, max_ms: Math.round(max * 10) / 10, samples: successful.length };
+      tests["valve_dc_ping"] = { status: "pass", target: valveTarget, avg_ms: Math.round(avg * 10) / 10, min_ms: Math.round(min * 10) / 10, max_ms: Math.round(max * 10) / 10, samples: successful.length };
     } else {
-      tests["valve_dc_ping"] = { status: "fail", error: "No successful pings to Frankfurt DC" };
+      tests["valve_dc_ping"] = { status: "fail", error: "No successful pings to Valve DC" };
     }
   } catch (e) {
     tests["valve_dc_ping"] = { status: "fail", error: String(e) };

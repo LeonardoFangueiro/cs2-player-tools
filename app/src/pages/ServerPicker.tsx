@@ -1,5 +1,6 @@
 import { useEffect, useState, useMemo } from "react";
 import { invoke } from "../lib/tauri";
+import { getTopDCs } from "../lib/valve";
 import {
   Globe,
   MapPin,
@@ -144,19 +145,8 @@ export default function ServerPicker() {
       const reachableResults = results.filter(([, ms]) => ms > 0);
 
       if (reachableResults.length === 0) {
-        // Fallback: ping known Valve DCs directly via SSH port
-        const knownDCs = [
-          { code: "fra", ip: "155.133.240.55" },
-          { code: "ams", ip: "155.133.226.71" },
-          { code: "lhr", ip: "162.254.197.36" },
-          { code: "mad", ip: "155.133.248.41" },
-          { code: "sto", ip: "162.254.199.36" },
-          { code: "waw", ip: "155.133.234.41" },
-          { code: "vie", ip: "155.133.236.71" },
-          { code: "iad", ip: "208.78.164.10" },
-          { code: "gru", ip: "205.196.6.75" },
-          { code: "sgp", ip: "103.10.124.36" },
-        ];
+        // Fallback: ping known Valve DCs directly (fetched dynamically)
+        const knownDCs = await getTopDCs(10);
         const map = new Map<string, number>();
         for (const dc of knownDCs) {
           try {
