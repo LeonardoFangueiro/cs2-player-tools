@@ -51,11 +51,17 @@ export default function Home() {
   const [update, setUpdate] = useState<{ version: string; url: string | null } | null>(null);
 
   useEffect(() => {
-    // CS2 status
-    invoke<Cs2Status>("check_cs2").then(setCs2Status).catch(() => {});
-    const cs2Int = setInterval(() => {
-      invoke<Cs2Status>("check_cs2").then(setCs2Status).catch(() => {});
-    }, 5000);
+    // CS2 status — retry after short delay on first load (invoke may not be ready)
+    const checkCs2 = () => {
+      invoke<Cs2Status>("check_cs2")
+        .then(setCs2Status)
+        .catch(() => setCs2Status({ running: false, pid: null }));
+    };
+    // Initial check + retry after 1s (Tauri invoke sometimes not ready on first render)
+    checkCs2();
+    setTimeout(checkCs2, 1000);
+    setTimeout(checkCs2, 3000);
+    const cs2Int = setInterval(checkCs2, 5000);
 
     // VPN: fetch server info once, poll transfer stats frequently
     let serverLabel = "";
@@ -174,7 +180,7 @@ export default function Home() {
         <div className="flex items-center justify-center gap-4 text-xs text-text-muted">
           <div className="flex items-center gap-1.5">
             <span className={`w-2 h-2 rounded-full ${cs2Status.running ? "bg-success animate-pulse" : "bg-text-muted/40"}`} />
-            <span>{cs2Status.running ? "CS2 Running" : "CS2 Not Detected"}</span>
+            <span>{cs2Status.running ? "CS2 Running" : "CS2 Not Running"}</span>
           </div>
           <span className="text-border">|</span>
           <div className="flex items-center gap-1.5">
