@@ -762,6 +762,12 @@ export default function SmartVPN() {
   }, [connectionState]);
 
   function handleDisconnected() {
+    // Decrement local client count
+    if (connectedServerId) {
+      setServers(prev => prev.map(s =>
+        s.id === connectedServerId ? { ...s, current_clients: Math.max(0, (s.current_clients || 1) - 1) } : s
+      ));
+    }
     setConnectionState("disconnected");
     setConnectedServerId(null);
     setVpnIp("");
@@ -899,6 +905,11 @@ export default function SmartVPN() {
       setConnectDuration(0);
       lastTransferRef.current = null;
       transferStaleCountRef.current = 0;
+
+      // Update local client count
+      setServers(prev => prev.map(s =>
+        s.id === serverId ? { ...s, current_clients: (s.current_clients || 0) + 1 } : s
+      ));
 
       addToast(`Connected to VPN: ${server?.name ?? serverId}`, "success");
     } catch (e) {
