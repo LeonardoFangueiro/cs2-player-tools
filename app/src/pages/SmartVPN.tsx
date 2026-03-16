@@ -697,8 +697,14 @@ export default function SmartVPN() {
     }
   }, []);
 
+  const [wgAvailable, setWgAvailable] = useState(true);
+
   useEffect(() => {
     fetchServers();
+    // Check if WireGuard is installed
+    invoke<{ available: boolean; source: string }>("check_wireguard")
+      .then((r) => setWgAvailable(r.available))
+      .catch(() => setWgAvailable(false));
   }, [fetchServers]);
 
   // ── Ping servers ──
@@ -1112,6 +1118,19 @@ export default function SmartVPN() {
         <div className="bg-danger/10 border border-danger/30 rounded-lg p-4 mb-6 flex items-center gap-3">
           <XCircle size={16} className="text-danger shrink-0" />
           <span className="text-sm text-danger">{error}</span>
+        </div>
+      )}
+
+      {/* WireGuard not installed warning */}
+      {!wgAvailable && (
+        <div className="bg-warning/10 border border-warning/30 rounded-lg p-4 mb-6 flex items-start gap-3">
+          <AlertTriangle size={16} className="text-warning mt-0.5 shrink-0" />
+          <div className="text-sm">
+            <span className="text-warning font-semibold">WireGuard not installed.</span>
+            <span className="text-text-muted"> Download and install WireGuard from </span>
+            <a href="https://www.wireguard.com/install/" target="_blank" rel="noopener noreferrer" className="text-accent underline">wireguard.com</a>
+            <span className="text-text-muted"> to use the VPN features.</span>
+          </div>
         </div>
       )}
 
