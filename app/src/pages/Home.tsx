@@ -269,7 +269,7 @@ export default function Home() {
           server_public_key: config.server_public_key,
           client_private_key: clientPrivateKey,
           client_address: config.client_address,
-          dns: config.dns,
+          dns: config.dns || "",
           mtu: config.mtu || 1420,
           allowed_ips: config.allowed_ips,
           persistent_keepalive: config.persistent_keepalive || 25,

@@ -969,7 +969,8 @@ app.post('/api/vpn-servers/:id/connect', async (req, res) => {
         server_endpoint: server.endpoint,
         server_public_key: server.public_key,
         client_address: `${clientIp}/32`,
-        dns: '1.1.1.1, 8.8.8.8',
+        dns: '',  // No DNS override — split tunnel must NOT change system DNS
+                  // CS2 uses direct IPs (SDR relays), DNS override breaks Steam hostname resolution
         mtu: 1420,
         allowed_ips: await getValveAllowedIps(), // CS2 only! (Point 5)
         persistent_keepalive: 25,

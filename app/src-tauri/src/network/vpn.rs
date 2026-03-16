@@ -65,12 +65,15 @@ pub fn get_valve_ips_from_config(config: &serde_json::Value) -> String {
 }
 
 /// Generate WireGuard config file content
+/// NOTE: No DNS setting — split tunnel (CS2-only AllowedIPs) must NOT override
+/// system DNS. CS2 uses direct IPs for SDR relay connections, so DNS is unnecessary.
+/// Setting DNS here would break Steam's hostname resolution on Windows
+/// (WireGuard overrides system DNS globally, even in split-tunnel mode).
 pub fn generate_config(profile: &VpnProfile) -> String {
     format!(
-        "[Interface]\nPrivateKey = {}\nAddress = {}\nDNS = {}\nMTU = {}\n\n[Peer]\nPublicKey = {}\nEndpoint = {}\nAllowedIPs = {}\nPersistentKeepalive = {}\n",
+        "[Interface]\nPrivateKey = {}\nAddress = {}\nMTU = {}\n\n[Peer]\nPublicKey = {}\nEndpoint = {}\nAllowedIPs = {}\nPersistentKeepalive = {}\n",
         profile.client_private_key,
         profile.client_address,
-        profile.dns,
         profile.mtu,
         profile.server_public_key,
         profile.server_endpoint,
@@ -472,7 +475,7 @@ pub fn load_profile(profile_name: &str) -> Result<VpnProfile, String> {
         server_public_key: String::new(),
         client_private_key: String::new(),
         client_address: String::new(),
-        dns: "1.1.1.1".to_string(),
+        dns: String::new(),
         mtu: 1420,
         allowed_ips: String::new(),
         persistent_keepalive: 25,
