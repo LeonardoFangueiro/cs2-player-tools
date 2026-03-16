@@ -40,6 +40,7 @@ interface VpnServer {
   lat: number;
   lng: number;
   max_clients: number;
+  current_clients: number;
 }
 
 interface VpnConnectResponse {
@@ -451,7 +452,7 @@ function ServerCard({
         </div>
         <div className="flex items-center gap-1">
           <Users size={12} />
-          <span>{server.max_clients} slots</span>
+          <span>{server.current_clients || 0}/{server.max_clients}</span>
         </div>
         <div className="flex items-center gap-1">
           <Globe size={12} />
