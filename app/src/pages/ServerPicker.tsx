@@ -141,11 +141,38 @@ export default function ServerPicker() {
     try {
       setPinging(true);
       const results = await invoke<Array<[string, number]>>("ping_all_pops");
-      const map = new Map<string, number>();
-      for (const [code, ms] of results) {
-        map.set(code, ms);
+      const reachableResults = results.filter(([, ms]) => ms > 0);
+
+      if (reachableResults.length === 0) {
+        // Fallback: ping known Valve DCs directly via SSH port
+        const knownDCs = [
+          { code: "fra", ip: "155.133.240.55" },
+          { code: "ams", ip: "155.133.226.71" },
+          { code: "lhr", ip: "162.254.197.36" },
+          { code: "mad", ip: "155.133.248.41" },
+          { code: "sto", ip: "162.254.199.36" },
+          { code: "waw", ip: "155.133.234.41" },
+          { code: "vie", ip: "155.133.236.71" },
+          { code: "iad", ip: "208.78.164.10" },
+          { code: "gru", ip: "205.196.6.75" },
+          { code: "sgp", ip: "103.10.124.36" },
+        ];
+        const map = new Map<string, number>();
+        for (const dc of knownDCs) {
+          try {
+            const pings = await invoke<Array<{ latency_ms: number; success: boolean }>>("ping_host", { host: dc.ip, count: 1 });
+            if (pings[0]?.success) map.set(dc.code, pings[0].latency_ms);
+            else map.set(dc.code, -1);
+          } catch {
+            map.set(dc.code, -1);
+          }
+        }
+        setPingResults(map);
+      } else {
+        const map = new Map<string, number>();
+        for (const [code, ms] of results) map.set(code, ms);
+        setPingResults(map);
       }
-      setPingResults(map);
     } catch (e) {
       setError(String(e));
     } finally {
@@ -252,10 +279,14 @@ export default function ServerPicker() {
     return groups;
   }, [sdrConfig, pingResults]);
 
+  // Status filter
+  const [statusFilter, setStatusFilter] = useState<"all" | "allowed" | "blocked">("all");
+
   // Stats
   const totalPops = sdrConfig?.pops.length ?? 0;
   const reachable = Array.from(pingResults.values()).filter((ms) => ms > 0).length;
   const blockedCount = blockedRegions.size;
+  const allowedCount = totalPops - blockedCount;
 
   return (
     <div>
@@ -374,6 +405,24 @@ export default function ServerPicker() {
         </div>
       )}
 
+      {/* Status Filter */}
+      <div className="flex items-center gap-2 mb-4">
+        <span className="text-xs text-text-muted uppercase tracking-wider">Show:</span>
+        {(["all", "allowed", "blocked"] as const).map((f) => (
+          <button
+            key={f}
+            onClick={() => setStatusFilter(f)}
+            className={`px-3 py-1.5 text-xs rounded-md border transition ${
+              statusFilter === f
+                ? f === "blocked" ? "bg-danger/15 border-danger/40 text-danger" : f === "allowed" ? "bg-success/15 border-success/40 text-success" : "bg-accent/15 border-accent/40 text-accent"
+                : "bg-bg border-border text-text-muted hover:border-accent/20"
+            }`}
+          >
+            {f === "all" ? `All (${totalPops})` : f === "allowed" ? `Allowed (${allowedCount})` : `Blocked (${blockedCount})`}
+          </button>
+        ))}
+      </div>
+
       {/* Region Filter */}
       <div className="bg-bg-card border border-border rounded-lg p-4 mb-6">
         <div className="flex items-center justify-between mb-3">
@@ -472,7 +521,13 @@ export default function ServerPicker() {
               </span>
             </div>
             <div className="grid grid-cols-4 gap-3">
-              {groupedPops[region].map((pop) => {
+              {groupedPops[region]
+                .filter((pop) => {
+                  if (statusFilter === "blocked") return blockedRegions.has(pop.code);
+                  if (statusFilter === "allowed") return !blockedRegions.has(pop.code);
+                  return true;
+                })
+                .map((pop) => {
                 const hasPing = pingResults.size > 0;
                 const ping = pop.ping;
                 const isBlocked = blockedRegions.has(pop.code);
