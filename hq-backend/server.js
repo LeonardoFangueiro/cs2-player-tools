@@ -45,9 +45,11 @@ function decryptField(encrypted) {
   return decrypted;
 }
 
-// ── Admin auth helper (C4) ──
+// ── Auth helpers ──
 
 const ADMIN_API_KEY = process.env.HQ_API_KEY || 'cs2pt-dev-key-CHANGE-IN-PRODUCTION';
+
+// Admin auth — for HQ dashboard endpoints
 function requireAdmin(req, res) {
   const key = req.query.api_key || req.headers['x-api-key'] || req.body?.api_key;
   if (key !== ADMIN_API_KEY) {
@@ -55,6 +57,29 @@ function requireAdmin(req, res) {
     return false;
   }
   return true;
+}
+
+// App auth — validates user token (for app-facing endpoints)
+function requireAppToken(req, res) {
+  const token = req.body?.token || req.headers['x-token'] || req.query.token;
+  if (!token) {
+    res.status(401).json({ error: 'Authentication required' });
+    return false;
+  }
+  const tokens = loadJson('tokens.json');
+  const t = tokens.find(t => t.token === String(token).toUpperCase().trim());
+  if (!t || !t.active) {
+    res.status(401).json({ error: 'Invalid or inactive token' });
+    return false;
+  }
+  return true;
+}
+
+// Either admin OR valid app token (for shared endpoints)
+function requireAuth(req, res) {
+  const adminKey = req.query.api_key || req.headers['x-api-key'] || req.body?.api_key;
+  if (adminKey === ADMIN_API_KEY) return true;
+  return requireAppToken(req, res);
 }
 
 // ── Server locks (H5: race condition prevention) ──
@@ -150,6 +175,7 @@ app.get('/api/info', (req, res) => {
 // ══════════════════════════════════════════
 
 app.get('/api/version', (req, res) => {
+  if (!requireAuth(req, res)) return;
   const releases = loadJson('releases.json');
   const latest = releases[0] || null;
   const clientVersion = req.query.current;
@@ -184,6 +210,7 @@ app.post('/api/releases', (req, res) => {
 // ══════════════════════════════════════════
 
 app.get('/api/downloads', (req, res) => {
+  if (!requireAuth(req, res)) return;
   try {
     const files = readdirSync(RELEASES_DIR)
       .filter(f => ['.exe', '.msi'].includes(extname(f).toLowerCase()))
@@ -209,6 +236,7 @@ app.get('/api/downloads', (req, res) => {
 // ══════════════════════════════════════════
 
 app.post('/api/errors', (req, res) => {
+  if (!requireAuth(req, res)) return;
   const { app_version, os, error_type, error_message, stack_trace, context, timestamp: clientTs } = req.body;
   const errors = loadJson('errors.json');
   const error = {
@@ -282,6 +310,7 @@ app.delete('/api/errors/:id', (req, res) => {
 // ══════════════════════════════════════════
 
 app.post('/api/diagnostics', (req, res) => {
+  if (!requireAuth(req, res)) return;
   const report = {
     id: `diag_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
     ...req.body,
@@ -320,6 +349,7 @@ app.delete('/api/diagnostics', (req, res) => {
 // ══════════════════════════════════════════
 
 app.post('/api/telemetry', (req, res) => {
+  if (!requireAuth(req, res)) return;
   const { app_version, os, event, data } = req.body;
   const telemetry = loadJson('telemetry.json');
   telemetry.push({
@@ -486,6 +516,7 @@ app.post('/api/builds/trigger', async (req, res) => {
 // ══════════════════════════════════════════
 
 app.post('/api/crash', (req, res) => {
+  if (!requireAuth(req, res)) return;
   const crash = {
     id: `crash_${Date.now()}`,
     ...req.body,
@@ -510,6 +541,7 @@ app.get('/api/crashes', (req, res) => {
 // ══════════════════════════════════════════
 
 app.get('/api/config', (req, res) => {
+  if (!requireAuth(req, res)) return;
   const config = loadJson('remote_config.json');
   // If empty, return defaults
   if (!config || !config.features) {
@@ -542,6 +574,7 @@ app.post('/api/config', (req, res) => {
 // ══════════════════════════════════════════
 
 app.post('/api/feedback', (req, res) => {
+  if (!requireAuth(req, res)) return;
   const feedback = {
     id: `fb_${Date.now()}`,
     ...req.body,
@@ -567,6 +600,7 @@ app.get('/api/feedback', (req, res) => {
 // ══════════════════════════════════════════
 
 app.post('/api/heartbeat', (req, res) => {
+  if (!requireAuth(req, res)) return;
   const { app_version, os, cs2_running, vpn_active, profile_name, token, vpn_server_id, vpn_ip } = req.body;
   const clients = loadJson('clients.json');
 
@@ -614,6 +648,7 @@ app.get('/api/clients', (req, res) => {
 // ══════════════════════════════════════════
 
 app.get('/api/pro-settings', (req, res) => {
+  if (!requireAuth(req, res)) return;
   const settings = loadJson('pro_settings.json');
   res.json({ players: settings, total: settings.length });
 });
@@ -805,6 +840,7 @@ app.get('/api/vpn-servers/:id/status', async (req, res) => {
 
 // List VPN servers (public — app fetches this)
 app.get('/api/vpn-servers', (req, res) => {
+  if (!requireAuth(req, res)) return;
   const servers = loadJson('vpn_servers.json');
   // Only return active servers to the app, strip private info
   const publicServers = servers.filter(s => s.active).map(s => ({

@@ -15,6 +15,11 @@ export function getToken(): string {
   return localStorage.getItem("cs2pt_token") || "";
 }
 
+/** Build standard headers for HQ API calls (always includes auth token) */
+function hqHeaders(extra?: Record<string, string>): Record<string, string> {
+  return { "Content-Type": "application/json", "X-Token": getToken(), ...extra };
+}
+
 function getOS(): string {
   const ua = navigator.userAgent;
   if (ua.includes("Windows")) return "Windows";
@@ -32,7 +37,7 @@ export async function reportError(
   try {
     await fetch(`${HQ_BASE}/errors`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: hqHeaders(),
       body: JSON.stringify({
         app_version: APP_VERSION,
         os: getOS(),
@@ -55,7 +60,7 @@ export async function sendTelemetry(
   try {
     await fetch(`${HQ_BASE}/telemetry`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: hqHeaders(),
       body: JSON.stringify({
         app_version: APP_VERSION,
         os: getOS(),
@@ -216,7 +221,7 @@ export async function runAndReportDiagnostics(
 
   // Test 14: VPN Servers Available
   try {
-    const resp = await fetch(`${HQ_BASE}/vpn-servers`);
+    const resp = await fetch(`${HQ_BASE}/vpn-servers`, { headers: hqHeaders() });
     const data = await resp.json();
     tests["vpn_servers"] = { status: "pass", count: data.servers?.length ?? 0, servers: (data.servers || []).map((s: any) => s.name) };
   } catch (e) {
@@ -225,7 +230,7 @@ export async function runAndReportDiagnostics(
 
   // Test 15: Remote Config
   try {
-    const resp = await fetch(`${HQ_BASE}/config`);
+    const resp = await fetch(`${HQ_BASE}/config`, { headers: hqHeaders() });
     const data = await resp.json();
     const enabledFeatures = Object.entries(data.features || {}).filter(([, v]) => v).length;
     const totalFeatures = Object.keys(data.features || {}).length;
@@ -236,7 +241,7 @@ export async function runAndReportDiagnostics(
 
   // Test 16: App Version Check
   try {
-    const resp = await fetch(`${HQ_BASE}/version?current=${APP_VERSION}`);
+    const resp = await fetch(`${HQ_BASE}/version?current=${APP_VERSION}`, { headers: hqHeaders() });
     const data = await resp.json();
     tests["version_check"] = { status: "pass", current: APP_VERSION, latest: data.latest_version, update_available: data.update_available };
   } catch (e) {
@@ -271,7 +276,7 @@ export async function runAndReportDiagnostics(
 
   // Test 18: Downloads Available
   try {
-    const resp = await fetch(`${HQ_BASE}/downloads`);
+    const resp = await fetch(`${HQ_BASE}/downloads`, { headers: hqHeaders() });
     const data = await resp.json();
     tests["downloads"] = { status: "pass", files: data.total, latest: data.files?.[0]?.name || "none" };
   } catch (e) {
@@ -307,7 +312,7 @@ export async function runAndReportDiagnostics(
   try {
     const resp = await fetch(`${HQ_BASE}/diagnostics`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: hqHeaders(),
       body: JSON.stringify(results),
     });
     const data = await resp.json();
@@ -328,7 +333,7 @@ export async function checkForUpdate(): Promise<{
   changelog: string;
 } | null> {
   try {
-    const resp = await fetch(`${HQ_BASE}/version?current=${APP_VERSION}`);
+    const resp = await fetch(`${HQ_BASE}/version?current=${APP_VERSION}`, { headers: hqHeaders() });
     return await resp.json();
   } catch {
     return null;
@@ -338,7 +343,7 @@ export async function checkForUpdate(): Promise<{
 /** Get HQ stats (for dashboard) */
 export async function getHQStats(): Promise<Record<string, unknown> | null> {
   try {
-    const resp = await fetch(`${HQ_BASE}/stats`);
+    const resp = await fetch(`${HQ_BASE}/stats`, { headers: hqHeaders() });
     return await resp.json();
   } catch {
     return null;
@@ -362,7 +367,7 @@ export async function sendHeartbeat(
 
     const resp = await fetch(`${HQ_BASE}/heartbeat`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: hqHeaders(),
       body: JSON.stringify({
         app_version: APP_VERSION,
         os: getOS(),
@@ -386,7 +391,7 @@ export async function loadRemoteConfig(): Promise<{
   maintenance: boolean;
 } | null> {
   try {
-    const resp = await fetch(`${HQ_BASE}/config`);
+    const resp = await fetch(`${HQ_BASE}/config`, { headers: hqHeaders() });
     return await resp.json();
   } catch {
     return null;
@@ -402,7 +407,7 @@ export async function sendFeedback(
   try {
     const resp = await fetch(`${HQ_BASE}/feedback`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: hqHeaders(),
       body: JSON.stringify({
         app_version: APP_VERSION,
         os: getOS(),
@@ -427,7 +432,7 @@ export async function reportCrash(
   try {
     await fetch(`${HQ_BASE}/crash`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: hqHeaders(),
       body: JSON.stringify({
         app_version: APP_VERSION,
         os: getOS(),

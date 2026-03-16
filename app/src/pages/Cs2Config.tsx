@@ -79,7 +79,9 @@ export default function Cs2Config() {
   // Fetch pro players on mount
   useEffect(() => {
     setProLoading(true);
-    fetch("https://cs2-player-tools.maltinha.club/api/pro-settings")
+    fetch("https://cs2-player-tools.maltinha.club/api/pro-settings", {
+      headers: { "X-Token": localStorage.getItem("cs2pt_token") || "" },
+    })
       .then(r => r.json())
       .then(d => setProPlayers(d.players || []))
       .catch(() => {})

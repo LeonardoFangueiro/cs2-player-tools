@@ -141,7 +141,10 @@ export default function Home() {
       setLoading(true);
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 10000);
-      const resp = await fetch(`${HQ_BASE}/vpn-servers`, { signal: controller.signal });
+      const resp = await fetch(`${HQ_BASE}/vpn-servers`, {
+        signal: controller.signal,
+        headers: { "X-Token": localStorage.getItem("cs2pt_token") || "" },
+      });
       clearTimeout(timeout);
       const data = await resp.json();
       const srvs: VpnServer[] = data.servers || [];

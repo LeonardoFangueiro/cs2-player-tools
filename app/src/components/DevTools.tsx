@@ -52,7 +52,9 @@ export default function DevTools() {
     setStats(s);
     // Get online count
     try {
-      const resp = await fetch("https://cs2-player-tools.maltinha.club/api/clients");
+      const resp = await fetch("https://cs2-player-tools.maltinha.club/api/clients", {
+        headers: { "X-Token": localStorage.getItem("cs2pt_token") || "" },
+      });
       const data = await resp.json();
       setOnlineCount(data.online ?? 0);
     } catch {}

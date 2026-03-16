@@ -49,7 +49,9 @@ export default function StatusBar() {
       return serverInfoRef.current;
     }
     try {
-      const resp = await fetch(`${HQ_BASE}/vpn-servers`);
+      const resp = await fetch(`${HQ_BASE}/vpn-servers`, {
+        headers: { "X-Token": localStorage.getItem("cs2pt_token") || "" },
+      });
       const data = await resp.json();
       const srv = (data.servers || []).find((s: VpnServerInfo) => s.id === serverId);
       if (srv) {
