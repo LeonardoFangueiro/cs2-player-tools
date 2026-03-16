@@ -153,52 +153,38 @@ export default function Home() {
       </div>
 
       {/* Status Bar */}
-      <div className="flex items-center justify-center gap-4 text-xs text-text-muted">
-        {/* CS2 Status */}
-        <div className="flex items-center gap-1.5">
-          <span className={`w-2 h-2 rounded-full ${cs2Status.running ? "bg-success animate-pulse" : "bg-text-muted/40"}`} />
-          <span>{cs2Status.running ? "CS2 Running" : "CS2 Not Detected"}</span>
-        </div>
-
-        <span className="text-border">|</span>
-
-        {/* VPN Status */}
-        <div className="flex items-center gap-1.5">
-          {vpnConnected ? (
+      <div className="flex flex-col items-center gap-1">
+        {/* Main status line */}
+        <div className="flex items-center justify-center gap-4 text-xs text-text-muted">
+          <div className="flex items-center gap-1.5">
+            <span className={`w-2 h-2 rounded-full ${cs2Status.running ? "bg-success animate-pulse" : "bg-text-muted/40"}`} />
+            <span>{cs2Status.running ? "CS2 Running" : "CS2 Not Detected"}</span>
+          </div>
+          <span className="text-border">|</span>
+          <div className="flex items-center gap-1.5">
+            {vpnConnected ? (
+              <><Wifi size={12} className="text-success" /><span className="text-success">VPN Connected</span></>
+            ) : (
+              <><WifiOff size={12} className="text-text-muted/40" /><span>VPN Off</span></>
+            )}
+          </div>
+          <span className="text-border">|</span>
+          <span>v{APP_VERSION}</span>
+          {update && (
             <>
-              <Wifi size={12} className="text-success" />
-              <span className="text-success">VPN On</span>
-              {vpnDetails && (
-                <span className="text-text-muted font-mono text-[10px]">
-                  {vpnDetails.server} · {vpnDetails.ip} · ↓{vpnDetails.rx} ↑{vpnDetails.tx}
-                </span>
-              )}
-            </>
-          ) : (
-            <>
-              <WifiOff size={12} className="text-text-muted/40" />
-              <span>VPN Off</span>
+              <span className="text-border">|</span>
+              <button onClick={() => update.url ? window.open(update.url, '_blank') : window.location.reload()}
+                className="flex items-center gap-1 text-success hover:text-success/80 transition">
+                <ArrowUpCircle size={12} className="animate-bounce" /> v{update.version}
+              </button>
             </>
           )}
         </div>
-
-        <span className="text-border">|</span>
-
-        {/* Version */}
-        <span>v{APP_VERSION}</span>
-
-        {/* Update */}
-        {update && (
-          <>
-            <span className="text-border">|</span>
-            <button
-              onClick={() => update.url ? window.open(update.url, '_blank') : window.location.reload()}
-              className="flex items-center gap-1 text-success hover:text-success/80 transition"
-            >
-              <ArrowUpCircle size={12} className="animate-bounce" />
-              v{update.version}
-            </button>
-          </>
+        {/* VPN details line (only when connected) */}
+        {vpnConnected && vpnDetails && (
+          <div className="text-[10px] text-text-muted/70 font-mono text-center">
+            {vpnDetails.server} · {vpnDetails.ip} · ↓{vpnDetails.rx} ↑{vpnDetails.tx}
+          </div>
         )}
       </div>
     </div>
