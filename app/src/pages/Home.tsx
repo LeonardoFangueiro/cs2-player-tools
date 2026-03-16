@@ -57,34 +57,47 @@ export default function Home() {
       invoke<Cs2Status>("check_cs2").then(setCs2Status).catch(() => {});
     }, 5000);
 
-    // VPN status from localStorage
-    const checkVpn = async () => {
+    // VPN: fetch server info once, poll transfer stats frequently
+    let serverLabel = "";
+    const initVpn = async () => {
       const connected = localStorage.getItem("cs2pt_vpn_connected") === "true";
       setVpnConnected(connected);
       if (connected) {
         const serverId = localStorage.getItem("cs2pt_vpn_server_id") || "";
-        const ip = localStorage.getItem("cs2pt_vpn_ip") || "";
         try {
           const resp = await fetch("https://cs2-player-tools.maltinha.club/api/vpn-servers");
           const data = await resp.json();
           const srv = (data.servers || []).find((s: { id: string }) => s.id === serverId);
-          const profileName = `smartvpn-${serverId}`;
-          const status = await invoke<{ transfer_rx: string | null; transfer_tx: string | null }>("vpn_get_status", { profileName }).catch(() => ({ transfer_rx: null, transfer_tx: null }));
-          setVpnDetails({
-            server: srv ? `${srv.flag || ""} ${srv.name} — ${srv.location}` : serverId,
-            ip,
-            rx: status.transfer_rx || "0 B",
-            tx: status.transfer_tx || "0 B",
-          });
+          serverLabel = srv ? `${srv.name} — ${srv.location}` : serverId;
         } catch {
-          setVpnDetails({ server: serverId, ip, rx: "—", tx: "—" });
+          serverLabel = serverId;
         }
-      } else {
-        setVpnDetails(null);
       }
     };
-    checkVpn();
-    const vpnInt = setInterval(checkVpn, 2000);
+    initVpn();
+
+    // Poll transfer stats every 2s
+    const pollTransfer = async () => {
+      const connected = localStorage.getItem("cs2pt_vpn_connected") === "true";
+      setVpnConnected(connected);
+      if (!connected) { setVpnDetails(null); return; }
+      const serverId = localStorage.getItem("cs2pt_vpn_server_id") || "";
+      const ip = localStorage.getItem("cs2pt_vpn_ip") || "";
+      const profileName = `smartvpn-${serverId}`;
+      try {
+        const status = await invoke<{ transfer_rx: string | null; transfer_tx: string | null }>("vpn_get_status", { profileName });
+        setVpnDetails({
+          server: serverLabel || serverId,
+          ip,
+          rx: status.transfer_rx || "0 B",
+          tx: status.transfer_tx || "0 B",
+        });
+      } catch {
+        setVpnDetails(prev => prev ? { ...prev, rx: "—", tx: "—" } : null);
+      }
+    };
+    pollTransfer();
+    const vpnInt = setInterval(pollTransfer, 2000);
 
     // Update check
     checkForUpdate().then((info) => {
