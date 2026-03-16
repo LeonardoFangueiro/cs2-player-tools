@@ -612,10 +612,16 @@ export default function SmartVPN() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [pings, setPings] = useState<Record<string, number>>({});
-  const [connectionState, setConnectionState] = useState<ConnectionState>("disconnected");
-  const [connectedServerId, setConnectedServerId] = useState<string | null>(null);
+  const [connectionState, setConnectionState] = useState<ConnectionState>(() => {
+    return localStorage.getItem("cs2pt_vpn_connected") ? "connected" : "disconnected";
+  });
+  const [connectedServerId, setConnectedServerId] = useState<string | null>(
+    localStorage.getItem("cs2pt_vpn_server_id")
+  );
   const [selectedServerId, setSelectedServerId] = useState<string | null>(null);
-  const [vpnIp, setVpnIp] = useState<string>("");
+  const [vpnIp, setVpnIp] = useState<string>(
+    localStorage.getItem("cs2pt_vpn_ip") || ""
+  );
   const [vpnStatus, setVpnStatus] = useState<VpnStatus | null>(null);
   const [connectDuration, setConnectDuration] = useState(0);
   const [favoriteServerId, setFavoriteServerId] = useState<string | null>(
@@ -632,6 +638,15 @@ export default function SmartVPN() {
   const pendingConnectServerIdRef = useRef<string | null>(null);
 
   const connectedServer = servers.find((s) => s.id === connectedServerId) ?? null;
+
+  // ── Restore connection state on mount ──
+  useEffect(() => {
+    const savedTime = localStorage.getItem("cs2pt_vpn_connect_time");
+    if (savedTime && connectionState === "connected") {
+      connectTimeRef.current = parseInt(savedTime) || Date.now();
+      setConnectDuration(Math.floor((Date.now() - connectTimeRef.current) / 1000));
+    }
+  }, []);
 
   // ── Toast helpers ──
 
@@ -777,6 +792,12 @@ export default function SmartVPN() {
     transferStaleCountRef.current = 0;
     if (statusIntervalRef.current) clearInterval(statusIntervalRef.current);
     if (durationIntervalRef.current) clearInterval(durationIntervalRef.current);
+
+    // Clear persisted connection state
+    localStorage.removeItem("cs2pt_vpn_connected");
+    localStorage.removeItem("cs2pt_vpn_server_id");
+    localStorage.removeItem("cs2pt_vpn_ip");
+    localStorage.removeItem("cs2pt_vpn_connect_time");
   }
 
   // ── Pre-connect quality check ──
@@ -900,11 +921,18 @@ export default function SmartVPN() {
       // Success
       setConnectionState("connected");
       setConnectedServerId(serverId);
-      setVpnIp(config.client_address.split("/")[0]);
+      const clientIp = config.client_address.split("/")[0];
+      setVpnIp(clientIp);
       connectTimeRef.current = Date.now();
       setConnectDuration(0);
       lastTransferRef.current = null;
       transferStaleCountRef.current = 0;
+
+      // Persist connection state so it survives page navigation
+      localStorage.setItem("cs2pt_vpn_connected", "true");
+      localStorage.setItem("cs2pt_vpn_server_id", serverId);
+      localStorage.setItem("cs2pt_vpn_ip", clientIp);
+      localStorage.setItem("cs2pt_vpn_connect_time", String(Date.now()));
 
       // Update local client count
       setServers(prev => prev.map(s =>
