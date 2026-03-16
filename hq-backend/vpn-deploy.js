@@ -8,6 +8,13 @@
  */
 import { Client } from 'ssh2';
 
+/**
+ * Validate WireGuard public key format (base64-encoded 32-byte key)
+ */
+export function isValidWgKey(key) {
+  return typeof key === 'string' && /^[A-Za-z0-9+/]{42}[AEIMQUYcgkosw048]=$/.test(key);
+}
+
 // Valve IP ranges for CS2 split tunneling
 const VALVE_ALLOWED_IPS = '155.133.224.0/19, 162.254.192.0/21, 208.64.200.0/21, 185.25.180.0/22, 192.69.96.0/22, 205.196.6.0/24, 103.10.124.0/23, 103.28.54.0/23, 146.66.152.0/21, 208.78.164.0/22';
 
@@ -175,6 +182,9 @@ MONEOF`);
  * Also runs MTU/optimization tests for the peer (Point 4)
  */
 export async function addPeer({ ip, port = 22, username = 'root', password, clientPublicKey, clientIp }) {
+  if (!isValidWgKey(clientPublicKey)) {
+    return { success: false, error: 'Invalid WireGuard public key format' };
+  }
   return new Promise((resolve) => {
     const conn = new Client();
     const timeout = setTimeout(() => { conn.end(); resolve({ success: false, error: 'timeout' }); }, 20000);
@@ -211,6 +221,9 @@ export async function addPeer({ ip, port = 22, username = 'root', password, clie
  * Remove a peer from the server without interruption
  */
 export async function removePeer({ ip, port = 22, username = 'root', password, clientPublicKey }) {
+  if (!isValidWgKey(clientPublicKey)) {
+    return { success: false, error: 'Invalid WireGuard public key format' };
+  }
   return new Promise((resolve) => {
     const conn = new Client();
     const timeout = setTimeout(() => { conn.end(); resolve({ success: false, error: 'timeout' }); }, 15000);
