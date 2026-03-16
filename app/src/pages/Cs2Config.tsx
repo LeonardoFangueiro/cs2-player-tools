@@ -2,7 +2,6 @@ import { useState, useEffect } from "react";
 import { invoke } from "../lib/tauri";
 import {
   FileCode,
-  Scan,
   CheckCircle,
   XCircle,
   Loader,

@@ -73,60 +73,40 @@ fn find_cs2_cfg_dir() -> Option<PathBuf> {
     None
 }
 
-// Only commands verified as working in CS2 (Source 2) as of March 2026
-// cl_forcepreload REMOVED — deprecated in Source 2, causes micro-lags
-// snd_mix_async REMOVED — Source 1 only, not confirmed in CS2
+// CS2 (Source 2) verified commands — March 2026
+// Grouped by category. Only commands that actually work and matter.
+// Sources: Valve wiki, swap.gg, bloodycase.com, cs.money, community guides
 const RECOMMENDED_SETTINGS: &[(&str, &str, &str)] = &[
-    (
-        "rate",
-        "786432",
-        "Max network rate (bytes/sec). 786432 = ~6.1 Mbps, maximum allowed by Valve.",
-    ),
-    (
-        "cl_interp_ratio",
-        "1",
-        "Interpolation ratio. 1 = minimum delay (stable connections). Use 2 if you have packet loss.",
-    ),
-    (
-        "cl_interp",
-        "0.015625",
-        "Interpolation period. 0.015625 = 1 tick (15.6ms). Set 0 for auto-calc from cl_interp_ratio.",
-    ),
-    (
-        "fps_max",
-        "0",
-        "Uncapped FPS for best sub-tick input precision. Set to monitor Hz if you have screen tearing.",
-    ),
-    (
-        "r_drawtracers_firstperson",
-        "1",
-        "Show first-person bullet tracers. Helps with spray tracking and aim feedback.",
-    ),
-    (
-        "mm_dedicated_search_maxping",
-        "70",
-        "Max acceptable ping for matchmaking servers. Lower = stricter. Min: 50.",
-    ),
-    (
-        "cl_showfps",
-        "0",
-        "FPS counter. 0=off, 1=simple, 2=detailed with frame time. Use for monitoring.",
-    ),
-    (
-        "cq_netgraph",
-        "1",
-        "CS2 network graph overlay. Shows ping, loss, choke, tick rate, server recv margin.",
-    ),
-    (
-        "cl_hud_telemetry_ping",
-        "1",
-        "Show ping in the HUD telemetry. Real-time latency display.",
-    ),
-    (
-        "cl_hud_telemetry_serverrecvmargin_graph_show",
-        "1",
-        "Server receive margin graph. Most important CS2 network metric — shows if your data arrives on time.",
-    ),
+    // ── Network (most impactful for online play) ──
+    ("rate", "786432", "Max network bandwidth. 786432 = maximum allowed by Valve (~6 Mbps)."),
+    ("cl_interp_ratio", "1", "Interpolation ratio. 1 = lowest delay (wired). Use 2 if wireless/unstable."),
+    ("cl_interp", "0", "Auto-calculate interpolation. 0 = let the engine decide based on cl_interp_ratio."),
+    ("mm_dedicated_search_maxping", "70", "Max matchmaking ping. Lower = stricter server selection. Min: 50."),
+
+    // ── Performance ──
+    ("fps_max", "0", "Uncap FPS for best sub-tick input precision. Set to monitor Hz if screen tearing."),
+    ("fps_max_tools", "0", "Uncap FPS for tools/menu. Prevents stuttering in loadouts."),
+    ("r_fullscreen_gamma", "1", "Fullscreen gamma correction. 1 = default, adjust for visibility."),
+
+    // ── Audio (competitive advantage) ──
+    ("volume", "0.5", "Master volume. Adjust to your headset — too loud causes fatigue."),
+    ("snd_voipvolume", "0.5", "Voice chat volume. Lower if teammates are too loud over game sounds."),
+    ("snd_musicvolume", "0", "Music volume. 0 = disable music for cleaner audio in competitive."),
+    ("snd_roundstart_volume", "0", "Round start music. 0 = silence for focus."),
+    ("snd_roundend_volume", "0", "Round end music. 0 = hear last-second plays."),
+    ("snd_deathcamera_volume", "0", "Death camera music. 0 = silent."),
+    ("snd_tensecondwarning_volume", "0.2", "10-second bomb warning. Keep low but audible."),
+
+    // ── Viewmodel (visual preference) ──
+    ("viewmodel_fov", "68", "Viewmodel field of view. 68 = max, shows more of your gun/hands."),
+    ("viewmodel_presetpos", "3", "Viewmodel position. 3 = Classic (most used by pros)."),
+
+    // ── Crosshair (competitive standard) ──
+    ("cl_crosshairstyle", "4", "Crosshair style. 4 = Classic static — most popular competitive choice."),
+    ("cl_crosshairsize", "2", "Crosshair arm length. 2 = small, precise."),
+    ("cl_crosshairgap", "-1", "Crosshair gap. -1 = tight center gap."),
+    ("cl_crosshairthickness", "0.5", "Crosshair line thickness."),
+    ("cl_crosshaircolor", "1", "Crosshair color. 1 = green."),
 ];
 
 pub fn scan_cs2_config() -> Cs2Config {

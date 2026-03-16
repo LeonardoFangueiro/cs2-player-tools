@@ -46,13 +46,13 @@ function Toggle({
     <button
       type="button"
       onClick={() => onChange(!enabled)}
-      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors shrink-0 ${
+      className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors shrink-0 ${
         enabled ? "bg-accent" : "bg-border"
       }`}
     >
       <span
-        className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-          enabled ? "translate-x-6" : "translate-x-1"
+        className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${
+          enabled ? "translate-x-[18px]" : "translate-x-0.5"
         }`}
       />
     </button>
@@ -71,13 +71,11 @@ function SettingRow({
   children: React.ReactNode;
 }) {
   return (
-    <div className="flex items-center gap-4 py-4 border-b border-border/50 last:border-b-0">
-      <div className="w-9 h-9 rounded-lg bg-accent/10 flex items-center justify-center shrink-0 text-accent">
-        {icon}
-      </div>
+    <div className="flex items-center gap-3 py-2.5 border-b border-border/50 last:border-b-0">
+      <span className="text-accent shrink-0">{icon}</span>
       <div className="flex-1 min-w-0">
-        <div className="text-sm font-semibold text-text">{label}</div>
-        <div className="text-xs text-text-muted mt-0.5">{description}</div>
+        <div className="text-xs font-semibold text-text">{label}</div>
+        <div className="text-[10px] text-text-muted leading-tight">{description}</div>
       </div>
       <div className="shrink-0">{children}</div>
     </div>
@@ -142,7 +140,7 @@ export default function SettingsPage() {
       setSaving(true);
       await invoke("save_app_settings", { settings });
       setHasChanges(false);
-      setToast({ message: "Settings saved successfully", type: "success" });
+      setToast({ message: "Settings saved", type: "success" });
     } catch (e) {
       setToast({ message: `Failed to save: ${String(e)}`, type: "error" });
     } finally {
@@ -153,22 +151,17 @@ export default function SettingsPage() {
   if (loading) {
     return (
       <div>
-        <div className="mb-6">
+        <div className="mb-4">
           <h1 className="text-2xl font-bold text-accent">Settings</h1>
-          <p className="text-text-muted text-sm mt-1">
-            Application configuration
-          </p>
+          <p className="text-text-muted text-sm mt-1">Application configuration</p>
         </div>
-        <div className="space-y-4">
+        <div className="space-y-2">
           {[1, 2, 3, 4].map((i) => (
-            <div
-              key={i}
-              className="bg-bg-card border border-border rounded-lg p-6 animate-pulse"
-            >
-              <div className="h-4 w-32 bg-border/40 rounded mb-4" />
-              <div className="space-y-4">
-                <div className="h-12 bg-border/20 rounded" />
-                <div className="h-12 bg-border/20 rounded" />
+            <div key={i} className="bg-bg-card border border-border rounded-lg p-3 animate-pulse">
+              <div className="h-3 w-24 bg-border/40 rounded mb-2" />
+              <div className="space-y-2">
+                <div className="h-8 bg-border/20 rounded" />
+                <div className="h-8 bg-border/20 rounded" />
               </div>
             </div>
           ))}
@@ -178,25 +171,23 @@ export default function SettingsPage() {
   }
 
   return (
-    <div className="pb-20">
+    <div className="pb-16">
       {/* Header */}
-      <div className="mb-6">
+      <div className="mb-4">
         <h1 className="text-2xl font-bold text-accent">Settings</h1>
-        <p className="text-text-muted text-sm mt-1">
-          Configure application behavior and preferences
-        </p>
+        <p className="text-text-muted text-sm mt-1">Configure behavior and preferences</p>
       </div>
 
       {/* VPN Settings */}
-      <div className="bg-bg-card border border-border rounded-lg p-5 mb-4">
-        <h2 className="text-sm font-semibold uppercase tracking-wider text-text-muted mb-1 flex items-center gap-2">
-          <Shield size={14} className="text-accent" />
+      <div className="bg-bg-card border border-border rounded-lg p-3 mb-2">
+        <div className="text-[10px] font-semibold uppercase tracking-wider text-text-muted mb-1 flex items-center gap-1.5">
+          <Shield size={10} className="text-accent" />
           VPN
-        </h2>
+        </div>
         <SettingRow
-          icon={<Power size={18} />}
+          icon={<Power size={14} />}
           label="Auto-connect VPN"
-          description="Automatically connect VPN when CS2 is detected running"
+          description="Connect VPN when CS2 is detected"
         >
           <Toggle
             enabled={settings.auto_connect_vpn}
@@ -204,9 +195,9 @@ export default function SettingsPage() {
           />
         </SettingRow>
         <SettingRow
-          icon={<Globe size={18} />}
+          icon={<Globe size={14} />}
           label="Favorite VPN Location"
-          description="Select your preferred VPN server location"
+          description="Preferred VPN server"
         >
           <select
             value={settings.vpn_profile_name ?? ""}
@@ -216,7 +207,7 @@ export default function SettingsPage() {
                 e.target.value || null
               )
             }
-            className="bg-bg border border-border rounded-md px-3 py-1.5 text-sm text-text focus:outline-none focus:border-accent min-w-[160px]"
+            className="bg-bg border border-border rounded px-2 py-1 text-xs text-text focus:outline-none focus:border-accent min-w-[140px]"
           >
             <option value="">None</option>
             {vpnServers.map((s) => (
@@ -229,15 +220,15 @@ export default function SettingsPage() {
       </div>
 
       {/* System Settings */}
-      <div className="bg-bg-card border border-border rounded-lg p-5 mb-4">
-        <h2 className="text-sm font-semibold uppercase tracking-wider text-text-muted mb-1 flex items-center gap-2">
-          <Monitor size={14} className="text-accent" />
+      <div className="bg-bg-card border border-border rounded-lg p-3 mb-2">
+        <div className="text-[10px] font-semibold uppercase tracking-wider text-text-muted mb-1 flex items-center gap-1.5">
+          <Monitor size={10} className="text-accent" />
           System
-        </h2>
+        </div>
         <SettingRow
-          icon={<Power size={18} />}
+          icon={<Power size={14} />}
           label="Auto-start with Windows"
-          description="Launch CS2 Player Tools when Windows starts"
+          description="Launch when Windows starts"
         >
           <Toggle
             enabled={settings.auto_start_with_windows}
@@ -245,9 +236,9 @@ export default function SettingsPage() {
           />
         </SettingRow>
         <SettingRow
-          icon={<Minimize2 size={18} />}
-          label="Minimize to tray on close"
-          description="Keep the app running in the system tray instead of closing"
+          icon={<Minimize2 size={14} />}
+          label="Minimize to tray"
+          description="Keep running in system tray on close"
         >
           <Toggle
             enabled={settings.minimize_to_tray}
@@ -257,15 +248,15 @@ export default function SettingsPage() {
       </div>
 
       {/* CS2 Monitoring Settings */}
-      <div className="bg-bg-card border border-border rounded-lg p-5 mb-4">
-        <h2 className="text-sm font-semibold uppercase tracking-wider text-text-muted mb-1 flex items-center gap-2">
-          <Clock size={14} className="text-accent" />
+      <div className="bg-bg-card border border-border rounded-lg p-3 mb-2">
+        <div className="text-[10px] font-semibold uppercase tracking-wider text-text-muted mb-1 flex items-center gap-1.5">
+          <Clock size={10} className="text-accent" />
           CS2 Monitoring
-        </h2>
+        </div>
         <SettingRow
-          icon={<Clock size={18} />}
-          label="CS2 check interval"
-          description="How often to check if CS2 is running (1-30 seconds)"
+          icon={<Clock size={14} />}
+          label="Check interval"
+          description="CS2 detection polling (1-30s)"
         >
           <input
             type="number"
@@ -276,13 +267,13 @@ export default function SettingsPage() {
               const val = Math.min(30, Math.max(1, Number(e.target.value)));
               updateSetting("check_cs2_interval_secs", val);
             }}
-            className="w-20 bg-bg border border-border rounded-md px-3 py-1.5 text-sm text-text text-center focus:outline-none focus:border-accent"
+            className="w-16 bg-bg border border-border rounded px-2 py-1 text-xs text-text text-center focus:outline-none focus:border-accent"
           />
         </SettingRow>
         <SettingRow
-          icon={<Wifi size={18} />}
+          icon={<Wifi size={14} />}
           label="Max matchmaking ping"
-          description="Maximum acceptable ping for matchmaking servers (30-350 ms)"
+          description="Maximum acceptable ping (30-350ms)"
         >
           <input
             type="number"
@@ -293,21 +284,21 @@ export default function SettingsPage() {
               const val = Math.min(350, Math.max(30, Number(e.target.value)));
               updateSetting("max_ping", val);
             }}
-            className="w-20 bg-bg border border-border rounded-md px-3 py-1.5 text-sm text-text text-center focus:outline-none focus:border-accent"
+            className="w-16 bg-bg border border-border rounded px-2 py-1 text-xs text-text text-center focus:outline-none focus:border-accent"
           />
         </SettingRow>
       </div>
 
       {/* Network Settings */}
-      <div className="bg-bg-card border border-border rounded-lg p-5 mb-4">
-        <h2 className="text-sm font-semibold uppercase tracking-wider text-text-muted mb-1 flex items-center gap-2">
-          <Globe size={14} className="text-accent" />
+      <div className="bg-bg-card border border-border rounded-lg p-3 mb-2">
+        <div className="text-[10px] font-semibold uppercase tracking-wider text-text-muted mb-1 flex items-center gap-1.5">
+          <Globe size={10} className="text-accent" />
           Network
-        </h2>
+        </div>
         <SettingRow
-          icon={<Globe size={18} />}
+          icon={<Globe size={14} />}
           label="Dynamic Valve IPs"
-          description="Fetch live Valve relay IPs from Steam API for split tunneling (recommended)"
+          description="Fetch live relay IPs from Steam API"
         >
           <Toggle
             enabled={settings.dynamic_valve_ips}
@@ -316,28 +307,24 @@ export default function SettingsPage() {
         </SettingRow>
       </div>
 
-      {/* Account / Token */}
-      <div className="bg-bg-card border border-border rounded-lg p-5 mb-4">
-        <h2 className="text-sm font-semibold uppercase tracking-wider text-text-muted mb-1 flex items-center gap-2">
-          <Shield size={14} className="text-accent" />
+      {/* Account */}
+      <div className="bg-bg-card border border-border rounded-lg p-3 mb-2">
+        <div className="text-[10px] font-semibold uppercase tracking-wider text-text-muted mb-1 flex items-center gap-1.5">
+          <Shield size={10} className="text-accent" />
           Account
-        </h2>
-        <div className="flex items-center gap-4 py-4">
-          <div className="w-9 h-9 rounded-lg bg-danger/10 flex items-center justify-center shrink-0 text-danger">
-            <LogOut size={18} />
-          </div>
+        </div>
+        <div className="flex items-center gap-3 py-2.5">
+          <span className="text-danger shrink-0"><LogOut size={14} /></span>
           <div className="flex-1 min-w-0">
-            <div className="text-sm font-semibold text-text">Logout / Change Token</div>
-            <div className="text-xs text-text-muted mt-0.5">
-              Remove your stored access token and return to the login screen
-            </div>
+            <div className="text-xs font-semibold text-text">Logout / Change Token</div>
+            <div className="text-[10px] text-text-muted leading-tight">Remove stored token and return to login</div>
           </div>
           <button
             onClick={() => {
               localStorage.removeItem("cs2pt_token");
               window.location.reload();
             }}
-            className="px-4 py-2 bg-danger/15 border border-danger/30 text-danger text-sm font-semibold rounded-lg hover:bg-danger/25 transition"
+            className="px-2.5 py-1 bg-danger/15 border border-danger/30 text-danger text-[10px] font-semibold rounded hover:bg-danger/25 transition"
           >
             Logout
           </button>
@@ -346,21 +333,15 @@ export default function SettingsPage() {
 
       {/* Sticky save bar */}
       {hasChanges && (
-        <div className="fixed bottom-0 left-[220px] right-0 bg-bg-card/95 backdrop-blur border-t border-accent/30 px-6 py-4 flex items-center justify-between z-40">
-          <span className="text-sm text-text-muted">
-            You have unsaved changes
-          </span>
+        <div className="fixed bottom-0 left-[220px] right-0 bg-bg-card/95 backdrop-blur border-t border-accent/30 px-4 py-3 flex items-center justify-between z-40">
+          <span className="text-xs text-text-muted">Unsaved changes</span>
           <button
             onClick={saveSettings}
             disabled={saving}
-            className="flex items-center gap-2 px-6 py-2.5 bg-accent text-white text-sm font-semibold rounded-lg hover:bg-accent/80 transition disabled:opacity-50"
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-accent text-white text-xs font-semibold rounded-lg hover:bg-accent/80 transition disabled:opacity-50"
           >
-            {saving ? (
-              <Loader size={14} className="animate-spin" />
-            ) : (
-              <Save size={14} />
-            )}
-            {saving ? "Saving..." : "Save Settings"}
+            {saving ? <Loader size={12} className="animate-spin" /> : <Save size={12} />}
+            {saving ? "Saving..." : "Save"}
           </button>
         </div>
       )}
@@ -368,16 +349,16 @@ export default function SettingsPage() {
       {/* Toast */}
       {toast && (
         <div
-          className={`fixed bottom-6 right-6 px-5 py-3 rounded-lg shadow-lg border flex items-center gap-2 text-sm z-50 max-w-md ${
+          className={`fixed bottom-6 right-6 px-4 py-2.5 rounded-lg shadow-lg border flex items-center gap-2 text-xs z-50 max-w-md ${
             toast.type === "success"
               ? "bg-success/15 border-success/30 text-success"
               : "bg-danger/15 border-danger/30 text-danger"
           }`}
         >
           {toast.type === "success" ? (
-            <CheckCircle size={16} />
+            <CheckCircle size={12} />
           ) : (
-            <XCircle size={16} />
+            <XCircle size={12} />
           )}
           {toast.message}
         </div>

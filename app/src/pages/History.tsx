@@ -123,7 +123,6 @@ export default function History() {
       setExporting(true);
       const jsonStr = await invoke<string>("export_all_data");
 
-      // Download as JSON file
       const blob = new Blob([jsonStr], { type: "application/json" });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
@@ -134,7 +133,7 @@ export default function History() {
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
 
-      setToast({ message: "Data exported successfully", type: "success" });
+      setToast({ message: "Data exported", type: "success" });
     } catch (e) {
       setToast({ message: `Export failed: ${String(e)}`, type: "error" });
     } finally {
@@ -174,127 +173,107 @@ export default function History() {
   return (
     <div>
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center justify-between mb-4">
         <div>
           <h1 className="text-2xl font-bold text-accent">Connection History</h1>
           <p className="text-text-muted text-sm mt-1">
-            Track connection quality over time
+            {stats.total} sessions
+            {stats.total > 0 && (
+              <>
+                {" · "}avg <span className={getPingColor(stats.avgPing)}>{stats.avgPing.toFixed(1)}ms</span>
+                {" · "}best <span className="text-success">{stats.bestIdx >= 0 ? `${sessions[stats.bestIdx].avg_ping_ms.toFixed(1)}ms` : "--"}</span>
+                {" · "}worst <span className="text-danger">{stats.worstIdx >= 0 ? `${sessions[stats.worstIdx].avg_ping_ms.toFixed(1)}ms` : "--"}</span>
+              </>
+            )}
           </p>
         </div>
-        <div className="flex gap-3">
+        <div className="flex items-center gap-1.5">
           <button
             onClick={exportData}
             disabled={exporting || sessions.length === 0}
-            className="flex items-center gap-2 px-4 py-2 bg-bg-card border border-border rounded-lg text-sm text-text-muted hover:text-text hover:border-accent/50 transition disabled:opacity-50"
+            className="flex items-center gap-1 px-2.5 py-1 bg-bg-card border border-border rounded text-[10px] text-text-muted hover:text-text hover:border-accent/30 transition disabled:opacity-50"
           >
-            {exporting ? (
-              <Loader size={14} className="animate-spin" />
-            ) : (
-              <Download size={14} />
-            )}
-            Export All Data
+            {exporting ? <Loader size={10} className="animate-spin" /> : <Download size={10} />}
+            Export
           </button>
           <button
             onClick={clearHistory}
             disabled={clearing || sessions.length === 0}
-            className="flex items-center gap-2 px-4 py-2 bg-danger/10 border border-danger/30 rounded-lg text-sm text-danger hover:bg-danger/20 transition disabled:opacity-50"
+            className="flex items-center gap-1 px-2.5 py-1 bg-danger/10 border border-danger/25 rounded text-[10px] text-danger hover:bg-danger/20 transition disabled:opacity-50"
           >
-            {clearing ? (
-              <Loader size={14} className="animate-spin" />
-            ) : (
-              <Trash2 size={14} />
-            )}
-            Clear History
+            {clearing ? <Loader size={10} className="animate-spin" /> : <Trash2 size={10} />}
+            Clear
           </button>
         </div>
       </div>
 
-      {/* Stats Summary */}
-      <div className="grid grid-cols-4 gap-4 mb-6">
-        <div className="bg-bg-card border border-border rounded-lg p-4 flex flex-col gap-2">
-          <div className="flex items-center gap-2 text-text-muted">
-            <span className="text-accent"><BarChart3 size={18} /></span>
-            <span className="text-xs uppercase tracking-wider">Total Sessions</span>
+      {/* Stats — inline badges */}
+      {stats.total > 0 && (
+        <div className="flex items-center gap-2 mb-4 flex-wrap">
+          <div className="flex items-center gap-1.5 px-2.5 py-1 bg-bg-card border border-border rounded-lg">
+            <BarChart3 size={10} className="text-accent" />
+            <span className="text-[10px] text-text-muted">Sessions</span>
+            <span className="text-xs font-bold text-accent">{stats.total}</span>
           </div>
-          <span className="text-2xl font-bold text-accent">{stats.total}</span>
-        </div>
-        <div className="bg-bg-card border border-border rounded-lg p-4 flex flex-col gap-2">
-          <div className="flex items-center gap-2 text-text-muted">
-            <span className="text-accent2"><Activity size={18} /></span>
-            <span className="text-xs uppercase tracking-wider">Average Ping</span>
+          <div className="flex items-center gap-1.5 px-2.5 py-1 bg-bg-card border border-border rounded-lg">
+            <Activity size={10} className="text-accent2" />
+            <span className="text-[10px] text-text-muted">Avg</span>
+            <span className={`text-xs font-bold ${getPingColor(stats.avgPing)}`}>{stats.avgPing.toFixed(1)}ms</span>
           </div>
-          <span className={`text-2xl font-bold ${stats.total > 0 ? getPingColor(stats.avgPing) : "text-text-muted"}`}>
-            {stats.total > 0 ? `${stats.avgPing.toFixed(1)}ms` : "--"}
-          </span>
-        </div>
-        <div className="bg-bg-card border border-border rounded-lg p-4 flex flex-col gap-2">
-          <div className="flex items-center gap-2 text-text-muted">
-            <span className="text-success"><TrendingDown size={18} /></span>
-            <span className="text-xs uppercase tracking-wider">Best Session</span>
+          <div className="flex items-center gap-1.5 px-2.5 py-1 bg-bg-card border border-border rounded-lg">
+            <TrendingDown size={10} className="text-success" />
+            <span className="text-[10px] text-text-muted">Best</span>
+            <span className="text-xs font-bold text-success">
+              {stats.bestIdx >= 0 ? `${sessions[stats.bestIdx].avg_ping_ms.toFixed(1)}ms` : "--"}
+            </span>
           </div>
-          <span className="text-2xl font-bold text-success">
-            {stats.bestIdx >= 0
-              ? `${sessions[stats.bestIdx].avg_ping_ms.toFixed(1)}ms`
-              : "--"}
-          </span>
-        </div>
-        <div className="bg-bg-card border border-border rounded-lg p-4 flex flex-col gap-2">
-          <div className="flex items-center gap-2 text-text-muted">
-            <span className="text-danger"><TrendingUp size={18} /></span>
-            <span className="text-xs uppercase tracking-wider">Worst Session</span>
+          <div className="flex items-center gap-1.5 px-2.5 py-1 bg-bg-card border border-border rounded-lg">
+            <TrendingUp size={10} className="text-danger" />
+            <span className="text-[10px] text-text-muted">Worst</span>
+            <span className="text-xs font-bold text-danger">
+              {stats.worstIdx >= 0 ? `${sessions[stats.worstIdx].avg_ping_ms.toFixed(1)}ms` : "--"}
+            </span>
           </div>
-          <span className="text-2xl font-bold text-danger">
-            {stats.worstIdx >= 0
-              ? `${sessions[stats.worstIdx].avg_ping_ms.toFixed(1)}ms`
-              : "--"}
-          </span>
         </div>
-      </div>
+      )}
 
       {/* Loading */}
       {loading && (
-        <div className="bg-bg-card border border-border rounded-lg p-12 text-center">
-          <Loader size={32} className="mx-auto mb-3 text-accent animate-spin" />
-          <p className="text-text-muted text-sm">Loading history...</p>
+        <div className="bg-bg-card border border-border rounded-lg p-8 text-center">
+          <Loader size={24} className="mx-auto mb-2 text-accent animate-spin" />
+          <p className="text-text-muted text-xs">Loading history...</p>
         </div>
       )}
 
       {/* No sessions */}
       {!loading && sessions.length === 0 && (
-        <div className="bg-bg-card border border-border rounded-lg p-12 text-center">
-          <BarChart3 size={48} className="mx-auto mb-4 text-text-muted" />
-          <p className="text-text-muted text-sm">
-            No connection history yet. Sessions will appear here as you use the app.
+        <div className="bg-bg-card border border-border rounded-lg p-8 text-center">
+          <BarChart3 size={32} className="mx-auto mb-3 text-text-muted" />
+          <p className="text-text-muted text-xs">
+            No connection history yet. Sessions will appear as you use the app.
           </p>
         </div>
       )}
 
-      {/* Chart */}
+      {/* Chart — shorter */}
       {!loading && sessions.length > 0 && (
-        <div className="bg-bg-card border border-border rounded-lg p-5 mb-6">
-          <h2 className="text-base font-semibold mb-4 flex items-center gap-2">
-            <Activity size={16} className="text-accent2" />
-            Ping Over Time
-          </h2>
-          <div className="h-56 bg-bg rounded-lg border border-border p-2">
+        <div className="bg-bg-card border border-border rounded-lg p-3 mb-4">
+          <div className="flex items-center gap-2 mb-2">
+            <Activity size={12} className="text-accent2" />
+            <span className="text-xs font-semibold">Ping Over Time</span>
+          </div>
+          <div className="h-36 bg-bg rounded-lg border border-border p-1.5">
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={chartData}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#2a2620" />
                 <XAxis
                   dataKey="idx"
-                  tick={{ fill: "#8a8070", fontSize: 11 }}
+                  tick={{ fill: "#8a8070", fontSize: 10 }}
                   axisLine={{ stroke: "#2a2620" }}
                   tickLine={false}
-                  label={{
-                    value: "Session",
-                    position: "insideBottom",
-                    offset: -5,
-                    fill: "#8a8070",
-                    fontSize: 10,
-                  }}
                 />
                 <YAxis
-                  tick={{ fill: "#8a8070", fontSize: 11 }}
+                  tick={{ fill: "#8a8070", fontSize: 10 }}
                   axisLine={{ stroke: "#2a2620" }}
                   tickLine={false}
                   unit="ms"
@@ -305,7 +284,7 @@ export default function History() {
                     border: "1px solid #2a2620",
                     borderRadius: 8,
                     color: "#e8e4dc",
-                    fontSize: 12,
+                    fontSize: 11,
                   }}
                   formatter={(value) => [`${value}ms`, "Avg Ping"]}
                   labelFormatter={(_, payload) => {
@@ -321,8 +300,8 @@ export default function History() {
                   dataKey="avg_ping_ms"
                   stroke="#e67e22"
                   strokeWidth={2}
-                  dot={{ fill: "#e67e22", r: 3 }}
-                  activeDot={{ fill: "#f39c12", r: 5 }}
+                  dot={{ fill: "#e67e22", r: 2 }}
+                  activeDot={{ fill: "#f39c12", r: 4 }}
                 />
               </LineChart>
             </ResponsiveContainer>
@@ -330,26 +309,26 @@ export default function History() {
         </div>
       )}
 
-      {/* Sessions Table */}
+      {/* Sessions Table — compact */}
       {!loading && sessions.length > 0 && (
-        <div className="bg-bg-card border border-border rounded-lg p-5">
-          <h2 className="text-base font-semibold mb-4 flex items-center gap-2">
-            <Clock size={16} className="text-accent2" />
-            All Sessions ({sessions.length})
-          </h2>
+        <div className="bg-bg-card border border-border rounded-lg p-3">
+          <div className="flex items-center gap-2 mb-2">
+            <Clock size={12} className="text-accent2" />
+            <span className="text-xs font-semibold">All Sessions ({sessions.length})</span>
+          </div>
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+            <table className="w-full text-xs">
               <thead>
-                <tr className="border-b border-border text-text-muted text-xs uppercase tracking-wider">
-                  <th className="text-left py-2 px-3">Date</th>
-                  <th className="text-left py-2 px-3">Duration</th>
-                  <th className="text-left py-2 px-3">Avg Ping</th>
-                  <th className="text-left py-2 px-3">Min</th>
-                  <th className="text-left py-2 px-3">Max</th>
-                  <th className="text-left py-2 px-3">Jitter</th>
-                  <th className="text-left py-2 px-3">Loss</th>
-                  <th className="text-left py-2 px-3">Region</th>
-                  <th className="text-left py-2 px-3">VPN</th>
+                <tr className="border-b border-border text-text-muted text-[10px] uppercase tracking-wider">
+                  <th className="text-left py-1.5 px-2">Date</th>
+                  <th className="text-left py-1.5 px-2">Duration</th>
+                  <th className="text-left py-1.5 px-2">Avg</th>
+                  <th className="text-left py-1.5 px-2">Min</th>
+                  <th className="text-left py-1.5 px-2">Max</th>
+                  <th className="text-left py-1.5 px-2">Jitter</th>
+                  <th className="text-left py-1.5 px-2">Loss</th>
+                  <th className="text-left py-1.5 px-2">Region</th>
+                  <th className="text-left py-1.5 px-2">VPN</th>
                 </tr>
               </thead>
               <tbody>
@@ -358,37 +337,37 @@ export default function History() {
                     key={idx}
                     className="border-b border-border/50 hover:bg-bg-hover transition"
                   >
-                    <td className="py-2 px-3 text-text-muted text-xs">
+                    <td className="py-1 px-2 text-text-muted text-[10px]">
                       {formatDate(session.timestamp)}
                     </td>
-                    <td className="py-2 px-3 font-mono text-text-muted">
+                    <td className="py-1 px-2 font-mono text-text-muted text-[10px]">
                       {formatDuration(session.duration_secs)}
                     </td>
-                    <td className={`py-2 px-3 font-mono font-semibold ${getPingColor(session.avg_ping_ms)}`}>
+                    <td className={`py-1 px-2 font-mono font-semibold text-[10px] ${getPingColor(session.avg_ping_ms)}`}>
                       {session.avg_ping_ms.toFixed(1)}ms
                     </td>
-                    <td className="py-2 px-3 font-mono text-success">
+                    <td className="py-1 px-2 font-mono text-success text-[10px]">
                       {session.min_ping_ms.toFixed(1)}ms
                     </td>
-                    <td className="py-2 px-3 font-mono text-danger">
+                    <td className="py-1 px-2 font-mono text-danger text-[10px]">
                       {session.max_ping_ms.toFixed(1)}ms
                     </td>
-                    <td className="py-2 px-3 font-mono text-orange">
+                    <td className="py-1 px-2 font-mono text-orange text-[10px]">
                       {session.jitter_ms.toFixed(1)}ms
                     </td>
-                    <td className={`py-2 px-3 font-mono ${session.loss_percent > 0 ? "text-danger" : "text-success"}`}>
+                    <td className={`py-1 px-2 font-mono text-[10px] ${session.loss_percent > 0 ? "text-danger" : "text-success"}`}>
                       {session.loss_percent.toFixed(1)}%
                     </td>
-                    <td className="py-2 px-3 font-mono text-accent2 uppercase">
+                    <td className="py-1 px-2 font-mono text-accent2 uppercase text-[10px]">
                       {session.server_region || "--"}
                     </td>
-                    <td className="py-2 px-3">
+                    <td className="py-1 px-2">
                       {session.vpn_active ? (
-                        <span className="flex items-center gap-1 text-success text-xs">
-                          <Shield size={12} /> On
+                        <span className="flex items-center gap-0.5 text-success text-[10px]">
+                          <Shield size={9} /> On
                         </span>
                       ) : (
-                        <span className="text-text-muted text-xs">Off</span>
+                        <span className="text-text-muted text-[10px]">Off</span>
                       )}
                     </td>
                   </tr>
@@ -402,16 +381,16 @@ export default function History() {
       {/* Toast */}
       {toast && (
         <div
-          className={`fixed bottom-6 right-6 px-5 py-3 rounded-lg shadow-lg border flex items-center gap-2 text-sm z-50 max-w-md ${
+          className={`fixed bottom-6 right-6 px-4 py-2.5 rounded-lg shadow-lg border flex items-center gap-2 text-xs z-50 max-w-md ${
             toast.type === "success"
               ? "bg-success/15 border-success/30 text-success"
               : "bg-danger/15 border-danger/30 text-danger"
           }`}
         >
           {toast.type === "success" ? (
-            <CheckCircle size={16} />
+            <CheckCircle size={12} />
           ) : (
-            <XCircle size={16} />
+            <XCircle size={12} />
           )}
           {toast.message}
         </div>
