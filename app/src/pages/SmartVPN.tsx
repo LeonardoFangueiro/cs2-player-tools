@@ -41,6 +41,7 @@ interface VpnServer {
   lng: number;
   max_clients: number;
   current_clients: number;
+  country_code: string;
 }
 
 interface VpnConnectResponse {
@@ -319,7 +320,7 @@ function NetworkDiagram({ servers, connectedServerId, connectionState }: {
         }`}>
           <Shield size={32} className={isConnected ? 'text-accent' : 'text-text-muted'} />
           <span className="text-xs font-semibold">
-            {connectedServer ? `${connectedServer.flag} ${connectedServer.name}` : 'VPN Server'}
+            {connectedServer ? connectedServer.name : 'VPN Server'}
           </span>
           {isConnected && (
             <span className="text-[10px] text-success font-mono">Encrypted</span>
@@ -407,7 +408,13 @@ function ServerCard({
       {/* Header */}
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-3">
-          <span className="text-3xl leading-none">{server.flag || '🌐'}</span>
+          {/* Flag: use flagcdn.com image since Windows WebView2 doesn't render flag emojis */}
+          <img
+            src={`https://flagcdn.com/w80/${(server.country_code || 'xx').toLowerCase()}.png`}
+            alt={server.flag || server.country}
+            className="w-10 h-7 rounded object-cover border border-border"
+            onError={(e) => { (e.target as HTMLImageElement).src = ''; (e.target as HTMLImageElement).alt = server.flag || '🌐'; }}
+          />
           <div>
             <div className="font-semibold text-sm flex items-center gap-2">
               {server.name}
@@ -533,7 +540,7 @@ function ConnectedBanner({
           <div>
             <div className="font-semibold flex items-center gap-2">
               <span className="text-success">Connected</span>
-              <span className="text-xl">{server.flag}</span>
+              <img src={`https://flagcdn.com/w40/${(server.country_code || 'xx').toLowerCase()}.png`} alt="" className="w-6 h-4 rounded object-cover" />
               <span>{server.name}</span>
             </div>
             <div className="text-xs text-text-muted">{server.location} &mdash; {server.country}</div>

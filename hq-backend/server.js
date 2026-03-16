@@ -776,6 +776,7 @@ app.get('/api/vpn-servers', (req, res) => {
     lng: s.lng,
     max_clients: s.max_clients,
     current_clients: s.peers || 0,
+    country_code: s.country_code || '',
   }));
   res.json({ servers: publicServers });
 });
