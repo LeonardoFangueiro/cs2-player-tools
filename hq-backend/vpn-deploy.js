@@ -15,8 +15,12 @@ export function isValidWgKey(key) {
   return typeof key === 'string' && /^[A-Za-z0-9+/]{42}[AEIMQUYcgkosw048]=$/.test(key);
 }
 
-// Valve IP ranges for CS2 split tunneling
-const VALVE_ALLOWED_IPS = '155.133.224.0/19, 162.254.192.0/21, 208.64.200.0/21, 185.25.180.0/22, 192.69.96.0/22, 205.196.6.0/24, 103.10.124.0/23, 103.28.54.0/23, 146.66.152.0/21, 208.78.164.0/22';
+// Valve IP ranges for CS2 split tunneling (base CIDRs — always included)
+const BASE_VALVE_CIDRS = '155.133.224.0/19, 162.254.192.0/21, 208.64.200.0/21, 185.25.180.0/22, 192.69.96.0/22, 205.196.6.0/24, 103.10.124.0/23, 103.28.54.0/23, 146.66.152.0/21, 208.78.164.0/22';
+
+// Cache for dynamic Valve IPs (10 min TTL)
+let cachedValveIps = null;
+let cacheTime = 0;
 
 // Client IP pool: 10.66.66.2 - 10.66.66.254
 let nextClientIp = 2;
@@ -427,10 +431,46 @@ export function allocateClientIp(existingPeers = []) {
 }
 
 /**
- * Get Valve AllowedIPs for CS2-only split tunneling (Point 5)
+ * Get Valve AllowedIPs — fetches live SDR config and merges with base CIDRs
+ * Falls back to static list if API is unreachable
  */
-export function getValveAllowedIps() {
-  return VALVE_ALLOWED_IPS;
+export async function getValveAllowedIps() {
+  if (cachedValveIps && Date.now() - cacheTime < 600000) return cachedValveIps;
+
+  try {
+    const resp = await fetch('https://api.steampowered.com/ISteamApps/GetSDRConfig/v1/?appid=730');
+    const data = await resp.json();
+    const extraIps = new Set();
+
+    if (data.pops) {
+      for (const pop of Object.values(data.pops)) {
+        // Collect service_address_range CIDRs if present
+        if (pop.service_address_range) {
+          extraIps.add(pop.service_address_range);
+        }
+        // Collect individual relay IPs as /32
+        if (pop.relays) {
+          for (const relay of pop.relays) {
+            if (relay.ipv4) extraIps.add(relay.ipv4 + '/32');
+          }
+        }
+      }
+    }
+
+    if (extraIps.size > 0) {
+      // Merge base CIDRs with dynamic IPs
+      const allIps = BASE_VALVE_CIDRS + ', ' + Array.from(extraIps).join(', ');
+      cachedValveIps = allIps;
+      cacheTime = Date.now();
+      return allIps;
+    }
+  } catch {
+    // Fallback to static
+  }
+
+  cachedValveIps = BASE_VALVE_CIDRS;
+  cacheTime = Date.now();
+  return BASE_VALVE_CIDRS;
 }
 
 function countryCodeToFlag(code) {

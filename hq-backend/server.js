@@ -948,7 +948,7 @@ app.post('/api/vpn-servers/:id/connect', async (req, res) => {
         client_address: `${clientIp}/32`,
         dns: '1.1.1.1, 8.8.8.8',
         mtu: 1420,
-        allowed_ips: getValveAllowedIps(), // CS2 only! (Point 5)
+        allowed_ips: await getValveAllowedIps(), // CS2 only! (Point 5)
         persistent_keepalive: 25,
       },
     });
