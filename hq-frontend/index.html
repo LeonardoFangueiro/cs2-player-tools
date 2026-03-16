@@ -407,6 +407,7 @@
             <div class="tab" data-tab="downloads">Downloads</div>
             <div class="tab" data-tab="clients">Clients</div>
             <div class="tab" data-tab="feedback">Feedback</div>
+            <div class="tab" data-tab="vpn-servers">VPN Servers</div>
             <div class="tab" data-tab="config">Config</div>
         </div>
 
@@ -588,6 +589,71 @@
             </div>
         </div>
 
+        <!-- ═══ Tab: VPN Servers ═══ -->
+        <div class="tab-content" id="tab-vpn-servers">
+            <div class="grid grid-2 mb-16">
+                <!-- Add VPN Server Form -->
+                <div class="card">
+                    <div class="card-header">
+                        <div class="card-title"><span class="dot" style="background:var(--accent)"></span> Add VPN Server</div>
+                    </div>
+                    <form id="vpn-server-form" onsubmit="addVpnServer(event)" style="display:flex;flex-direction:column;gap:10px;">
+                        <div class="grid grid-2" style="gap:10px;">
+                            <div>
+                                <label class="text-muted" style="font-size:11px;display:block;margin-bottom:4px;">Name</label>
+                                <input class="input" type="text" id="vpn-name" placeholder="Frankfurt 1" required>
+                            </div>
+                            <div>
+                                <label class="text-muted" style="font-size:11px;display:block;margin-bottom:4px;">Location</label>
+                                <input class="input" type="text" id="vpn-location" placeholder="Frankfurt, Germany" required>
+                            </div>
+                            <div>
+                                <label class="text-muted" style="font-size:11px;display:block;margin-bottom:4px;">Country</label>
+                                <input class="input" type="text" id="vpn-country" placeholder="Germany" required>
+                            </div>
+                            <div>
+                                <label class="text-muted" style="font-size:11px;display:block;margin-bottom:4px;">Flag Emoji</label>
+                                <input class="input" type="text" id="vpn-flag" placeholder="🇩🇪" required>
+                            </div>
+                            <div>
+                                <label class="text-muted" style="font-size:11px;display:block;margin-bottom:4px;">IP Address</label>
+                                <input class="input" type="text" id="vpn-ip" placeholder="1.2.3.4" required>
+                            </div>
+                            <div>
+                                <label class="text-muted" style="font-size:11px;display:block;margin-bottom:4px;">Port</label>
+                                <input class="input" type="number" id="vpn-port" placeholder="51820" value="51820" required>
+                            </div>
+                            <div style="grid-column:span 2;">
+                                <label class="text-muted" style="font-size:11px;display:block;margin-bottom:4px;">Public Key</label>
+                                <input class="input" type="text" id="vpn-pubkey" placeholder="WireGuard server public key" required>
+                            </div>
+                            <div>
+                                <label class="text-muted" style="font-size:11px;display:block;margin-bottom:4px;">Latitude</label>
+                                <input class="input" type="number" step="any" id="vpn-lat" placeholder="50.1109" required>
+                            </div>
+                            <div>
+                                <label class="text-muted" style="font-size:11px;display:block;margin-bottom:4px;">Longitude</label>
+                                <input class="input" type="number" step="any" id="vpn-lng" placeholder="8.6821" required>
+                            </div>
+                            <div>
+                                <label class="text-muted" style="font-size:11px;display:block;margin-bottom:4px;">Max Clients</label>
+                                <input class="input" type="number" id="vpn-max-clients" placeholder="50" value="50" required>
+                            </div>
+                        </div>
+                        <button type="submit" class="btn btn-primary" style="margin-top:8px;align-self:flex-start;">Add VPN Server</button>
+                    </form>
+                </div>
+                <!-- Current VPN Servers List -->
+                <div class="card">
+                    <div class="card-header">
+                        <div class="card-title"><span class="dot" style="background:var(--success)"></span> Current VPN Servers</div>
+                        <button class="btn btn-sm" onclick="loadVpnServers()">Refresh</button>
+                    </div>
+                    <div id="vpn-servers-list"><div class="loading">Loading servers...</div></div>
+                </div>
+            </div>
+        </div>
+
         <!-- ═══ Tab: Config ═══ -->
         <div class="tab-content" id="tab-config">
             <div class="grid grid-2">
@@ -662,6 +728,7 @@
             downloads: loadDownloads,
             clients: loadClients,
             feedback: loadFeedback,
+            'vpn-servers': loadVpnServers,
             config: loadConfig,
         };
         if (loaders[name]) loaders[name]();
@@ -1311,6 +1378,91 @@
             }
         } catch {
             toast('Failed to save config', 'error');
+        }
+    }
+
+    // ══════════════════════════════════════════
+    // ── VPN SERVERS TAB
+    // ══════════════════════════════════════════
+
+    async function loadVpnServers() {
+        const el = document.getElementById('vpn-servers-list');
+        try {
+            const r = await fetch(`${API}/vpn-servers`);
+            const d = await r.json();
+            const servers = d.servers || [];
+            if (servers.length === 0) {
+                el.innerHTML = '<div class="empty">No VPN servers configured</div>';
+                return;
+            }
+            el.innerHTML = servers.map(s => `
+                <div class="flex justify-between items-center" style="padding:10px;background:var(--bg);border:1px solid var(--border);border-radius:8px;margin-bottom:6px;">
+                    <div>
+                        <div class="flex items-center gap-8">
+                            <span style="font-size:18px;">${esc(s.flag || '')}</span>
+                            <span style="font-weight:600;font-size:13px;">${esc(s.name)}</span>
+                            <span class="badge badge-accent2">${esc(s.location)}</span>
+                        </div>
+                        <div class="text-muted" style="font-size:11px;margin-top:4px;">
+                            ${esc(s.ip)}:${s.port} | Max: ${s.max_clients} clients | ${s.lat}, ${s.lng}
+                        </div>
+                    </div>
+                    <button class="btn btn-sm btn-danger" onclick="deleteVpnServer('${esc(s.id)}')">Delete</button>
+                </div>
+            `).join('');
+        } catch {
+            el.innerHTML = '<div class="empty">Failed to load VPN servers</div>';
+        }
+    }
+
+    async function addVpnServer(e) {
+        e.preventDefault();
+        const body = {
+            name: document.getElementById('vpn-name').value.trim(),
+            location: document.getElementById('vpn-location').value.trim(),
+            country: document.getElementById('vpn-country').value.trim(),
+            flag: document.getElementById('vpn-flag').value.trim(),
+            ip: document.getElementById('vpn-ip').value.trim(),
+            port: parseInt(document.getElementById('vpn-port').value) || 51820,
+            public_key: document.getElementById('vpn-pubkey').value.trim(),
+            lat: parseFloat(document.getElementById('vpn-lat').value) || 0,
+            lng: parseFloat(document.getElementById('vpn-lng').value) || 0,
+            max_clients: parseInt(document.getElementById('vpn-max-clients').value) || 50,
+        };
+        try {
+            const r = await fetch(`${API}/vpn-servers`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(body),
+            });
+            const d = await r.json();
+            if (d.success) {
+                toast('VPN server added', 'success');
+                document.getElementById('vpn-server-form').reset();
+                document.getElementById('vpn-port').value = '51820';
+                document.getElementById('vpn-max-clients').value = '50';
+                loadVpnServers();
+            } else {
+                toast('Failed: ' + (d.error || 'Unknown error'), 'error');
+            }
+        } catch {
+            toast('Failed to add VPN server', 'error');
+        }
+    }
+
+    async function deleteVpnServer(id) {
+        if (!confirm('Delete this VPN server?')) return;
+        try {
+            const r = await fetch(`${API}/vpn-servers/${id}`, { method: 'DELETE' });
+            const d = await r.json();
+            if (d.success) {
+                toast('VPN server deleted', 'success');
+                loadVpnServers();
+            } else {
+                toast('Failed: ' + (d.error || ''), 'error');
+            }
+        } catch {
+            toast('Failed to delete VPN server', 'error');
         }
     }
 

@@ -142,12 +142,8 @@ export default function Sidebar() {
   return (
     <aside className="w-[220px] h-screen flex flex-col border-r border-border bg-bg-card shrink-0">
       {/* Logo */}
-      <div className="px-5 py-5 border-b border-border">
-        <h1 className="text-base font-bold tracking-wide">
-          <span className="text-accent">CS2</span>{" "}
-          <span className="text-text-muted">Player Tools</span>
-        </h1>
-        <p className="text-[11px] text-text-muted mt-0.5">Network & Performance</p>
+      <div className="px-4 py-4 border-b border-border flex items-center justify-center">
+        <img src="/logo.png" alt="CS2 Player Tools" className="h-12 w-auto" />
       </div>
 
       {/* Navigation */}

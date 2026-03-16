@@ -240,9 +240,13 @@ export default function Cs2Config() {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-1">
                     <h3 className="font-semibold text-text font-mono">{setting.key}</h3>
-                    {setting.is_optimized && (
+                    {setting.is_optimized ? (
                       <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-success/15 text-success font-semibold uppercase">
-                        Optimized
+                        &#10003; Optimized
+                      </span>
+                    ) : (
+                      <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-accent/15 text-accent font-semibold uppercase">
+                        RECOMMENDED
                       </span>
                     )}
                   </div>
@@ -254,12 +258,14 @@ export default function Cs2Config() {
                         {setting.current_value ?? "not set"}
                       </span>
                     </span>
-                    <span className="text-text-muted">
-                      Recommended:{" "}
-                      <span className="font-mono font-semibold text-accent2">
-                        {setting.recommended_value}
+                    {!setting.is_optimized && (
+                      <span className="text-text-muted">
+                        Recommended:{" "}
+                        <span className="font-mono font-semibold text-accent2">
+                          {setting.recommended_value}
+                        </span>
                       </span>
-                    </span>
+                    )}
                   </div>
                 </div>
 

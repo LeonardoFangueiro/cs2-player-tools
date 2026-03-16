@@ -107,6 +107,8 @@ export default function ServerPicker() {
   );
   const [blockedRegions, setBlockedRegions] = useState<Set<string>>(new Set());
   const [blockingPop, setBlockingPop] = useState<string | null>(null);
+  const [bulkBlocking, setBulkBlocking] = useState(false);
+  const [bulkAllowing, setBulkAllowing] = useState(false);
 
   useEffect(() => {
     loadSdrConfig();
@@ -184,6 +186,25 @@ export default function ServerPicker() {
     } finally {
       setBlockingPop(null);
     }
+  }
+
+  async function blockAllVisible() {
+    setBulkBlocking(true);
+    const visiblePops = Object.values(groupedPops).flat().filter(p => selectedRegions.has(classifyRegion(p.code)) && !blockedRegions.has(p.code));
+    for (const pop of visiblePops) {
+      await invoke("block_server_region", { popCode: pop.code, relayIps: pop.relays.map(r => r.ipv4) });
+      setBlockedRegions(prev => { const n = new Set(prev); n.add(pop.code); return n; });
+    }
+    setBulkBlocking(false);
+  }
+
+  async function allowAll() {
+    setBulkAllowing(true);
+    for (const code of Array.from(blockedRegions)) {
+      await invoke("unblock_server_region", { popCode: code });
+    }
+    setBlockedRegions(new Set());
+    setBulkAllowing(false);
   }
 
   function toggleRegion(region: string) {
@@ -269,6 +290,20 @@ export default function ServerPicker() {
               <Wifi size={14} />
             )}
             {pinging ? "Pinging..." : "Ping All"}
+          </button>
+          <button
+            onClick={blockAllVisible}
+            disabled={bulkBlocking}
+            className="flex items-center gap-2 px-4 py-2 bg-danger/15 border border-danger/30 text-danger text-sm rounded-lg hover:bg-danger/25 transition disabled:opacity-50"
+          >
+            <Lock size={14} /> {bulkBlocking ? "Blocking..." : "Block All Filtered"}
+          </button>
+          <button
+            onClick={allowAll}
+            disabled={bulkAllowing}
+            className="flex items-center gap-2 px-4 py-2 bg-success/15 border border-success/30 text-success text-sm rounded-lg hover:bg-success/25 transition disabled:opacity-50"
+          >
+            <Unlock size={14} /> {bulkAllowing ? "Allowing..." : "Allow All"}
           </button>
         </div>
       </div>

@@ -88,7 +88,7 @@ export default function SettingsPage() {
   const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [profiles, setProfiles] = useState<string[]>([]);
+  const [vpnServers, setVpnServers] = useState<Array<{ id: string; name: string; flag: string; location: string }>>([]);
   const [toast, setToast] = useState<{
     message: string;
     type: "success" | "error";
@@ -97,7 +97,7 @@ export default function SettingsPage() {
 
   useEffect(() => {
     loadSettings();
-    loadProfiles();
+    loadVpnServers();
   }, []);
 
   useEffect(() => {
@@ -119,10 +119,11 @@ export default function SettingsPage() {
     }
   }
 
-  async function loadProfiles() {
+  async function loadVpnServers() {
     try {
-      const p = await invoke<string[]>("vpn_list_profiles");
-      setProfiles(p);
+      const resp = await fetch("https://cs2-player-tools.maltinha.club/api/vpn-servers");
+      const data = await resp.json();
+      setVpnServers(data.servers || []);
     } catch {
       // Ignore
     }
@@ -203,9 +204,9 @@ export default function SettingsPage() {
           />
         </SettingRow>
         <SettingRow
-          icon={<Shield size={18} />}
-          label="VPN Profile"
-          description="Select the VPN profile to use for auto-connect"
+          icon={<Globe size={18} />}
+          label="Favorite VPN Location"
+          description="Select your preferred VPN server location"
         >
           <select
             value={settings.vpn_profile_name ?? ""}
@@ -218,9 +219,9 @@ export default function SettingsPage() {
             className="bg-bg border border-border rounded-md px-3 py-1.5 text-sm text-text focus:outline-none focus:border-accent min-w-[160px]"
           >
             <option value="">None</option>
-            {profiles.map((p) => (
-              <option key={p} value={p}>
-                {p}
+            {vpnServers.map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.flag} {s.name} — {s.location}
               </option>
             ))}
           </select>

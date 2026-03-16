@@ -134,7 +134,41 @@ export default function Dashboard() {
     try {
       setPinging(true);
       const results = await invoke<Array<[string, number]>>("ping_all_pops");
-      setPopPings(results);
+      const reachable = results.filter(([, ms]) => ms > 0);
+      if (reachable.length === 0) {
+        // Fallback: ping known Valve IPs directly
+        const knownDCs = [
+          { code: "fra", ip: "155.133.240.55" },
+          { code: "ams", ip: "155.133.226.71" },
+          { code: "lhr", ip: "162.254.197.36" },
+          { code: "mad", ip: "155.133.248.41" },
+          { code: "sto", ip: "162.254.199.36" },
+          { code: "waw", ip: "155.133.234.41" },
+          { code: "vie", ip: "155.133.236.71" },
+          { code: "iad", ip: "208.78.164.10" },
+          { code: "gru", ip: "205.196.6.75" },
+          { code: "sgp", ip: "103.10.124.36" },
+        ];
+        const fallbackResults: Array<[string, number]> = [];
+        for (const dc of knownDCs) {
+          try {
+            const pings = await invoke<Array<{ latency_ms: number; success: boolean }>>("ping_host", { host: dc.ip, count: 1 });
+            const p = pings[0];
+            fallbackResults.push([dc.code, p?.success ? p.latency_ms : -1]);
+          } catch {
+            fallbackResults.push([dc.code, -1]);
+          }
+        }
+        fallbackResults.sort((a, b) => {
+          if (a[1] < 0 && b[1] < 0) return 0;
+          if (a[1] < 0) return 1;
+          if (b[1] < 0) return -1;
+          return a[1] - b[1];
+        });
+        setPopPings(fallbackResults);
+      } else {
+        setPopPings(results);
+      }
     } catch (e) {
       setError(String(e));
     } finally {

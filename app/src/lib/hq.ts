@@ -192,6 +192,94 @@ export async function runAndReportDiagnostics(
     tests["hq_connectivity"] = { status: "fail", error: String(e) };
   }
 
+  // Test 13: Token Validation
+  try {
+    const token = getToken();
+    if (token) {
+      const resp = await fetch(`${HQ_BASE}/tokens/validate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token }),
+      });
+      const data = await resp.json();
+      tests["token_validation"] = { status: data.valid ? "pass" : "fail", valid: data.valid, label: data.label || null, error: data.error || null };
+    } else {
+      tests["token_validation"] = { status: "fail", error: "No token stored" };
+    }
+  } catch (e) {
+    tests["token_validation"] = { status: "fail", error: String(e) };
+  }
+
+  // Test 14: VPN Servers Available
+  try {
+    const resp = await fetch(`${HQ_BASE}/vpn-servers`);
+    const data = await resp.json();
+    tests["vpn_servers"] = { status: "pass", count: data.servers?.length ?? 0, servers: (data.servers || []).map((s: any) => s.name) };
+  } catch (e) {
+    tests["vpn_servers"] = { status: "fail", error: String(e) };
+  }
+
+  // Test 15: Remote Config
+  try {
+    const resp = await fetch(`${HQ_BASE}/config`);
+    const data = await resp.json();
+    const enabledFeatures = Object.entries(data.features || {}).filter(([, v]) => v).length;
+    const totalFeatures = Object.keys(data.features || {}).length;
+    tests["remote_config"] = { status: "pass", features_enabled: enabledFeatures, total_features: totalFeatures, maintenance: data.maintenance };
+  } catch (e) {
+    tests["remote_config"] = { status: "fail", error: String(e) };
+  }
+
+  // Test 16: App Version Check
+  try {
+    const resp = await fetch(`${HQ_BASE}/version?current=${APP_VERSION}`);
+    const data = await resp.json();
+    tests["version_check"] = { status: "pass", current: APP_VERSION, latest: data.latest_version, update_available: data.update_available };
+  } catch (e) {
+    tests["version_check"] = { status: "fail", error: String(e) };
+  }
+
+  // Test 17: Ping to Valve Frankfurt DC (direct latency test)
+  try {
+    const pings = await invoke<Array<{ latency_ms: number; success: boolean }>>("ping_host", { host: "155.133.240.55", count: 3 });
+    const successful = pings.filter(p => p.success);
+    if (successful.length > 0) {
+      const avg = successful.reduce((s, p) => s + p.latency_ms, 0) / successful.length;
+      const min = Math.min(...successful.map(p => p.latency_ms));
+      const max = Math.max(...successful.map(p => p.latency_ms));
+      tests["valve_dc_ping"] = { status: "pass", target: "fra (Frankfurt)", avg_ms: Math.round(avg * 10) / 10, min_ms: Math.round(min * 10) / 10, max_ms: Math.round(max * 10) / 10, samples: successful.length };
+    } else {
+      tests["valve_dc_ping"] = { status: "fail", error: "No successful pings to Frankfurt DC" };
+    }
+  } catch (e) {
+    tests["valve_dc_ping"] = { status: "fail", error: String(e) };
+  }
+
+  // Test 18: Downloads Available
+  try {
+    const resp = await fetch(`${HQ_BASE}/downloads`);
+    const data = await resp.json();
+    tests["downloads"] = { status: "pass", files: data.total, latest: data.files?.[0]?.name || "none" };
+  } catch (e) {
+    tests["downloads"] = { status: "fail", error: String(e) };
+  }
+
+  // Test 19: Connection History
+  try {
+    const history = await invoke<{ sessions: unknown[] }>("load_connection_history");
+    tests["history"] = { status: "pass", sessions: history.sessions?.length ?? 0 };
+  } catch (e) {
+    tests["history"] = { status: "fail", error: String(e) };
+  }
+
+  // Test 20: Blocked Regions
+  try {
+    const blocked = await invoke<string[]>("list_blocked_regions");
+    tests["blocked_regions"] = { status: "pass", count: blocked.length, regions: blocked };
+  } catch (e) {
+    tests["blocked_regions"] = { status: "fail", error: String(e) };
+  }
+
   results.tests = tests;
 
   // Count pass/fail

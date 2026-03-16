@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Shield, Key, Loader, CheckCircle, XCircle } from "lucide-react";
+import { Key, Loader, CheckCircle, XCircle } from "lucide-react";
 
 const HQ_BASE = "https://cs2-player-tools.maltinha.club/api";
 
@@ -73,14 +73,8 @@ export default function TokenGate({ children }: TokenGateProps) {
       <div className="w-[420px] bg-bg-card border border-border rounded-2xl p-8 shadow-2xl">
         {/* Logo */}
         <div className="text-center mb-8">
-          <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-accent/15 flex items-center justify-center">
-            <Shield size={32} className="text-accent" />
-          </div>
-          <h1 className="text-xl font-bold">
-            <span className="text-accent">CS2</span>{" "}
-            <span className="text-text-muted">Player Tools</span>
-          </h1>
-          <p className="text-text-muted text-sm mt-1">Enter your access token to continue</p>
+          <img src="/logo.png" alt="CS2 Player Tools" className="h-20 w-auto mx-auto mb-4" />
+          <p className="text-text-muted text-sm">Enter your access token to continue</p>
         </div>
 
         {/* Token Input */}
