@@ -502,7 +502,7 @@ function ServerCard({
       ) : (
         <button
           onClick={onConnect}
-          disabled={isBusy}
+          disabled={isBusy || (connectionState === "connected" && !isConnected)}
           className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-accent/15 border border-accent/30 text-accent rounded-lg text-sm font-medium hover:bg-accent/25 transition disabled:opacity-50"
         >
           {connectionState === "connecting" && isSelected ? (
@@ -869,6 +869,15 @@ export default function SmartVPN() {
   async function doConnect(serverId: string) {
     if (!token) return;
 
+    // Disconnect existing VPN if connected
+    if (connectionState === "connected" && connectedServerId) {
+      try {
+        const profileName = `smartvpn-${connectedServerId}`;
+        await invoke("vpn_deactivate", { profileName });
+      } catch {}
+      handleDisconnected();
+    }
+
     const server = servers.find((s) => s.id === serverId);
     setSelectedServerId(serverId);
     setConnectionState("connecting");
@@ -1077,12 +1086,9 @@ export default function SmartVPN() {
             <Key size={12} />
             Clear Token
           </button>
-          <button
-            onClick={fetchServers}
-            disabled={loading}
-            className="flex items-center gap-2 px-4 py-2 bg-bg-card border border-border rounded-lg text-sm text-text-muted hover:text-text hover:border-accent/50 transition disabled:opacity-50"
-          >
-            <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
+          <button onClick={fetchServers} disabled={loading}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-bg-card border border-border rounded-lg text-xs text-text-muted hover:text-text hover:border-accent/30 transition disabled:opacity-50">
+            <RefreshCw size={12} className={loading ? "animate-spin" : ""} />
             Refresh
           </button>
         </div>

@@ -6,7 +6,6 @@ import {
   Loader,
   AlertTriangle,
   RefreshCw,
-  Wifi,
   Lock,
   Unlock,
 } from "lucide-react";
@@ -119,6 +118,8 @@ export default function ServerPicker() {
     new Map()
   );
   const [pinging, setPinging] = useState(false);
+  // Keep pingAllPops available for programmatic use
+  void pinging;
   const [selectedRegions, setSelectedRegions] = useState<Set<string>>(
     new Set(ALL_REGIONS)
   );
@@ -185,6 +186,7 @@ export default function ServerPicker() {
       setPinging(false);
     }
   }
+  void pingAllPops;
 
   async function toggleBlock(pop: ValvePoP) {
     const isBlocked = blockedRegions.has(pop.code);
@@ -298,8 +300,9 @@ export default function ServerPicker() {
           </p>
         </div>
         <button onClick={loadSdrConfig} disabled={loading}
-          className="flex items-center gap-2 px-3 py-1.5 bg-bg-card border border-border rounded-lg text-xs text-text-muted hover:text-text transition disabled:opacity-50">
-          <RefreshCw size={12} className={loading ? "animate-spin" : ""} /> Refresh
+          className="flex items-center gap-1.5 px-3 py-1.5 bg-bg-card border border-border rounded-lg text-xs text-text-muted hover:text-text hover:border-accent/30 transition disabled:opacity-50">
+          <RefreshCw size={12} className={loading ? "animate-spin" : ""} />
+          Refresh
         </button>
       </div>
 
@@ -344,11 +347,6 @@ export default function ServerPicker() {
 
           {/* Action buttons — compact */}
           <div className="flex items-center gap-1.5">
-            <button onClick={pingAllPops} disabled={pinging || loading}
-              className="flex items-center gap-1 px-2.5 py-1 bg-accent/15 border border-accent/30 text-accent text-[10px] rounded hover:bg-accent/25 transition disabled:opacity-50">
-              {pinging ? <Loader size={10} className="animate-spin" /> : <Wifi size={10} />}
-              {pinging ? "..." : "Ping"}
-            </button>
             <button onClick={blockAllVisible} disabled={bulkBlocking}
               className="flex items-center gap-1 px-2.5 py-1 bg-danger/10 border border-danger/25 text-danger text-[10px] rounded hover:bg-danger/20 transition disabled:opacity-50">
               <Lock size={10} /> {bulkBlocking ? "..." : "Block All"}

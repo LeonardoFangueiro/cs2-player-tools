@@ -208,12 +208,9 @@ export default function Dashboard() {
             Network overview & Valve infrastructure status
           </p>
         </div>
-        <button
-          onClick={handleRefresh}
-          disabled={loading}
-          className="flex items-center gap-2 px-4 py-2 bg-bg-card border border-border rounded-lg text-sm text-text-muted hover:text-text hover:border-accent/50 transition disabled:opacity-50"
-        >
-          <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
+        <button onClick={handleRefresh} disabled={loading}
+          className="flex items-center gap-1.5 px-3 py-1.5 bg-bg-card border border-border rounded-lg text-xs text-text-muted hover:text-text hover:border-accent/30 transition disabled:opacity-50">
+          <RefreshCw size={12} className={loading ? "animate-spin" : ""} />
           Refresh
         </button>
       </div>
