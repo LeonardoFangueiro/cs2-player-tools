@@ -44,11 +44,13 @@ interface VpnServer {
 }
 
 interface VpnConnectResponse {
-  endpoint: string;
+  server_endpoint: string;
   server_public_key: string;
   client_address: string;
   dns: string;
+  mtu: number;
   allowed_ips: string;
+  persistent_keepalive: number;
 }
 
 interface VpnStatus {
@@ -850,19 +852,19 @@ export default function SmartVPN() {
       await invoke("vpn_save_profile", {
         profile: {
           name: profileName,
-          server_endpoint: config.endpoint,
+          server_endpoint: config.server_endpoint,
           server_public_key: config.server_public_key,
           client_private_key: clientPrivateKey,
           client_address: config.client_address,
           dns: config.dns,
-          mtu: 1420,
+          mtu: config.mtu || 1420,
           allowed_ips: config.allowed_ips,
-          persistent_keepalive: 25,
+          persistent_keepalive: config.persistent_keepalive || 25,
         },
       });
 
-      // Step 5: Activate the tunnel
-      const activateResult = await invoke<{ success: boolean; message: string }>("vpn_activate", {
+      // Step 5: Activate the tunnel (reconnect loads the saved profile)
+      const activateResult = await invoke<{ success: boolean; message: string }>("vpn_reconnect", {
         profileName,
       });
 
