@@ -13,6 +13,7 @@ import {
   Wifi,
   Gauge,
   Ruler,
+  RefreshCw,
 } from "lucide-react";
 import {
   LineChart,
@@ -23,6 +24,8 @@ import {
   ResponsiveContainer,
   CartesianGrid,
 } from "recharts";
+
+/* ── Types ── */
 
 interface PingResult {
   seq: number;
@@ -48,6 +51,7 @@ interface NetworkInfo {
 
 interface DiagResult {
   label: string;
+  icon: React.ReactNode;
   status: "idle" | "running" | "pass" | "fail";
   detail: string;
 }
@@ -66,164 +70,189 @@ interface MtuResult {
   message: string;
 }
 
-function MiniStat({
-  label,
-  value,
-  color,
-}: {
-  label: string;
-  value: string;
-  color: string;
-}) {
-  return (
-    <div className="bg-bg rounded-md border border-border px-3 py-2 text-center">
-      <div className="text-[10px] text-text-muted uppercase tracking-wider">
-        {label}
-      </div>
-      <div className={`text-lg font-bold font-mono ${color}`}>{value}</div>
-    </div>
-  );
-}
+type Tab = "ping" | "traceroute" | "dns" | "tests";
 
-function getLatencyColor(ms: number): string {
+/* ── Helpers ── */
+
+function latencyColor(ms: number): string {
   if (ms < 0) return "text-text-muted";
   if (ms < 30) return "text-success";
   if (ms < 80) return "text-warning";
   return "text-danger";
 }
 
+function bloatGradeColor(g: string): string {
+  const u = g.toUpperCase();
+  if (u === "A" || u === "B") return "text-success";
+  if (u === "C") return "text-warning";
+  return "text-danger";
+}
+
+function bloatGradeBg(g: string): string {
+  const u = g.toUpperCase();
+  if (u === "A") return "bg-success/15 border-success/30";
+  if (u === "B") return "bg-success/10 border-success/20";
+  if (u === "C") return "bg-warning/15 border-warning/30";
+  if (u === "D" || u === "F") return "bg-danger/15 border-danger/30";
+  return "bg-bg border-border";
+}
+
+function StatusIcon({ status }: { status: DiagResult["status"] }) {
+  if (status === "idle") return <span className="w-2 h-2 rounded-full bg-text-muted inline-block" />;
+  if (status === "running") return <Loader size={12} className="text-accent animate-spin" />;
+  if (status === "pass") return <CheckCircle size={12} className="text-success" />;
+  return <XCircle size={12} className="text-danger" />;
+}
+
+/* DC pill buttons */
+function DCPills({
+  dcs,
+  current,
+  onSelect,
+}: {
+  dcs: Array<{ code: string; name: string; ip: string }>;
+  current: string;
+  onSelect: (ip: string) => void;
+}) {
+  if (dcs.length === 0) return null;
+  return (
+    <div className="flex flex-wrap gap-1 mt-1.5">
+      <span className="text-[9px] text-text-muted uppercase self-center mr-0.5">DC:</span>
+      {dcs.map((dc) => (
+        <button
+          key={dc.code}
+          onClick={() => onSelect(dc.ip)}
+          className={`px-1.5 py-0.5 text-[9px] rounded border transition ${
+            current === dc.ip
+              ? "bg-accent/20 border-accent/40 text-accent"
+              : "border-border text-text-muted hover:border-accent/20"
+          }`}
+        >
+          {dc.code.toUpperCase()}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/* Badge */
+function Badge({ label, value, color }: { label: string; value: string; color: string }) {
+  return (
+    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded border border-border bg-bg text-xs font-mono ${color}`}>
+      <span className="text-[9px] text-text-muted uppercase">{label}</span> {value}
+    </span>
+  );
+}
+
+/* ── Component ── */
 
 export default function NetworkDiag() {
-  // Dynamic Valve DC list
-  const [valveDCs, setValveDCs] = useState<Array<{code: string; name: string; ip: string}>>([]);
+  const [tab, setTab] = useState<Tab>("ping");
+  const [valveDCs, setValveDCs] = useState<Array<{ code: string; name: string; ip: string }>>([]);
 
-  // Ping state — default filled on mount from valve module
+  // Ping
   const [host, setHost] = useState("");
   const [count, setCount] = useState(10);
   const [results, setResults] = useState<PingResult[]>([]);
   const [running, setRunning] = useState(false);
 
-  // Traceroute state — default filled on mount from valve module
+  // Traceroute
   const [traceHost, setTraceHost] = useState("");
   const [traceHops, setTraceHops] = useState<TraceHop[]>([]);
   const [tracing, setTracing] = useState(false);
 
-  // Quick diagnostics state
-  const [diagnostics, setDiagnostics] = useState<DiagResult[]>([
-    { label: "DNS Resolution", status: "idle", detail: "steamcommunity.com" },
-    { label: "Gateway Reachability", status: "idle", detail: "Default gateway" },
-    { label: "Nearest PoP Ping", status: "idle", detail: "Closest Valve relay" },
-  ]);
-
-  // DNS state
+  // DNS
   const [dnsHost, setDnsHost] = useState("steamcommunity.com");
   const [dnsResults, setDnsResults] = useState<string[]>([]);
   const [dnsLoading, setDnsLoading] = useState(false);
 
-  // Buffer Bloat state
+  // Buffer Bloat
   const [bloatHost, setBloatHost] = useState("1.1.1.1");
   const [bloatResult, setBloatResult] = useState<BufferBloatResult | null>(null);
   const [bloatRunning, setBloatRunning] = useState(false);
 
-  // MTU state
+  // MTU
   const [mtuHost, setMtuHost] = useState("1.1.1.1");
   const [mtuResult, setMtuResult] = useState<MtuResult | null>(null);
   const [mtuRunning, setMtuRunning] = useState(false);
 
-  // Load Valve DCs and default ping targets on mount
+  // Quick diagnostics
+  const [diagnostics, setDiagnostics] = useState<DiagResult[]>([
+    { label: "DNS", icon: <Globe size={12} />, status: "idle", detail: "steamcommunity.com" },
+    { label: "Gateway", icon: <Wifi size={12} />, status: "idle", detail: "Default gateway" },
+    { label: "Valve DC", icon: <Zap size={12} />, status: "idle", detail: "Closest relay" },
+  ]);
+
+  // Init
   useEffect(() => {
     getTopDCs(10).then(setValveDCs);
     getDefaultPingTarget().then((ip) => {
       setHost(ip);
       setTraceHost(ip);
     });
-  }, []);
-
-  // Run quick diagnostics on mount
-  useEffect(() => {
     runQuickDiagnostics();
   }, []);
 
+  /* ── Actions ── */
+
   async function runQuickDiagnostics() {
-    // DNS check
-    setDiagnostics(prev => prev.map((d, i) => i === 0 ? { ...d, status: "running" as const } : d));
+    setDiagnostics((p) => p.map((d) => ({ ...d, status: "running" as const })));
+
+    // DNS
     try {
-      const ips = await invoke<string[]>("resolve_dns", {
-        hostname: "steamcommunity.com",
-      });
-      setDiagnostics(prev => prev.map((d, i) => i === 0 ? {
-        ...d,
-        status: "pass" as const,
-        detail: `Resolved to ${ips[0]}${ips.length > 1 ? ` (+${ips.length - 1} more)` : ""}`,
-      } : d));
+      const ips = await invoke<string[]>("resolve_dns", { hostname: "steamcommunity.com" });
+      setDiagnostics((p) =>
+        p.map((d, i) =>
+          i === 0
+            ? { ...d, status: "pass" as const, detail: `Resolved ${ips[0]}${ips.length > 1 ? ` +${ips.length - 1}` : ""}` }
+            : d,
+        ),
+      );
     } catch (e) {
-      setDiagnostics(prev => prev.map((d, i) => i === 0 ? {
-        ...d,
-        status: "fail" as const,
-        detail: String(e),
-      } : d));
+      setDiagnostics((p) => p.map((d, i) => (i === 0 ? { ...d, status: "fail" as const, detail: String(e) } : d)));
     }
 
-    // Gateway check
-    setDiagnostics(prev => prev.map((d, i) => i === 1 ? { ...d, status: "running" as const } : d));
+    // Gateway
     try {
       const info = await invoke<NetworkInfo>("get_network_info");
-      if (info.default_gateway) {
-        setDiagnostics(prev => prev.map((d, i) => i === 1 ? {
-          ...d,
-          status: "pass" as const,
-          detail: `Gateway: ${info.default_gateway}`,
-        } : d));
-      } else {
-        setDiagnostics(prev => prev.map((d, i) => i === 1 ? {
-          ...d,
-          status: "fail" as const,
-          detail: "No default gateway found",
-        } : d));
-      }
+      setDiagnostics((p) =>
+        p.map((d, i) =>
+          i === 1
+            ? {
+                ...d,
+                status: info.default_gateway ? ("pass" as const) : ("fail" as const),
+                detail: info.default_gateway ? `GW ${info.default_gateway}` : "No gateway",
+              }
+            : d,
+        ),
+      );
     } catch (e) {
-      setDiagnostics(prev => prev.map((d, i) => i === 1 ? {
-        ...d,
-        status: "fail" as const,
-        detail: String(e),
-      } : d));
+      setDiagnostics((p) => p.map((d, i) => (i === 1 ? { ...d, status: "fail" as const, detail: String(e) } : d)));
     }
 
-    // Quick ping to a known Valve IP instead of ping_all_pops (TCP ping to port 27015 fails without admin)
-    setDiagnostics(prev => prev.map((d, i) => i === 2 ? { ...d, status: "running" as const } : d));
+    // Valve DC ping
     try {
       const defaultTarget = await getDefaultPingTarget();
-      const pingResult = await invoke<PingResult[]>("ping_host", { host: defaultTarget, count: 3 });
-      const successful = pingResult.filter(r => r.success);
-      if (successful.length > 0) {
-        const avg = successful.reduce((s, r) => s + r.latency_ms, 0) / successful.length;
-        setDiagnostics(prev => prev.map((d, i) => i === 2 ? {
-          ...d,
-          status: "pass" as const,
-          detail: `Valve DC: ${avg.toFixed(1)}ms`,
-        } : d));
+      const pingRes = await invoke<PingResult[]>("ping_host", { host: defaultTarget, count: 3 });
+      const ok = pingRes.filter((r) => r.success);
+      if (ok.length > 0) {
+        const avg = ok.reduce((s, r) => s + r.latency_ms, 0) / ok.length;
+        setDiagnostics((p) =>
+          p.map((d, i) => (i === 2 ? { ...d, status: "pass" as const, detail: `${avg.toFixed(0)}ms` } : d)),
+        );
       } else {
-        setDiagnostics(prev => prev.map((d, i) => i === 2 ? {
-          ...d,
-          status: "fail" as const,
-          detail: "Valve DC unreachable",
-        } : d));
+        setDiagnostics((p) => p.map((d, i) => (i === 2 ? { ...d, status: "fail" as const, detail: "Unreachable" } : d)));
       }
     } catch (e) {
-      setDiagnostics(prev => prev.map((d, i) => i === 2 ? {
-        ...d,
-        status: "fail" as const,
-        detail: String(e),
-      } : d));
+      setDiagnostics((p) => p.map((d, i) => (i === 2 ? { ...d, status: "fail" as const, detail: String(e) } : d)));
     }
   }
 
   async function runPing() {
+    setRunning(true);
+    setResults([]);
     try {
-      setRunning(true);
-      setResults([]);
-      const res = await invoke<PingResult[]>("ping_host", { host, count });
-      setResults(res);
+      setResults(await invoke<PingResult[]>("ping_host", { host, count }));
     } catch (e) {
       console.error(e);
     } finally {
@@ -232,11 +261,10 @@ export default function NetworkDiag() {
   }
 
   async function runTraceroute() {
+    setTracing(true);
+    setTraceHops([]);
     try {
-      setTracing(true);
-      setTraceHops([]);
-      const hops = await invoke<TraceHop[]>("traceroute", { host: traceHost });
-      setTraceHops(hops);
+      setTraceHops(await invoke<TraceHop[]>("traceroute", { host: traceHost }));
     } catch (e) {
       console.error(e);
     } finally {
@@ -247,8 +275,7 @@ export default function NetworkDiag() {
   async function runDns() {
     setDnsLoading(true);
     try {
-      const res = await invoke<string[]>("resolve_dns", { hostname: dnsHost });
-      setDnsResults(res);
+      setDnsResults(await invoke<string[]>("resolve_dns", { hostname: dnsHost }));
     } catch (e) {
       console.error(e);
     } finally {
@@ -257,11 +284,10 @@ export default function NetworkDiag() {
   }
 
   async function runBufferBloat() {
+    setBloatRunning(true);
+    setBloatResult(null);
     try {
-      setBloatRunning(true);
-      setBloatResult(null);
-      const res = await invoke<BufferBloatResult>("test_buffer_bloat", { targetHost: bloatHost });
-      setBloatResult(res);
+      setBloatResult(await invoke<BufferBloatResult>("test_buffer_bloat", { targetHost: bloatHost }));
     } catch (e) {
       console.error(e);
     } finally {
@@ -270,11 +296,10 @@ export default function NetworkDiag() {
   }
 
   async function runMtuDetect() {
+    setMtuRunning(true);
+    setMtuResult(null);
     try {
-      setMtuRunning(true);
-      setMtuResult(null);
-      const res = await invoke<MtuResult>("detect_mtu", { host: mtuHost });
-      setMtuResult(res);
+      setMtuResult(await invoke<MtuResult>("detect_mtu", { host: mtuHost }));
     } catch (e) {
       console.error(e);
     } finally {
@@ -282,570 +307,395 @@ export default function NetworkDiag() {
     }
   }
 
-  function getBloatGradeColor(grade: string): string {
-    switch (grade.toUpperCase()) {
-      case "A": return "text-success";
-      case "B": return "text-success";
-      case "C": return "text-warning";
-      case "D": return "text-danger";
-      case "F": return "text-danger";
-      default: return "text-text-muted";
-    }
-  }
+  /* ── Computed ── */
 
-  function getBloatGradeBg(grade: string): string {
-    switch (grade.toUpperCase()) {
-      case "A": return "bg-success/15 border-success/30";
-      case "B": return "bg-success/10 border-success/20";
-      case "C": return "bg-warning/15 border-warning/30";
-      case "D": return "bg-danger/15 border-danger/30";
-      case "F": return "bg-danger/15 border-danger/30";
-      default: return "bg-bg border-border";
-    }
-  }
-
-  // Ping stats
-  const successResults = useMemo(
-    () => results.filter((r) => r.success),
-    [results]
-  );
-  const successCount = successResults.length;
-  const avgLatency =
-    successResults.reduce((sum, r) => sum + r.latency_ms, 0) /
-    (successCount || 1);
-  const minLatency =
-    successCount > 0
-      ? Math.min(...successResults.map((r) => r.latency_ms))
-      : 0;
-  const maxLatency =
-    successCount > 0
-      ? Math.max(...successResults.map((r) => r.latency_ms))
-      : 0;
-  const lossPercent =
-    results.length > 0
-      ? ((results.length - successCount) / results.length) * 100
-      : 0;
-
-  // Jitter (standard deviation of latencies)
+  const ok = useMemo(() => results.filter((r) => r.success), [results]);
+  const avgMs = ok.reduce((s, r) => s + r.latency_ms, 0) / (ok.length || 1);
+  const minMs = ok.length ? Math.min(...ok.map((r) => r.latency_ms)) : 0;
+  const maxMs = ok.length ? Math.max(...ok.map((r) => r.latency_ms)) : 0;
+  const lossPct = results.length ? ((results.length - ok.length) / results.length) * 100 : 0;
   const jitter = useMemo(() => {
-    if (successResults.length < 2) return 0;
-    const mean = avgLatency;
-    const variance =
-      successResults.reduce(
-        (sum, r) => sum + Math.pow(r.latency_ms - mean, 2),
-        0
-      ) / successResults.length;
-    return Math.sqrt(variance);
-  }, [successResults, avgLatency]);
-
-  // Chart data for ping line chart
+    if (ok.length < 2) return 0;
+    const v = ok.reduce((s, r) => s + Math.pow(r.latency_ms - avgMs, 2), 0) / ok.length;
+    return Math.sqrt(v);
+  }, [ok, avgMs]);
   const chartData = useMemo(
-    () =>
-      results.map((r) => ({
-        seq: r.seq + 1,
-        latency: r.success ? Math.round(r.latency_ms * 100) / 100 : null,
-      })),
-    [results]
+    () => results.map((r) => ({ seq: r.seq + 1, latency: r.success ? Math.round(r.latency_ms * 100) / 100 : null })),
+    [results],
   );
 
-  const diagIcons = [
-    <Globe size={16} />,
-    <Wifi size={16} />,
-    <Zap size={16} />,
+  /* ── Tabs config ── */
+
+  const tabs: { key: Tab; label: string; icon: React.ReactNode }[] = [
+    { key: "ping", label: "Ping", icon: <Activity size={13} /> },
+    { key: "traceroute", label: "Traceroute", icon: <Route size={13} /> },
+    { key: "dns", label: "DNS", icon: <Search size={13} /> },
+    { key: "tests", label: "Tests", icon: <Gauge size={13} /> },
   ];
 
+  const inputCls = "bg-bg border border-border rounded px-2 py-1.5 text-xs text-text focus:outline-none focus:border-accent";
+  const btnCls = "px-3 py-1.5 bg-accent text-white text-xs rounded hover:bg-accent/80 transition disabled:opacity-50 whitespace-nowrap";
+
+  /* ── Render ── */
+
   return (
-    <div>
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-accent">Network Diagnostics</h1>
-        <p className="text-text-muted text-sm mt-1">
-          Ping, traceroute, DNS resolution, and connection testing
-        </p>
+    <div className="space-y-3">
+      {/* Header + Quick Diagnostics */}
+      <div className="bg-bg-card border border-border rounded-lg px-4 py-2.5">
+        <div className="flex items-center justify-between mb-2">
+          <h1 className="text-lg font-bold text-accent">Diagnostics</h1>
+          <button
+            onClick={runQuickDiagnostics}
+            className="p-1.5 rounded hover:bg-bg-hover transition text-text-muted hover:text-accent"
+            title="Refresh diagnostics"
+          >
+            <RefreshCw size={14} />
+          </button>
+        </div>
+        <div className="flex items-center gap-4 text-xs">
+          {diagnostics.map((d) => (
+            <div key={d.label} className="flex items-center gap-1.5">
+              <span className="text-accent2">{d.icon}</span>
+              <StatusIcon status={d.status} />
+              <span className="text-text-muted">{d.label}:</span>
+              <span
+                className={`font-mono ${
+                  d.status === "pass" ? "text-success" : d.status === "fail" ? "text-danger" : "text-text-muted"
+                }`}
+              >
+                {d.detail}
+              </span>
+            </div>
+          ))}
+        </div>
       </div>
 
-      {/* Quick Diagnostics */}
-      <div className="grid grid-cols-3 gap-4 mb-6">
-        {diagnostics.map((diag, idx) => (
-          <div
-            key={diag.label}
-            className="bg-bg-card border border-border rounded-lg p-4"
+      {/* Tab bar */}
+      <div className="flex gap-1 bg-bg-card border border-border rounded-lg p-1">
+        {tabs.map((t) => (
+          <button
+            key={t.key}
+            onClick={() => setTab(t.key)}
+            className={`flex items-center gap-1.5 px-3 py-1.5 text-xs rounded transition ${
+              tab === t.key ? "bg-accent/15 text-accent font-semibold" : "text-text-muted hover:text-text hover:bg-bg-hover"
+            }`}
           >
-            <div className="flex items-center gap-2 mb-2">
-              <span className="text-accent2">{diagIcons[idx]}</span>
-              <span className="text-xs uppercase tracking-wider text-text-muted">
-                {diag.label}
-              </span>
-              <span className="ml-auto">
-                {diag.status === "idle" && (
-                  <span className="w-2 h-2 rounded-full bg-text-muted inline-block" />
-                )}
-                {diag.status === "running" && (
-                  <Loader size={14} className="text-accent animate-spin" />
-                )}
-                {diag.status === "pass" && (
-                  <CheckCircle size={14} className="text-success" />
-                )}
-                {diag.status === "fail" && (
-                  <XCircle size={14} className="text-danger" />
-                )}
-              </span>
-            </div>
-            <div
-              className={`text-sm font-mono ${
-                diag.status === "pass"
-                  ? "text-success"
-                  : diag.status === "fail"
-                  ? "text-danger"
-                  : "text-text-muted"
-              }`}
-            >
-              {diag.detail}
-            </div>
-          </div>
+            {t.icon} {t.label}
+          </button>
         ))}
       </div>
 
-      {/* Row 1: Ping + Traceroute side by side */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
-        {/* Ping Tool */}
-        <div className="bg-bg-card border border-border rounded-lg p-4">
-          <h2 className="text-sm font-semibold mb-4 flex items-center gap-2">
-            <Activity size={16} className="text-accent2" /> Ping Test
-          </h2>
-          <div className="flex gap-3 mb-4">
-            <input
-              type="text"
-              value={host}
-              onChange={(e) => setHost(e.target.value)}
-              placeholder="Host or IP"
-              className="flex-1 bg-bg border border-border rounded-md px-3 py-2 text-sm text-text focus:outline-none focus:border-accent"
-            />
-            <input
-              type="number"
-              value={count}
-              onChange={(e) => setCount(Number(e.target.value))}
-              min={1}
-              max={100}
-              className="w-20 bg-bg border border-border rounded-md px-3 py-2 text-sm text-text focus:outline-none focus:border-accent"
-            />
-            <button
-              onClick={runPing}
-              disabled={running}
-              className="px-5 py-2 bg-accent text-white text-sm rounded-md hover:bg-accent/80 transition disabled:opacity-50"
-            >
-              {running ? "Running..." : "Ping"}
-            </button>
-          </div>
-          <div className="flex flex-wrap gap-1.5 mb-4">
-            <span className="text-[10px] text-text-muted uppercase tracking-wider self-center mr-1">Valve DCs:</span>
-            {valveDCs.map(dc => (
-              <button key={dc.code} onClick={() => setHost(dc.ip)}
-                className={`px-2 py-1 text-[10px] rounded border transition ${host === dc.ip ? 'bg-accent/20 border-accent/40 text-accent' : 'border-border text-text-muted hover:border-accent/20'}`}>
-                {dc.code.toUpperCase()} ({dc.name})
+      {/* Tab content */}
+      <div className="bg-bg-card border border-border rounded-lg p-4">
+        {/* ── PING TAB ── */}
+        {tab === "ping" && (
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <input
+                type="text"
+                value={host}
+                onChange={(e) => setHost(e.target.value)}
+                placeholder="Host or IP"
+                className={`flex-1 ${inputCls}`}
+              />
+              <input
+                type="number"
+                value={count}
+                onChange={(e) => setCount(Number(e.target.value))}
+                min={1}
+                max={100}
+                className={`w-16 ${inputCls}`}
+              />
+              <button onClick={runPing} disabled={running} className={btnCls}>
+                {running ? "Running..." : "Ping"}
               </button>
-            ))}
-          </div>
+            </div>
+            <DCPills dcs={valveDCs} current={host} onSelect={setHost} />
 
-          {results.length > 0 && (
-            <>
-              {/* Stats */}
-              <div className="grid grid-cols-5 gap-3 mb-4">
-                <MiniStat
-                  label="Min"
-                  value={`${minLatency.toFixed(1)}ms`}
-                  color="text-success"
-                />
-                <MiniStat
-                  label="Avg"
-                  value={`${avgLatency.toFixed(1)}ms`}
-                  color="text-accent2"
-                />
-                <MiniStat
-                  label="Max"
-                  value={`${maxLatency.toFixed(1)}ms`}
-                  color="text-warning"
-                />
-                <MiniStat
-                  label="Jitter"
-                  value={`${jitter.toFixed(1)}ms`}
-                  color="text-orange"
-                />
-                <MiniStat
-                  label="Loss"
-                  value={`${lossPercent.toFixed(1)}%`}
-                  color={lossPercent > 0 ? "text-danger" : "text-success"}
-                />
-              </div>
+            {results.length > 0 && (
+              <>
+                {/* Stats badges */}
+                <div className="flex flex-wrap gap-1.5 pt-2">
+                  <Badge label="Min" value={`${minMs.toFixed(1)}ms`} color="text-success" />
+                  <Badge label="Avg" value={`${avgMs.toFixed(1)}ms`} color="text-accent2" />
+                  <Badge label="Max" value={`${maxMs.toFixed(1)}ms`} color="text-warning" />
+                  <Badge label="Jitter" value={`${jitter.toFixed(1)}ms`} color="text-orange" />
+                  <Badge label="Loss" value={`${lossPct.toFixed(1)}%`} color={lossPct > 0 ? "text-danger" : "text-success"} />
+                </div>
 
-              {/* Line Chart */}
-              <div className="h-48 bg-bg rounded-lg border border-border p-2 mb-4">
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={chartData}>
-                    <CartesianGrid
-                      strokeDasharray="3 3"
-                      stroke="#2a2620"
-                    />
-                    <XAxis
-                      dataKey="seq"
-                      tick={{ fill: "#8a8070", fontSize: 11 }}
-                      axisLine={{ stroke: "#2a2620" }}
-                      tickLine={false}
-                      label={{
-                        value: "Sequence",
-                        position: "insideBottom",
-                        offset: -5,
-                        fill: "#8a8070",
-                        fontSize: 10,
-                      }}
-                    />
-                    <YAxis
-                      tick={{ fill: "#8a8070", fontSize: 11 }}
-                      axisLine={{ stroke: "#2a2620" }}
-                      tickLine={false}
-                      unit="ms"
-                    />
-                    <Tooltip
-                      contentStyle={{
-                        background: "#131210",
-                        border: "1px solid #2a2620",
-                        borderRadius: 8,
-                        color: "#e8e4dc",
-                        fontSize: 12,
-                      }}
-                      formatter={(value) =>
-                        value !== null && value !== undefined
-                          ? [`${value}ms`, "Latency"]
-                          : ["Timeout", "Latency"]
-                      }
-                    />
-                    <Line
-                      type="monotone"
-                      dataKey="latency"
-                      stroke="#e67e22"
-                      strokeWidth={2}
-                      dot={{ fill: "#e67e22", r: 3 }}
-                      activeDot={{ fill: "#f39c12", r: 5 }}
-                      connectNulls={false}
-                    />
-                  </LineChart>
-                </ResponsiveContainer>
-              </div>
-
-              {/* Individual results */}
-              <div className="space-y-1 max-h-64 overflow-y-auto">
-                {results.map((r) => (
-                  <div
-                    key={r.seq}
-                    className={`flex items-center gap-3 px-3 py-1.5 rounded text-xs font-mono ${
-                      r.success ? "text-text" : "text-danger bg-danger/5"
-                    }`}
-                  >
-                    <span className="text-text-muted w-8">#{r.seq + 1}</span>
-                    <span className="flex-1">{r.host}</span>
-                    {r.success ? (
-                      <span
-                        className={
-                          r.latency_ms < 50
-                            ? "text-success"
-                            : r.latency_ms < 100
-                            ? "text-warning"
-                            : "text-danger"
+                {/* Chart */}
+                <div className="h-36 bg-bg rounded border border-border p-1">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart data={chartData}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#2a2620" />
+                      <XAxis
+                        dataKey="seq"
+                        tick={{ fill: "#8a8070", fontSize: 10 }}
+                        axisLine={{ stroke: "#2a2620" }}
+                        tickLine={false}
+                      />
+                      <YAxis
+                        tick={{ fill: "#8a8070", fontSize: 10 }}
+                        axisLine={{ stroke: "#2a2620" }}
+                        tickLine={false}
+                        unit="ms"
+                      />
+                      <Tooltip
+                        contentStyle={{
+                          background: "#131210",
+                          border: "1px solid #2a2620",
+                          borderRadius: 6,
+                          color: "#e8e4dc",
+                          fontSize: 11,
+                        }}
+                        formatter={(value) =>
+                          value !== null && value !== undefined ? [`${value}ms`, "Latency"] : ["Timeout", "Latency"]
                         }
-                      >
-                        {r.latency_ms.toFixed(2)}ms
-                      </span>
-                    ) : (
-                      <span className="text-danger">{r.error || "Failed"}</span>
-                    )}
+                      />
+                      <Line
+                        type="monotone"
+                        dataKey="latency"
+                        stroke="#e67e22"
+                        strokeWidth={1.5}
+                        dot={{ fill: "#e67e22", r: 2 }}
+                        activeDot={{ fill: "#f39c12", r: 4 }}
+                        connectNulls={false}
+                      />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+
+                {/* Results list */}
+                <div className="space-y-0.5 max-h-48 overflow-y-auto">
+                  {results.map((r) => (
+                    <div
+                      key={r.seq}
+                      className={`flex items-center gap-2 px-2 py-1 rounded text-[11px] font-mono ${
+                        r.success ? "text-text" : "text-danger bg-danger/5"
+                      }`}
+                    >
+                      <span className="text-text-muted w-6">#{r.seq + 1}</span>
+                      <span className="flex-1 truncate">{r.host}</span>
+                      {r.success ? (
+                        <span className={latencyColor(r.latency_ms)}>{r.latency_ms.toFixed(2)}ms</span>
+                      ) : (
+                        <span className="text-danger">{r.error || "Failed"}</span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+        )}
+
+        {/* ── TRACEROUTE TAB ── */}
+        {tab === "traceroute" && (
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <input
+                type="text"
+                value={traceHost}
+                onChange={(e) => setTraceHost(e.target.value)}
+                placeholder="Host or IP"
+                className={`flex-1 ${inputCls}`}
+              />
+              <button onClick={runTraceroute} disabled={tracing} className={btnCls}>
+                {tracing ? "Tracing..." : "Traceroute"}
+              </button>
+            </div>
+            <DCPills dcs={valveDCs} current={traceHost} onSelect={setTraceHost} />
+
+            {tracing && (
+              <div className="flex items-center gap-2 text-text-muted text-xs pt-1">
+                <Loader size={12} className="animate-spin" /> Running traceroute...
+              </div>
+            )}
+
+            {traceHops.length > 0 && (
+              <div className="overflow-x-auto pt-1">
+                <table className="w-full text-[11px]">
+                  <thead>
+                    <tr className="border-b border-border text-text-muted uppercase tracking-wider">
+                      <th className="text-left py-1 px-2 w-10">Hop</th>
+                      <th className="text-left py-1 px-2">IP</th>
+                      <th className="text-left py-1 px-2 w-20">ms</th>
+                      <th className="text-left py-1 px-2 w-28">Loss</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {traceHops.map((hop) => (
+                      <tr key={hop.hop} className="border-b border-border/50 hover:bg-bg-hover transition">
+                        <td className="py-1 px-2 font-mono text-text-muted">{hop.hop}</td>
+                        <td className="py-1 px-2 font-mono">
+                          {hop.ip === "*" ? (
+                            <span className="text-text-muted">*</span>
+                          ) : (
+                            <span className="text-accent2">{hop.ip}</span>
+                          )}
+                          {hop.hostname && <span className="text-text-muted text-[10px] ml-1">({hop.hostname})</span>}
+                        </td>
+                        <td className="py-1 px-2">
+                          {hop.latency_ms >= 0 ? (
+                            <span className={`font-mono font-semibold ${latencyColor(hop.latency_ms)}`}>
+                              {hop.latency_ms.toFixed(1)}
+                            </span>
+                          ) : (
+                            <span className="text-text-muted font-mono">*</span>
+                          )}
+                        </td>
+                        <td className="py-1 px-2">
+                          <div className="flex items-center gap-1.5">
+                            <div className="flex-1 h-1.5 bg-bg rounded-full overflow-hidden">
+                              <div
+                                className={`h-full rounded-full ${
+                                  hop.loss_percent === 0
+                                    ? "bg-success"
+                                    : hop.loss_percent < 50
+                                      ? "bg-warning"
+                                      : "bg-danger"
+                                }`}
+                                style={{ width: `${100 - hop.loss_percent}%` }}
+                              />
+                            </div>
+                            <span
+                              className={`text-[10px] font-mono w-8 text-right ${
+                                hop.loss_percent === 0
+                                  ? "text-success"
+                                  : hop.loss_percent < 50
+                                    ? "text-warning"
+                                    : "text-danger"
+                              }`}
+                            >
+                              {hop.loss_percent.toFixed(0)}%
+                            </span>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── DNS TAB ── */}
+        {tab === "dns" && (
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <input
+                type="text"
+                value={dnsHost}
+                onChange={(e) => setDnsHost(e.target.value)}
+                placeholder="Hostname"
+                className={`flex-1 ${inputCls}`}
+              />
+              <button onClick={runDns} disabled={dnsLoading} className={btnCls}>
+                {dnsLoading ? "Resolving..." : "Resolve"}
+              </button>
+            </div>
+            {dnsResults.length > 0 && (
+              <div className="space-y-0.5 pt-1">
+                {dnsResults.map((ip, i) => (
+                  <div key={i} className="px-2 py-1 bg-bg rounded text-xs font-mono text-accent2">
+                    {ip}
                   </div>
                 ))}
               </div>
-            </>
-          )}
-        </div>
-
-        {/* Traceroute */}
-        <div className="bg-bg-card border border-border rounded-lg p-4">
-          <h2 className="text-sm font-semibold mb-4 flex items-center gap-2">
-            <Route size={16} className="text-accent2" /> Traceroute
-          </h2>
-          <div className="flex flex-wrap gap-1.5 mb-3">
-            <span className="text-[10px] text-text-muted uppercase tracking-wider self-center mr-1">Valve DCs:</span>
-            {valveDCs.map(dc => (
-              <button key={dc.code} onClick={() => setTraceHost(dc.ip)}
-                className={`px-2 py-1 text-[10px] rounded border transition ${traceHost === dc.ip ? 'bg-accent/20 border-accent/40 text-accent' : 'border-border text-text-muted hover:border-accent/20'}`}>
-                {dc.code.toUpperCase()} ({dc.name})
-              </button>
-            ))}
+            )}
           </div>
-          <div className="flex gap-3 mb-4">
-            <input
-              type="text"
-              value={traceHost}
-              onChange={(e) => setTraceHost(e.target.value)}
-              placeholder="Host or IP"
-              className="flex-1 bg-bg border border-border rounded-md px-3 py-2 text-sm text-text focus:outline-none focus:border-accent"
-            />
-            <button
-              onClick={runTraceroute}
-              disabled={tracing}
-              className="px-5 py-2 bg-accent text-white text-sm rounded-md hover:bg-accent/80 transition disabled:opacity-50"
-            >
-              {tracing ? "Tracing..." : "Traceroute"}
-            </button>
-          </div>
+        )}
 
-          {tracing && (
-            <div className="flex items-center gap-2 text-text-muted text-sm">
-              <Loader size={14} className="animate-spin" />
-              Running traceroute... this may take up to 30 seconds.
-            </div>
-          )}
-
-          {traceHops.length > 0 && (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-border text-text-muted text-xs uppercase tracking-wider">
-                    <th className="text-left py-2 px-3 w-12">Hop</th>
-                    <th className="text-left py-2 px-3">IP Address</th>
-                    <th className="text-left py-2 px-3 w-28">Latency</th>
-                    <th className="text-left py-2 px-3 w-40">Loss</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {traceHops.map((hop) => (
-                    <tr
-                      key={hop.hop}
-                      className="border-b border-border/50 hover:bg-bg-hover transition"
-                    >
-                      <td className="py-2 px-3 font-mono text-text-muted">
-                        {hop.hop}
-                      </td>
-                      <td className="py-2 px-3 font-mono">
-                        {hop.ip === "*" ? (
-                          <span className="text-text-muted">*</span>
-                        ) : (
-                          <span className="text-accent2">{hop.ip}</span>
-                        )}
-                        {hop.hostname && (
-                          <span className="text-text-muted text-xs ml-2">
-                            ({hop.hostname})
-                          </span>
-                        )}
-                      </td>
-                      <td className="py-2 px-3">
-                        {hop.latency_ms >= 0 ? (
-                          <span
-                            className={`font-mono font-semibold ${getLatencyColor(hop.latency_ms)}`}
-                          >
-                            {hop.latency_ms.toFixed(1)}ms
-                          </span>
-                        ) : (
-                          <span className="text-text-muted font-mono">*</span>
-                        )}
-                      </td>
-                      <td className="py-2 px-3">
-                        <div className="flex items-center gap-2">
-                          <div className="flex-1 h-2 bg-bg rounded-full overflow-hidden">
-                            <div
-                              className={`h-full rounded-full transition-all ${
-                                hop.loss_percent === 0
-                                  ? "bg-success"
-                                  : hop.loss_percent < 50
-                                  ? "bg-warning"
-                                  : "bg-danger"
-                              }`}
-                              style={{
-                                width: `${100 - hop.loss_percent}%`,
-                              }}
-                            />
-                          </div>
-                          <span
-                            className={`text-xs font-mono w-10 text-right ${
-                              hop.loss_percent === 0
-                                ? "text-success"
-                                : hop.loss_percent < 50
-                                ? "text-warning"
-                                : "text-danger"
-                            }`}
-                          >
-                            {hop.loss_percent.toFixed(0)}%
-                          </span>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Row 2: DNS + Buffer Bloat + MTU */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        {/* DNS Tool */}
-        <div className="bg-bg-card border border-border rounded-lg p-4">
-          <h2 className="text-sm font-semibold mb-4 flex items-center gap-2">
-            <Search size={16} className="text-accent2" /> DNS Resolution
-          </h2>
-          <div className="flex gap-3 mb-4">
-            <input
-              type="text"
-              value={dnsHost}
-              onChange={(e) => setDnsHost(e.target.value)}
-              placeholder="Hostname"
-              className="flex-1 bg-bg border border-border rounded-md px-3 py-2 text-sm text-text focus:outline-none focus:border-accent"
-            />
-            <button
-              onClick={runDns}
-              disabled={dnsLoading}
-              className="px-5 py-2 bg-accent text-white text-sm rounded-md hover:bg-accent/80 transition disabled:opacity-50"
-            >
-              {dnsLoading ? "Resolving..." : "Resolve"}
-            </button>
-          </div>
-          {dnsResults.length > 0 && (
-            <div className="space-y-1">
-              {dnsResults.map((ip, i) => (
-                <div
-                  key={i}
-                  className="px-3 py-1.5 bg-bg rounded text-sm font-mono text-accent2"
-                >
-                  {ip}
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* Buffer Bloat Test */}
-        <div className="bg-bg-card border border-border rounded-lg p-4">
-          <h2 className="text-sm font-semibold mb-4 flex items-center gap-2">
-            <Gauge size={16} className="text-accent2" /> Buffer Bloat Test
-          </h2>
-          <div className="flex gap-3 mb-4">
-            <input
-              type="text"
-              value={bloatHost}
-              onChange={(e) => setBloatHost(e.target.value)}
-              placeholder="Target host"
-              className="flex-1 bg-bg border border-border rounded-md px-3 py-2 text-sm text-text focus:outline-none focus:border-accent"
-            />
-            <button
-              onClick={runBufferBloat}
-              disabled={bloatRunning}
-              className="px-5 py-2 bg-accent text-white text-sm rounded-md hover:bg-accent/80 transition disabled:opacity-50"
-            >
-              {bloatRunning ? "Testing..." : "Test"}
-            </button>
-          </div>
-
-          {bloatRunning && (
-            <div className="flex items-center gap-2 text-text-muted text-sm">
-              <Loader size={14} className="animate-spin" />
-              Running buffer bloat test...
-            </div>
-          )}
-
-          {bloatResult && (
-            <div className="space-y-3">
-              {/* Grade */}
-              <div className={`inline-flex items-center gap-3 px-4 py-3 rounded-lg border ${getBloatGradeBg(bloatResult.grade)}`}>
-                <span className={`text-3xl font-bold font-mono ${getBloatGradeColor(bloatResult.grade)}`}>
-                  {bloatResult.grade}
-                </span>
-                <div className="text-sm">
-                  <div className="text-text font-semibold">Buffer Bloat Grade</div>
-                  <div className="text-text-muted text-xs">{bloatResult.message}</div>
-                </div>
+        {/* ── TESTS TAB (Buffer Bloat + MTU) ── */}
+        {tab === "tests" && (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Buffer Bloat */}
+            <div className="space-y-2">
+              <h3 className="text-xs font-semibold flex items-center gap-1.5">
+                <Gauge size={13} className="text-accent2" /> Buffer Bloat
+              </h3>
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  value={bloatHost}
+                  onChange={(e) => setBloatHost(e.target.value)}
+                  placeholder="Target host"
+                  className={`flex-1 ${inputCls}`}
+                />
+                <button onClick={runBufferBloat} disabled={bloatRunning} className={btnCls}>
+                  {bloatRunning ? "Testing..." : "Test"}
+                </button>
               </div>
-
-              {/* Stats */}
-              <div className="grid grid-cols-3 gap-3">
-                <div className="bg-bg rounded-md border border-border px-3 py-2 text-center">
-                  <div className="text-[10px] text-text-muted uppercase tracking-wider">Idle Ping</div>
-                  <div className="text-lg font-bold font-mono text-success">
-                    {bloatResult.idle_ping_ms.toFixed(1)}ms
-                  </div>
+              {bloatRunning && (
+                <div className="flex items-center gap-1.5 text-text-muted text-xs">
+                  <Loader size={12} className="animate-spin" /> Testing...
                 </div>
-                <div className="bg-bg rounded-md border border-border px-3 py-2 text-center">
-                  <div className="text-[10px] text-text-muted uppercase tracking-wider">Loaded Ping</div>
-                  <div className="text-lg font-bold font-mono text-warning">
-                    {bloatResult.loaded_ping_ms.toFixed(1)}ms
+              )}
+              {bloatResult && (
+                <div className="space-y-2">
+                  <div
+                    className={`inline-flex items-center gap-2 px-3 py-1.5 rounded border text-xs ${bloatGradeBg(bloatResult.grade)}`}
+                  >
+                    <span className={`text-xl font-bold font-mono ${bloatGradeColor(bloatResult.grade)}`}>
+                      {bloatResult.grade}
+                    </span>
+                    <span className="text-text-muted">{bloatResult.message}</span>
                   </div>
-                </div>
-                <div className="bg-bg rounded-md border border-border px-3 py-2 text-center">
-                  <div className="text-[10px] text-text-muted uppercase tracking-wider">Bloat</div>
-                  <div className={`text-lg font-bold font-mono ${bloatResult.bloat_ms > 50 ? "text-danger" : bloatResult.bloat_ms > 20 ? "text-warning" : "text-success"}`}>
-                    +{bloatResult.bloat_ms.toFixed(1)}ms
+                  <div className="flex gap-2">
+                    <Badge label="Idle" value={`${bloatResult.idle_ping_ms.toFixed(1)}ms`} color="text-success" />
+                    <Badge label="Loaded" value={`${bloatResult.loaded_ping_ms.toFixed(1)}ms`} color="text-warning" />
+                    <Badge
+                      label="Bloat"
+                      value={`+${bloatResult.bloat_ms.toFixed(1)}ms`}
+                      color={
+                        bloatResult.bloat_ms > 50 ? "text-danger" : bloatResult.bloat_ms > 20 ? "text-warning" : "text-success"
+                      }
+                    />
                   </div>
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* MTU Detection */}
-        <div className="bg-bg-card border border-border rounded-lg p-4">
-          <h2 className="text-sm font-semibold mb-4 flex items-center gap-2">
-            <Ruler size={16} className="text-accent2" /> MTU Detection
-          </h2>
-          <div className="flex gap-3 mb-4">
-            <input
-              type="text"
-              value={mtuHost}
-              onChange={(e) => setMtuHost(e.target.value)}
-              placeholder="Target host"
-              className="flex-1 bg-bg border border-border rounded-md px-3 py-2 text-sm text-text focus:outline-none focus:border-accent"
-            />
-            <button
-              onClick={runMtuDetect}
-              disabled={mtuRunning}
-              className="px-5 py-2 bg-accent text-white text-sm rounded-md hover:bg-accent/80 transition disabled:opacity-50"
-            >
-              {mtuRunning ? "Detecting..." : "Detect MTU"}
-            </button>
-          </div>
-
-          {mtuRunning && (
-            <div className="flex items-center gap-2 text-text-muted text-sm">
-              <Loader size={14} className="animate-spin" />
-              Detecting optimal MTU size...
-            </div>
-          )}
-
-          {mtuResult && (
-            <div className="space-y-3">
-              <div className="grid grid-cols-3 gap-3">
-                <div className="bg-bg rounded-md border border-border px-3 py-2 text-center">
-                  <div className="text-[10px] text-text-muted uppercase tracking-wider">Optimal MTU</div>
-                  <div className="text-lg font-bold font-mono text-accent2">
-                    {mtuResult.optimal_mtu}
-                  </div>
-                </div>
-                <div className="bg-bg rounded-md border border-border px-3 py-2 text-center">
-                  <div className="text-[10px] text-text-muted uppercase tracking-wider">WireGuard MTU</div>
-                  <div className="text-lg font-bold font-mono text-accent">
-                    {mtuResult.optimal_mtu - 80}
-                  </div>
-                </div>
-                <div className="bg-bg rounded-md border border-border px-3 py-2 text-center">
-                  <div className="text-[10px] text-text-muted uppercase tracking-wider">Tested Host</div>
-                  <div className="text-sm font-mono text-text-muted truncate">
-                    {mtuResult.tested_host || "--"}
-                  </div>
-                </div>
-              </div>
-              {mtuResult.message && (
-                <div className="text-xs text-text-muted bg-bg rounded-md border border-border px-3 py-2">
-                  {mtuResult.message}
                 </div>
               )}
             </div>
-          )}
-        </div>
+
+            {/* MTU */}
+            <div className="space-y-2">
+              <h3 className="text-xs font-semibold flex items-center gap-1.5">
+                <Ruler size={13} className="text-accent2" /> MTU Detection
+              </h3>
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  value={mtuHost}
+                  onChange={(e) => setMtuHost(e.target.value)}
+                  placeholder="Target host"
+                  className={`flex-1 ${inputCls}`}
+                />
+                <button onClick={runMtuDetect} disabled={mtuRunning} className={btnCls}>
+                  {mtuRunning ? "Detecting..." : "Detect"}
+                </button>
+              </div>
+              {mtuRunning && (
+                <div className="flex items-center gap-1.5 text-text-muted text-xs">
+                  <Loader size={12} className="animate-spin" /> Detecting...
+                </div>
+              )}
+              {mtuResult && (
+                <div className="space-y-2">
+                  <div className="flex gap-2">
+                    <Badge label="MTU" value={`${mtuResult.optimal_mtu}`} color="text-accent2" />
+                    <Badge label="WireGuard" value={`${mtuResult.optimal_mtu - 80}`} color="text-accent" />
+                    <Badge label="Host" value={mtuResult.tested_host || "--"} color="text-text-muted" />
+                  </div>
+                  {mtuResult.message && (
+                    <div className="text-[10px] text-text-muted bg-bg rounded border border-border px-2 py-1">
+                      {mtuResult.message}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
