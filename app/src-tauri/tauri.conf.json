@@ -14,9 +14,9 @@
       {
         "title": "CS2 Player Tools",
         "width": 1280,
-        "height": 800,
-        "minWidth": 960,
-        "minHeight": 640,
+        "height": 720,
+        "minWidth": 1024,
+        "minHeight": 600,
         "decorations": true,
         "resizable": true
       }
