@@ -585,16 +585,19 @@ function ConnectedBanner({
         </div>
         <div className="bg-bg-card/50 rounded-lg p-3">
           <div className="text-[10px] text-text-muted uppercase tracking-wider mb-1 flex items-center gap-1">
-            <ArrowDownUp size={10} /> Transfer RX
+            <ArrowDownUp size={10} /> ↓ Download
           </div>
-          <div className="text-sm font-mono text-accent">{status?.transfer_rx ?? "0 B"}</div>
+          <div className="text-sm font-mono text-success">{status?.transfer_rx ?? "0 B"}</div>
         </div>
         <div className="bg-bg-card/50 rounded-lg p-3">
           <div className="text-[10px] text-text-muted uppercase tracking-wider mb-1 flex items-center gap-1">
-            <ArrowDownUp size={10} /> Transfer TX
+            <ArrowDownUp size={10} /> ↑ Upload
           </div>
-          <div className="text-sm font-mono text-accent">{status?.transfer_tx ?? "0 B"}</div>
+          <div className="text-sm font-mono text-orange">{status?.transfer_tx ?? "0 B"}</div>
         </div>
+      </div>
+      <div className="text-[10px] text-text-muted/50 text-center mt-2">
+        CS2-only split tunnel — traffic only flows when connected to Valve servers (CS2, Steam)
       </div>
     </div>
   );
