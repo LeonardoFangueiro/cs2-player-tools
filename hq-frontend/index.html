@@ -604,7 +604,7 @@
                         </div>
                         <div>
                             <label class="text-muted" style="font-size:11px;display:block;margin-bottom:4px;">Max Uses (0 = unlimited)</label>
-                            <input class="input" type="number" id="token-max-uses" value="0" min="0">
+                            <input class="input" type="text" inputmode="numeric" pattern="[0-9]*" id="token-max-uses" value="0">
                         </div>
                         <button type="submit" class="btn btn-primary" style="align-self:flex-start;">🔑 Generate Token</button>
                     </form>
@@ -644,7 +644,7 @@
                             </div>
                             <div>
                                 <label class="text-muted" style="font-size:11px;display:block;margin-bottom:4px;">SSH Port</label>
-                                <input class="input" type="number" id="vpn-ssh-port" placeholder="22" value="22">
+                                <input class="input" type="text" inputmode="numeric" pattern="[0-9]*" id="vpn-ssh-port" placeholder="22" value="22">
                             </div>
                             <div>
                                 <label class="text-muted" style="font-size:11px;display:block;margin-bottom:4px;">SSH User</label>
@@ -1440,10 +1440,12 @@
                             </div>
                         </div>
                         <div style="display:flex;gap:6px;">
-                            <button class="btn btn-sm" onclick="checkVpnServer('${esc(s.id)}')">🔍 Status</button>
+                            <button class="btn btn-sm" onclick="togglePeers('${esc(s.id)}')">&#128101; Peers</button>
+                            <button class="btn btn-sm" onclick="checkVpnServer('${esc(s.id)}')">&#128269; Status</button>
                             <button class="btn btn-sm btn-danger" onclick="deleteVpnServer('${esc(s.id)}')">Delete</button>
                         </div>
                     </div>
+                    <div id="peers-${esc(s.id)}" style="display:none;margin-top:8px;"></div>
                 </div>
             `).join('');
         } catch {
@@ -1532,6 +1534,53 @@
         } catch {
             toast('Failed to delete VPN server', 'error');
         }
+    }
+
+    function togglePeers(serverId) {
+        const el = document.getElementById(`peers-${serverId}`);
+        if (!el) return;
+        if (el.style.display === 'none') {
+            el.style.display = 'block';
+            loadPeers(serverId);
+        } else {
+            el.style.display = 'none';
+        }
+    }
+
+    async function loadPeers(serverId) {
+        const el = document.getElementById(`peers-${serverId}`);
+        if (!el) return;
+        el.innerHTML = '<div class="text-muted" style="font-size:11px;">Loading peers...</div>';
+        try {
+            const r = await fetch(`${API}/vpn-servers/${serverId}/peers`);
+            const d = await r.json();
+            if (!d.peers || d.peers.length === 0) {
+                el.innerHTML = '<div class="text-muted" style="font-size:11px;">No peers connected</div>';
+                return;
+            }
+            el.innerHTML = d.peers.map(p => `
+                <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 8px;background:var(--hover);border-radius:4px;margin-top:4px;font-size:11px;">
+                    <div>
+                        <span class="text-accent" style="font-family:monospace;">${esc(p.public_key.slice(0,16))}...</span>
+                        <span class="text-muted"> | ${esc(p.allowed_ips)} | RX: ${formatBytes(p.transfer_rx)} TX: ${formatBytes(p.transfer_tx)}</span>
+                        <span class="text-dim"> | Handshake: ${p.latest_handshake ? timeAgo(new Date(p.latest_handshake * 1000).toISOString()) : 'never'}</span>
+                    </div>
+                    <button class="btn btn-sm btn-danger" onclick="removePeer('${serverId}', '${encodeURIComponent(p.public_key)}')" style="font-size:10px;padding:2px 6px;">Remove</button>
+                </div>
+            `).join('');
+        } catch {
+            el.innerHTML = '<div class="text-muted" style="font-size:11px;">Failed to load peers</div>';
+        }
+    }
+
+    async function removePeer(serverId, pubkeyEncoded) {
+        if (!confirm('Remove this peer?')) return;
+        try {
+            const r = await fetch(`${API}/vpn-servers/${serverId}/peers/${pubkeyEncoded}`, { method: 'DELETE' });
+            const d = await r.json();
+            toast(d.success ? 'Peer removed' : 'Failed: ' + d.error, d.success ? 'success' : 'error');
+            loadPeers(serverId);
+        } catch { toast('Failed to remove peer', 'error'); }
     }
 
     // ══════════════════════════════════════════

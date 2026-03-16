@@ -17,7 +17,15 @@ import {
   Users,
   Key,
   RefreshCw,
+  Star,
+  X,
+  AlertTriangle,
+  Info,
 } from "lucide-react";
+
+// ── Constants ──
+
+const HQ_BASE = "https://cs2-player-tools.maltinha.club/api";
 
 // ── Types ──
 
@@ -60,6 +68,20 @@ interface PingResult {
   error: string | null;
 }
 
+interface Toast {
+  id: number;
+  message: string;
+  type: "success" | "error" | "warning" | "info";
+  timestamp: number;
+}
+
+interface PreConnectCheck {
+  serverId: string;
+  serverName: string;
+  avgLatency: number | null;
+  status: "pinging" | "done" | "error";
+}
+
 type ConnectionState = "disconnected" | "connecting" | "connected" | "disconnecting";
 
 // ── Helpers ──
@@ -81,8 +103,19 @@ function extractHost(endpoint: string): string {
   return endpoint.split(":")[0];
 }
 
-// ── SVG World Map Paths — Real continent outlines (equirectangular, viewBox 0 0 1000 500) ──
-// lat/lng to x/y: x = (lng+180)*(1000/360), y = (90-lat)*(500/180)
+function latencyQuality(ms: number): { label: string; color: string } {
+  if (ms < 50) return { label: "Good", color: "text-success" };
+  if (ms < 100) return { label: "Fair", color: "text-warning" };
+  return { label: "Poor", color: "text-danger" };
+}
+
+function getPingColor(ms: number): string {
+  if (ms < 50) return "text-success";
+  if (ms < 100) return "text-warning";
+  return "text-danger";
+}
+
+// ── SVG World Map Paths -- Real continent outlines (equirectangular, viewBox 0 0 1000 500) ──
 const CONTINENTS = [
   // North America
   "M 40,80 55,72 70,70 90,72 115,68 140,62 170,58 190,55 205,58 215,62 225,72 230,80 228,88 218,95 210,100 205,105 195,115 188,125 180,130 172,128 168,120 160,118 148,120 135,125 125,130 118,128 110,120 100,115 90,108 82,100 75,95 65,92 55,88 45,85 Z",
@@ -106,6 +139,148 @@ const CONTINENTS = [
   "M 730,175 740,172 752,174 762,178 770,182 775,178 782,180 788,185 782,190 772,188 762,186 750,184 740,182 735,180 Z",
 ];
 const WORLD_PATH = CONTINENTS.join(" ");
+
+// ── Toast Notification System ──
+
+let toastIdCounter = 0;
+
+function ToastContainer({
+  toasts,
+  onDismiss,
+}: {
+  toasts: Toast[];
+  onDismiss: (id: number) => void;
+}) {
+  if (toasts.length === 0) return null;
+
+  function getIcon(type: Toast["type"]) {
+    switch (type) {
+      case "success":
+        return <CheckCircle size={16} className="text-success shrink-0" />;
+      case "error":
+        return <XCircle size={16} className="text-danger shrink-0" />;
+      case "warning":
+        return <AlertTriangle size={16} className="text-warning shrink-0" />;
+      case "info":
+        return <Info size={16} className="text-accent shrink-0" />;
+    }
+  }
+
+  function getBorderColor(type: Toast["type"]) {
+    switch (type) {
+      case "success":
+        return "border-success/40";
+      case "error":
+        return "border-danger/40";
+      case "warning":
+        return "border-warning/40";
+      case "info":
+        return "border-accent/40";
+    }
+  }
+
+  return (
+    <div className="fixed top-4 right-4 z-50 flex flex-col gap-2 max-w-sm">
+      {toasts.map((toast) => (
+        <div
+          key={toast.id}
+          className={`bg-bg-card border ${getBorderColor(toast.type)} rounded-lg p-3 flex items-start gap-2 shadow-lg animate-[slideIn_0.3s_ease-out]`}
+        >
+          {getIcon(toast.type)}
+          <span className="text-sm text-text flex-1">{toast.message}</span>
+          <button
+            onClick={() => onDismiss(toast.id)}
+            className="text-text-muted hover:text-text transition shrink-0"
+          >
+            <X size={14} />
+          </button>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ── Pre-Connect Quality Check Modal ──
+
+function PreConnectModal({
+  check,
+  onProceed,
+  onCancel,
+}: {
+  check: PreConnectCheck;
+  onProceed: () => void;
+  onCancel: () => void;
+}) {
+  const quality =
+    check.avgLatency !== null ? latencyQuality(check.avgLatency) : null;
+  const isHighLatency = check.avgLatency !== null && check.avgLatency > 150;
+
+  return (
+    <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/60">
+      <div className="bg-bg-card border border-border rounded-lg p-6 max-w-sm w-full mx-4 shadow-2xl">
+        <h3 className="font-semibold text-base mb-4 flex items-center gap-2">
+          <Zap size={18} className="text-accent" />
+          Quality Check: {check.serverName}
+        </h3>
+
+        {check.status === "pinging" && (
+          <div className="flex items-center gap-3 py-4">
+            <Loader size={20} className="text-accent animate-spin" />
+            <span className="text-sm text-text-muted">
+              Running ping test (3 pings)...
+            </span>
+          </div>
+        )}
+
+        {check.status === "done" && check.avgLatency !== null && quality && (
+          <div className="space-y-3">
+            <div className="bg-bg/50 rounded-lg p-3 flex items-center justify-between">
+              <span className="text-sm text-text-muted">Latency</span>
+              <span className={`text-sm font-mono font-semibold ${quality.color}`}>
+                {Math.round(check.avgLatency)}ms &mdash; {quality.label} for CS2
+              </span>
+            </div>
+
+            {isHighLatency && (
+              <div className="bg-danger/10 border border-danger/30 rounded-lg p-3 flex items-start gap-2">
+                <AlertTriangle size={16} className="text-danger shrink-0 mt-0.5" />
+                <span className="text-xs text-danger">
+                  High latency &mdash; gaming experience may be affected
+                </span>
+              </div>
+            )}
+          </div>
+        )}
+
+        {check.status === "error" && (
+          <div className="bg-danger/10 border border-danger/30 rounded-lg p-3 flex items-start gap-2">
+            <XCircle size={16} className="text-danger shrink-0 mt-0.5" />
+            <span className="text-xs text-danger">
+              Ping test failed. You can still connect.
+            </span>
+          </div>
+        )}
+
+        {check.status !== "pinging" && (
+          <div className="flex gap-2 mt-5">
+            <button
+              onClick={onCancel}
+              className="flex-1 px-4 py-2 bg-bg border border-border rounded-lg text-sm text-text-muted hover:text-text hover:border-border/80 transition"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={onProceed}
+              className="flex-1 px-4 py-2 bg-accent/15 border border-accent/30 text-accent rounded-lg text-sm font-medium hover:bg-accent/25 transition"
+            >
+              Connect Anyway
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
 
 // ── World Map Component ──
 
@@ -214,7 +389,7 @@ function WorldMap({
                 cx={x}
                 cy={y}
                 r={isSelected ? 6 : 4}
-                fill={isActive ? "#2ecc71" : isSelected ? "#e67e22" : "#e67e22"}
+                fill={isActive ? "#2ecc71" : "#e67e22"}
                 filter={isActive ? "url(#glow-green)" : "url(#glow-purple)"}
                 opacity={isSelected ? 1 : 0.8}
               />
@@ -263,40 +438,40 @@ function ServerCard({
   ping,
   isConnected,
   isSelected,
+  isFavorite,
   connectionState,
   onConnect,
   onDisconnect,
+  onToggleFavorite,
 }: {
   server: VpnServer;
   ping: number | null;
   isConnected: boolean;
   isSelected: boolean;
+  isFavorite: boolean;
   connectionState: ConnectionState;
   onConnect: () => void;
   onDisconnect: () => void;
+  onToggleFavorite: () => void;
 }) {
   const isBusy = connectionState === "connecting" || connectionState === "disconnecting";
-
-  function getPingColor(ms: number): string {
-    if (ms < 40) return "text-success";
-    if (ms < 80) return "text-warning";
-    return "text-danger";
-  }
 
   return (
     <div
       className={`bg-bg-card border rounded-lg p-4 transition-all ${
         isConnected
           ? "border-success/50 shadow-[0_0_20px_rgba(85,239,196,0.1)]"
-          : isSelected
-            ? "border-accent/50"
-            : "border-border hover:border-border/80"
+          : isFavorite
+            ? "border-amber-500/50 shadow-[0_0_15px_rgba(245,158,11,0.1)]"
+            : isSelected
+              ? "border-accent/50"
+              : "border-border hover:border-border/80"
       }`}
     >
       {/* Header */}
       <div className="flex items-center justify-between mb-3">
-        <div className="flex items-center gap-2">
-          <span className="text-xl">{server.flag}</span>
+        <div className="flex items-center gap-3">
+          <span className="text-2xl leading-none">{server.flag}</span>
           <div>
             <div className="font-semibold text-sm">{server.name}</div>
             <div className="text-xs text-text-muted flex items-center gap-1">
@@ -305,9 +480,25 @@ function ServerCard({
             </div>
           </div>
         </div>
-        <div className="flex items-center gap-1.5">
-          <span className="w-2 h-2 rounded-full bg-success animate-pulse" />
-          <span className="text-[10px] text-text-muted uppercase">Online</span>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onToggleFavorite();
+            }}
+            className={`p-1 rounded transition ${
+              isFavorite
+                ? "text-amber-400 hover:text-amber-300"
+                : "text-text-muted/30 hover:text-text-muted"
+            }`}
+            title={isFavorite ? "Remove from favorites" : "Set as favorite"}
+          >
+            <Star size={16} fill={isFavorite ? "currentColor" : "none"} />
+          </button>
+          <div className="flex items-center gap-1.5">
+            <span className="w-2 h-2 rounded-full bg-success animate-pulse" />
+            <span className="text-[10px] text-text-muted uppercase">Online</span>
+          </div>
         </div>
       </div>
 
@@ -467,13 +658,54 @@ export default function SmartVPN() {
   const [vpnStatus, setVpnStatus] = useState<VpnStatus | null>(null);
   const [connectDuration, setConnectDuration] = useState(0);
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
+  const [favoriteServerId, setFavoriteServerId] = useState<string | null>(
+    localStorage.getItem("cs2pt_favorite_server")
+  );
+  const [toasts, setToasts] = useState<Toast[]>([]);
+  const [preConnectCheck, setPreConnectCheck] = useState<PreConnectCheck | null>(null);
 
   const connectTimeRef = useRef<number>(0);
   const statusIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const durationIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const lastTransferRef = useRef<string | null>(null);
+  const transferStaleCountRef = useRef<number>(0);
+  const pendingConnectServerIdRef = useRef<string | null>(null);
 
   const connectedServer = servers.find((s) => s.id === connectedServerId) ?? null;
   const selectedServer = servers.find((s) => s.id === selectedServerId) ?? connectedServer;
+
+  // ── Toast helpers ──
+
+  const addToast = useCallback((message: string, type: Toast["type"]) => {
+    const id = ++toastIdCounter;
+    setToasts((prev) => [...prev, { id, message, type, timestamp: Date.now() }]);
+  }, []);
+
+  const dismissToast = useCallback((id: number) => {
+    setToasts((prev) => prev.filter((t) => t.id !== id));
+  }, []);
+
+  // Auto-dismiss toasts after 5 seconds
+  useEffect(() => {
+    if (toasts.length === 0) return;
+    const timer = setInterval(() => {
+      const now = Date.now();
+      setToasts((prev) => prev.filter((t) => now - t.timestamp < 5000));
+    }, 500);
+    return () => clearInterval(timer);
+  }, [toasts.length]);
+
+  // ── Favorite server ──
+
+  function toggleFavorite(serverId: string) {
+    if (favoriteServerId === serverId) {
+      setFavoriteServerId(null);
+      localStorage.removeItem("cs2pt_favorite_server");
+    } else {
+      setFavoriteServerId(serverId);
+      localStorage.setItem("cs2pt_favorite_server", serverId);
+    }
+  }
 
   // ── Fetch user approximate location ──
   useEffect(() => {
@@ -495,7 +727,7 @@ export default function SmartVPN() {
     try {
       setLoading(true);
       setError(null);
-      const resp = await fetch("https://cs2-player-tools.maltinha.club/api/vpn-servers");
+      const resp = await fetch(`${HQ_BASE}/vpn-servers`);
       if (!resp.ok) throw new Error(`Server returned ${resp.status}`);
       const data = await resp.json();
       setServers(data.servers ?? []);
@@ -540,8 +772,24 @@ export default function SmartVPN() {
         try {
           const status = await invoke<VpnStatus>("vpn_get_status");
           setVpnStatus(status);
+
+          // Detect stale transfer (connection lost)
+          const currentTransfer = `${status.transfer_rx ?? ""}|${status.transfer_tx ?? ""}`;
+          if (status.active && lastTransferRef.current === currentTransfer) {
+            transferStaleCountRef.current++;
+            // If transfer stats haven't changed for ~10 seconds (5 polls at 2s)
+            if (transferStaleCountRef.current >= 5) {
+              addToast("VPN Connection Lost", "error");
+              transferStaleCountRef.current = 0;
+            }
+          } else {
+            transferStaleCountRef.current = 0;
+          }
+          lastTransferRef.current = currentTransfer;
+
           // If tunnel went down unexpectedly
           if (!status.active && connectionState === "connected") {
+            addToast("VPN Disconnected", "warning");
             handleDisconnected();
           }
         } catch {
@@ -575,14 +823,76 @@ export default function SmartVPN() {
     setVpnIp("");
     setVpnStatus(null);
     setConnectDuration(0);
+    lastTransferRef.current = null;
+    transferStaleCountRef.current = 0;
     if (statusIntervalRef.current) clearInterval(statusIntervalRef.current);
     if (durationIntervalRef.current) clearInterval(durationIntervalRef.current);
   }
 
+  // ── Pre-connect quality check ──
+  async function runPreConnectCheck(serverId: string) {
+    const server = servers.find((s) => s.id === serverId);
+    if (!server) return;
+
+    pendingConnectServerIdRef.current = serverId;
+    setPreConnectCheck({
+      serverId,
+      serverName: server.name,
+      avgLatency: null,
+      status: "pinging",
+    });
+
+    const host = extractHost(server.endpoint);
+    try {
+      const results = await invoke<PingResult[]>("ping_host", { host, count: 3 });
+      const successful = results.filter((r) => r.success);
+      if (successful.length > 0) {
+        const avg = successful.reduce((s, r) => s + r.latency_ms, 0) / successful.length;
+        setPreConnectCheck({
+          serverId,
+          serverName: server.name,
+          avgLatency: avg,
+          status: "done",
+        });
+        // Also update the ping display
+        setPings((prev) => ({ ...prev, [serverId]: avg }));
+      } else {
+        setPreConnectCheck({
+          serverId,
+          serverName: server.name,
+          avgLatency: null,
+          status: "error",
+        });
+      }
+    } catch {
+      setPreConnectCheck({
+        serverId,
+        serverName: server.name,
+        avgLatency: null,
+        status: "error",
+      });
+    }
+  }
+
+  function handlePreConnectProceed() {
+    const serverId = pendingConnectServerIdRef.current;
+    setPreConnectCheck(null);
+    pendingConnectServerIdRef.current = null;
+    if (serverId) {
+      doConnect(serverId);
+    }
+  }
+
+  function handlePreConnectCancel() {
+    setPreConnectCheck(null);
+    pendingConnectServerIdRef.current = null;
+  }
+
   // ── Connect flow ──
-  async function handleConnect(serverId: string) {
+  async function doConnect(serverId: string) {
     if (!token) return;
 
+    const server = servers.find((s) => s.id === serverId);
     setSelectedServerId(serverId);
     setConnectionState("connecting");
     setError(null);
@@ -590,7 +900,7 @@ export default function SmartVPN() {
     try {
       // Step 1: Request connection config from HQ
       const configResp = await fetch(
-        `https://cs2-player-tools.maltinha.club/api/vpn-servers/${serverId}/connect`,
+        `${HQ_BASE}/vpn-servers/${serverId}/connect`,
         {
           method: "POST",
           headers: {
@@ -614,7 +924,7 @@ export default function SmartVPN() {
 
       // Step 3: Register public key with HQ so the server knows us
       await fetch(
-        `https://cs2-player-tools.maltinha.club/api/vpn-servers/${serverId}/register-key`,
+        `${HQ_BASE}/vpn-servers/${serverId}/register-key`,
         {
           method: "POST",
           headers: {
@@ -656,14 +966,24 @@ export default function SmartVPN() {
       setVpnIp(config.client_address.split("/")[0]);
       connectTimeRef.current = Date.now();
       setConnectDuration(0);
+      lastTransferRef.current = null;
+      transferStaleCountRef.current = 0;
+
+      addToast(`Connected to VPN: ${server?.name ?? serverId}`, "success");
     } catch (e) {
       setError(`Connection failed: ${e instanceof Error ? e.message : String(e)}`);
       setConnectionState("disconnected");
     }
   }
 
+  function handleConnect(serverId: string) {
+    if (!token) return;
+    runPreConnectCheck(serverId);
+  }
+
   // ── Disconnect flow ──
   async function handleDisconnect() {
+    const serverName = connectedServer?.name ?? "server";
     setConnectionState("disconnecting");
     try {
       await invoke("vpn_deactivate", {});
@@ -671,6 +991,9 @@ export default function SmartVPN() {
       // Ignore deactivation errors
     }
     handleDisconnected();
+    addToast("VPN Disconnected", "warning");
+    // Suppress unused variable — serverName used in toast above
+    void serverName;
   }
 
   // ── Token management ──
@@ -688,12 +1011,20 @@ export default function SmartVPN() {
     setToken("");
   }
 
+  // ── Sort servers: favorite first ──
+  const sortedServers = [...servers].sort((a, b) => {
+    if (a.id === favoriteServerId) return -1;
+    if (b.id === favoriteServerId) return 1;
+    return 0;
+  });
+
   // ── Render ──
 
   // Token gate
   if (!token) {
     return (
       <div>
+        <ToastContainer toasts={toasts} onDismiss={dismissToast} />
         <div className="flex items-center justify-between mb-6">
           <div>
             <h1 className="text-2xl font-bold">
@@ -739,6 +1070,18 @@ export default function SmartVPN() {
 
   return (
     <div>
+      {/* Toast notifications */}
+      <ToastContainer toasts={toasts} onDismiss={dismissToast} />
+
+      {/* Pre-connect quality check modal */}
+      {preConnectCheck && (
+        <PreConnectModal
+          check={preConnectCheck}
+          onProceed={handlePreConnectProceed}
+          onCancel={handlePreConnectCancel}
+        />
+      )}
+
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
@@ -855,13 +1198,14 @@ export default function SmartVPN() {
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {servers.map((server) => (
+          {sortedServers.map((server) => (
             <ServerCard
               key={server.id}
               server={server}
               ping={pings[server.id] ?? null}
               isConnected={connectedServerId === server.id}
               isSelected={selectedServerId === server.id}
+              isFavorite={favoriteServerId === server.id}
               connectionState={
                 connectedServerId === server.id || selectedServerId === server.id
                   ? connectionState
@@ -869,6 +1213,7 @@ export default function SmartVPN() {
               }
               onConnect={() => handleConnect(server.id)}
               onDisconnect={handleDisconnect}
+              onToggleFavorite={() => toggleFavorite(server.id)}
             />
           ))}
         </div>

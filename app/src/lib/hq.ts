@@ -3,6 +3,8 @@
  * at cs2-player-tools.maltinha.club/api/
  */
 
+// Full URL required here because the Tauri app runs locally (localhost),
+// so relative paths would not reach the remote HQ backend.
 const HQ_BASE = "https://cs2-player-tools.maltinha.club/api";
 const APP_VERSION = "0.1.0";
 
