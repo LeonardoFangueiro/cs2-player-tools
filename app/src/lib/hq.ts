@@ -6,7 +6,7 @@
 // Full URL required here because the Tauri app runs locally (localhost),
 // so relative paths would not reach the remote HQ backend.
 const HQ_BASE = "https://cs2-player-tools.maltinha.club/api";
-import { getDefaultPingTarget } from "./valve";
+import { getTopDCs } from "./valve";
 
 const APP_VERSION = "0.1.0";
 
@@ -243,16 +243,25 @@ export async function runAndReportDiagnostics(
     tests["version_check"] = { status: "fail", error: String(e) };
   }
 
-  // Test 17: Ping to nearest Valve DC (direct latency test)
+  // Test 17: Ping to nearest Valve DC (try multiple until one responds)
   try {
-    const valveTarget = await getDefaultPingTarget();
-    const pings = await invoke<Array<{ latency_ms: number; success: boolean }>>("ping_host", { host: valveTarget, count: 3 });
-    const successful = pings.filter(p => p.success);
+    const allDCs = await getTopDCs(10);
+    let successful: Array<{ latency_ms: number; success: boolean }> = [];
+    let usedTarget = "";
+    for (const dc of allDCs) {
+      const pings = await invoke<Array<{ latency_ms: number; success: boolean }>>("ping_host", { host: dc.ip, count: 3 });
+      const ok = pings.filter(p => p.success);
+      if (ok.length > 0) {
+        successful = ok;
+        usedTarget = `${dc.code} (${dc.name})`;
+        break;
+      }
+    }
     if (successful.length > 0) {
       const avg = successful.reduce((s, p) => s + p.latency_ms, 0) / successful.length;
       const min = Math.min(...successful.map(p => p.latency_ms));
       const max = Math.max(...successful.map(p => p.latency_ms));
-      tests["valve_dc_ping"] = { status: "pass", target: valveTarget, avg_ms: Math.round(avg * 10) / 10, min_ms: Math.round(min * 10) / 10, max_ms: Math.round(max * 10) / 10, samples: successful.length };
+      tests["valve_dc_ping"] = { status: "pass", target: usedTarget, avg_ms: Math.round(avg * 10) / 10, min_ms: Math.round(min * 10) / 10, max_ms: Math.round(max * 10) / 10, samples: successful.length };
     } else {
       tests["valve_dc_ping"] = { status: "fail", error: "No successful pings to Valve DC" };
     }
