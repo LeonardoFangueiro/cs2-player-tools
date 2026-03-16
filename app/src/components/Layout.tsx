@@ -13,7 +13,7 @@ export default function Layout() {
       {/* Top bar with logo + back — on sub-pages */}
       {!isHome && (
         <div className="flex items-center gap-3 px-6 py-3 shrink-0">
-          <button onClick={() => navigate("/")}
+          <button onClick={() => navigate(-1)}
             className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs text-text-muted hover:text-accent hover:bg-bg-hover transition">
             <ArrowLeft size={14} /> Back
           </button>

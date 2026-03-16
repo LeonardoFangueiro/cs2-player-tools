@@ -6,7 +6,6 @@ import {
   Gamepad2,
   Users,
   Settings,
-  Shield,
   Globe,
   Settings2,
   FileCode,
@@ -39,6 +38,16 @@ interface VpnServer {
   country_code: string;
 }
 
+interface VpnConnectResponse {
+  server_endpoint: string;
+  server_public_key: string;
+  client_address: string;
+  dns: string;
+  mtu: number;
+  allowed_ips: string;
+  persistent_keepalive: number;
+}
+
 type ConnectionState = "disconnected" | "connecting" | "connected" | "disconnecting";
 
 const HQ_BASE = "https://cs2-player-tools.maltinha.club/api";
@@ -46,17 +55,15 @@ const HQ_BASE = "https://cs2-player-tools.maltinha.club/api";
 // ── Menu Definitions ──
 
 const mainMenu = [
-  { id: "network", icon: Network, label: "NETWORK", desc: "VPN, Servers, Diagnostics" },
+  { id: "network", icon: Network, label: "NETWORK", desc: "Servers, Optimizations" },
   { id: "gameplay", icon: Gamepad2, label: "GAMEPLAY", desc: "CS2 Config, Inventory" },
   { id: "sessions", icon: Users, label: "SESSIONS", desc: "Profile, History" },
   { id: "settings", route: "/settings", icon: Settings, label: "SETTINGS", desc: "App configuration" },
 ];
 
-const subMenus: Record<string, Array<{ route: string; icon: typeof Shield; label: string; desc: string }>> = {
+const subMenus: Record<string, Array<{ route: string; icon: typeof Globe; label: string; desc: string }>> = {
   network: [
-    { route: "/vpn", icon: Shield, label: "SMART VPN", desc: "One-click gaming VPN" },
     { route: "/servers", icon: Globe, label: "SERVER PICKER", desc: "Block & allow regions" },
-    { route: "/network", icon: Network, label: "DIAGNOSTICS", desc: "Ping, traceroute, DNS" },
     { route: "/optimizer", icon: Settings2, label: "OPTIMIZATIONS", desc: "Windows network tweaks" },
   ],
   gameplay: [
@@ -169,51 +176,62 @@ export default function Home() {
     try {
       const token = localStorage.getItem("cs2pt_token") || "";
 
-      // Generate keypair
-      const [clientPrivateKey, clientPublicKey] = await invoke<[string, string]>("vpn_generate_keypair");
+      // Step 1: Generate client keypair
+      const keypair = await invoke<[string, string]>("vpn_generate_keypair");
+      const clientPrivateKey = keypair[0];
+      const clientPublicKey = keypair[1];
 
-      // Request config from HQ
-      const resp = await fetch(`${HQ_BASE}/vpn-connect`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ server_id: selectedServerId, client_public_key: clientPublicKey, token }),
-      });
+      // Step 2: Request connection from HQ
+      const configResp = await fetch(
+        `${HQ_BASE}/vpn-servers/${selectedServerId}/connect`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            token,
+            client_public_key: clientPublicKey,
+          }),
+        }
+      );
 
-      if (!resp.ok) {
-        const err = await resp.json().catch(() => ({ error: "Connection failed" }));
-        throw new Error(err.error || "Connection failed");
+      const configData = await configResp.json();
+      if (!configData.success) {
+        throw new Error(configData.error || "Connection refused by server");
       }
+      const config: VpnConnectResponse = configData.config;
 
-      const config = await resp.json();
-
-      // Generate WireGuard config
+      // Step 3: Save VPN profile locally
       const profileName = `smartvpn-${selectedServerId}`;
-      const wgConfig = await invoke<string>("vpn_generate_config", {
-        serverEndpoint: config.server_endpoint,
-        serverPublicKey: config.server_public_key,
-        clientPrivateKey,
-        clientAddress: config.client_address,
-        dns: config.dns || "1.1.1.1",
-        mtu: config.mtu || 1420,
-        allowedIps: config.allowed_ips || "0.0.0.0/0",
-        persistentKeepalive: config.persistent_keepalive || 25,
+      await invoke("vpn_save_profile", {
+        profile: {
+          name: profileName,
+          server_endpoint: config.server_endpoint,
+          server_public_key: config.server_public_key,
+          client_private_key: clientPrivateKey,
+          client_address: config.client_address,
+          dns: config.dns,
+          mtu: config.mtu || 1420,
+          allowed_ips: config.allowed_ips,
+          persistent_keepalive: config.persistent_keepalive || 25,
+        },
       });
 
-      // Activate
-      const result = await invoke<{ success: boolean; message: string }>("vpn_activate", {
+      // Step 4: Activate the tunnel
+      const activateResult = await invoke<{ success: boolean; message: string }>("vpn_reconnect", {
         profileName,
-        config: wgConfig,
       });
 
-      if (result.success) {
-        localStorage.setItem("cs2pt_vpn_connected", "true");
-        localStorage.setItem("cs2pt_vpn_server_id", selectedServerId);
-        localStorage.setItem("cs2pt_vpn_ip", config.client_address?.split("/")[0] || "");
-        localStorage.setItem("cs2pt_vpn_connect_time", Date.now().toString());
-        setConnectionState("connected");
-      } else {
-        throw new Error(result.message);
+      if (!activateResult.success) {
+        throw new Error(activateResult.message);
       }
+
+      // Success
+      const clientIp = config.client_address.split("/")[0];
+      localStorage.setItem("cs2pt_vpn_connected", "true");
+      localStorage.setItem("cs2pt_vpn_server_id", selectedServerId);
+      localStorage.setItem("cs2pt_vpn_ip", clientIp);
+      localStorage.setItem("cs2pt_vpn_connect_time", Date.now().toString());
+      setConnectionState("connected");
     } catch {
       setConnectionState("disconnected");
     }
@@ -373,22 +391,22 @@ export default function Home() {
           )}
         </div>
 
-        {/* Connect / Disconnect button */}
+        {/* Connect / Disconnect button — icon-only */}
         <button
           onClick={handleConnect}
           disabled={isLoading || (!selectedServerId && connectionState === "disconnected")}
-          className={`shrink-0 flex items-center gap-2 px-5 py-2.5 rounded-lg font-bold text-sm transition-all duration-200 disabled:opacity-50 ${
-            isConnected
-              ? "bg-danger/15 border border-danger/40 text-danger hover:bg-danger/25"
-              : "bg-gradient-to-r from-accent to-accent2 text-white shadow-lg shadow-accent/25 hover:shadow-accent/40 hover:scale-[1.02] active:scale-[0.98]"
+          className={`shrink-0 flex items-center justify-center w-12 h-12 rounded-xl border transition-all duration-200 disabled:opacity-50 ${
+            isLoading
+              ? "bg-warning/20 border-warning/50"
+              : isConnected
+                ? "bg-success/20 border-success/50"
+                : "bg-danger/20 border-danger/50"
           }`}
         >
           {isLoading ? (
-            <><Loader size={16} className="animate-spin" /> {connectionState === "connecting" ? "Connecting..." : "Disconnecting..."}</>
-          ) : isConnected ? (
-            <><Power size={16} /> Disconnect</>
+            <Loader size={20} className="animate-spin text-warning" />
           ) : (
-            <><Power size={16} /> Connect</>
+            <Power size={20} className={isConnected ? "text-success" : "text-danger"} />
           )}
         </button>
       </div>
@@ -408,21 +426,27 @@ export default function Home() {
           <img src="/logo.png" alt="CS2 Player Tools" className="h-32 w-auto mx-auto" />
         </div>
 
-        {/* Back button + title */}
-        <div className="flex items-center gap-3 mb-5">
-          <button
-            onClick={() => setView("home")}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs text-text-muted hover:text-accent hover:bg-bg-hover transition"
-          >
-            <ArrowLeft size={14} /> Back
-          </button>
-          <span className="text-sm font-bold text-text tracking-wider uppercase">{viewLabel}</span>
+        {/* Sub-menu header — centered below logo */}
+        <div className="relative mb-5">
+          <div className="flex items-center justify-center">
+            <div className="px-8 py-2 bg-gradient-to-r from-transparent via-accent/15 to-transparent border-y border-accent/20">
+              <span className="text-sm font-bold text-accent tracking-[3px] uppercase">{viewLabel}</span>
+            </div>
+          </div>
         </div>
 
         {/* Sub-menu grid */}
         <div className={`grid ${items.length <= 3 ? "grid-cols-3" : "grid-cols-4"} gap-3 w-full max-w-2xl mb-6`}>
           {items.map(item => renderMenuButton(item, true))}
         </div>
+
+        {/* Back button — below sub-menu buttons */}
+        <button
+          onClick={() => setView("home")}
+          className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs text-text-muted hover:text-accent hover:bg-bg-hover transition mx-auto"
+        >
+          <ArrowLeft size={14} /> Back to Menu
+        </button>
       </div>
     );
   }

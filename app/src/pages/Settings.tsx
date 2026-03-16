@@ -12,7 +12,6 @@ import {
   Power,
   Minimize2,
   Globe,
-  LogOut,
 } from "lucide-react";
 
 interface AppSettings {
@@ -86,7 +85,6 @@ export default function SettingsPage() {
   const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [vpnServers, setVpnServers] = useState<Array<{ id: string; name: string; flag: string; location: string }>>([]);
   const [toast, setToast] = useState<{
     message: string;
     type: "success" | "error";
@@ -95,7 +93,6 @@ export default function SettingsPage() {
 
   useEffect(() => {
     loadSettings();
-    loadVpnServers();
   }, []);
 
   useEffect(() => {
@@ -114,16 +111,6 @@ export default function SettingsPage() {
       // Use defaults
     } finally {
       setLoading(false);
-    }
-  }
-
-  async function loadVpnServers() {
-    try {
-      const resp = await fetch("https://cs2-player-tools.maltinha.club/api/vpn-servers");
-      const data = await resp.json();
-      setVpnServers(data.servers || []);
-    } catch {
-      // Ignore
     }
   }
 
@@ -193,29 +180,6 @@ export default function SettingsPage() {
             enabled={settings.auto_connect_vpn}
             onChange={(v) => updateSetting("auto_connect_vpn", v)}
           />
-        </SettingRow>
-        <SettingRow
-          icon={<Globe size={14} />}
-          label="Favorite VPN Location"
-          description="Preferred VPN server"
-        >
-          <select
-            value={settings.vpn_profile_name ?? ""}
-            onChange={(e) =>
-              updateSetting(
-                "vpn_profile_name",
-                e.target.value || null
-              )
-            }
-            className="bg-bg border border-border rounded px-2 py-1 text-xs text-text focus:outline-none focus:border-accent min-w-[140px]"
-          >
-            <option value="">None</option>
-            {vpnServers.map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.flag} {s.name} — {s.location}
-              </option>
-            ))}
-          </select>
         </SettingRow>
       </div>
 
@@ -305,30 +269,6 @@ export default function SettingsPage() {
             onChange={(v) => updateSetting("dynamic_valve_ips", v)}
           />
         </SettingRow>
-      </div>
-
-      {/* Account */}
-      <div className="bg-bg-card border border-border rounded-lg p-3 mb-2">
-        <div className="text-[10px] font-semibold uppercase tracking-wider text-text-muted mb-1 flex items-center gap-1.5">
-          <Shield size={10} className="text-accent" />
-          Account
-        </div>
-        <div className="flex items-center gap-3 py-2.5">
-          <span className="text-danger shrink-0"><LogOut size={14} /></span>
-          <div className="flex-1 min-w-0">
-            <div className="text-xs font-semibold text-text">Logout / Change Token</div>
-            <div className="text-[10px] text-text-muted leading-tight">Remove stored token and return to login</div>
-          </div>
-          <button
-            onClick={() => {
-              localStorage.removeItem("cs2pt_token");
-              window.location.reload();
-            }}
-            className="px-2.5 py-1 bg-danger/15 border border-danger/30 text-danger text-[10px] font-semibold rounded hover:bg-danger/25 transition"
-          >
-            Logout
-          </button>
-        </div>
       </div>
 
       {/* Sticky save bar */}
