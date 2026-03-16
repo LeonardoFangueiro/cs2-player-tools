@@ -120,9 +120,7 @@ export default function ServerPicker() {
   const [pinging, setPinging] = useState(false);
   // Keep pingAllPops available for programmatic use
   void pinging;
-  const [selectedRegions, setSelectedRegions] = useState<Set<string>>(
-    new Set(ALL_REGIONS)
-  );
+  // selectedRegions removed — now using tabs via activeRegion
   const [blockedRegions, setBlockedRegions] = useState<Set<string>>(new Set());
   const [blockingPop, setBlockingPop] = useState<string | null>(null);
   const [bulkBlocking, setBulkBlocking] = useState(false);
@@ -225,7 +223,7 @@ export default function ServerPicker() {
 
   async function blockAllVisible() {
     setBulkBlocking(true);
-    const visiblePops = Object.values(groupedPops).flat().filter(p => selectedRegions.has(classifyRegion(p.code)) && !blockedRegions.has(p.code));
+    const visiblePops = (groupedPops[activeRegion] || []).filter(p => !blockedRegions.has(p.code));
     for (const pop of visiblePops) {
       await invoke("block_server_region", { popCode: pop.code, relayIps: pop.relays.map(r => r.ipv4) });
       setBlockedRegions(prev => { const n = new Set(prev); n.add(pop.code); return n; });
@@ -242,17 +240,7 @@ export default function ServerPicker() {
     setBulkAllowing(false);
   }
 
-  function toggleRegion(region: string) {
-    setSelectedRegions((prev) => {
-      const next = new Set(prev);
-      if (next.has(region)) {
-        next.delete(region);
-      } else {
-        next.add(region);
-      }
-      return next;
-    });
-  }
+  // Regions now controlled by tabs, not toggleRegion
 
   // selectAllRegions and clearAllRegions removed — region pills handle it directly
 
@@ -281,7 +269,8 @@ export default function ServerPicker() {
     return groups;
   }, [sdrConfig, pingResults]);
 
-  // Status filter
+  // Active region tab
+  const [activeRegion, setActiveRegion] = useState("Europe");
   const [statusFilter, setStatusFilter] = useState<"all" | "allowed" | "blocked">("all");
 
   // Stats
@@ -289,21 +278,52 @@ export default function ServerPicker() {
   const blockedCount = blockedRegions.size;
   const allowedCount = totalPops - blockedCount;
 
+  // Available regions (with PoPs)
+  const availableRegions = ALL_REGIONS.filter((r) => groupedPops[r]?.length > 0);
+
+  // Current region's PoPs filtered by status
+  const currentPops = (groupedPops[activeRegion] || []).filter((pop) => {
+    if (statusFilter === "blocked") return blockedRegions.has(pop.code);
+    if (statusFilter === "allowed") return !blockedRegions.has(pop.code);
+    return true;
+  });
+
   return (
     <div>
-      {/* Header — compact */}
+      {/* Header */}
       <div className="flex items-center justify-between mb-4">
         <div>
           <h1 className="text-2xl font-bold text-accent">Server Picker</h1>
           <p className="text-text-muted text-sm mt-1">
-            {totalPops} PoPs · {allowedCount} allowed · {blockedCount} blocked
+            {totalPops} PoPs · <span className="text-success">{allowedCount} allowed</span> · <span className="text-danger">{blockedCount} blocked</span>
           </p>
         </div>
-        <button onClick={loadSdrConfig} disabled={loading}
-          className="flex items-center gap-1.5 px-3 py-1.5 bg-bg-card border border-border rounded-lg text-xs text-text-muted hover:text-text hover:border-accent/30 transition disabled:opacity-50">
-          <RefreshCw size={12} className={loading ? "animate-spin" : ""} />
-          Refresh
-        </button>
+        <div className="flex items-center gap-1.5">
+          {/* Status filter */}
+          {(["all", "allowed", "blocked"] as const).map((f) => (
+            <button key={f} onClick={() => setStatusFilter(f)}
+              className={`px-2.5 py-1 text-[10px] rounded border transition ${
+                statusFilter === f
+                  ? f === "blocked" ? "bg-danger/15 border-danger/40 text-danger" : f === "allowed" ? "bg-success/15 border-success/40 text-success" : "bg-accent/10 border-accent/30 text-accent"
+                  : "border-border text-text-muted/50 hover:text-text-muted"
+              }`}>
+              {f === "all" ? "All" : f === "allowed" ? "Allowed" : "Blocked"}
+            </button>
+          ))}
+          <span className="text-border mx-0.5">|</span>
+          <button onClick={blockAllVisible} disabled={bulkBlocking}
+            className="flex items-center gap-1 px-2.5 py-1 bg-danger/10 border border-danger/25 text-danger text-[10px] rounded hover:bg-danger/20 transition disabled:opacity-50">
+            <Lock size={10} /> {bulkBlocking ? "..." : "Block All"}
+          </button>
+          <button onClick={allowAll} disabled={bulkAllowing}
+            className="flex items-center gap-1 px-2.5 py-1 bg-success/10 border border-success/25 text-success text-[10px] rounded hover:bg-success/20 transition disabled:opacity-50">
+            <Unlock size={10} /> {bulkAllowing ? "..." : "Allow All"}
+          </button>
+          <button onClick={loadSdrConfig} disabled={loading}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-bg-card border border-border rounded-lg text-xs text-text-muted hover:text-text hover:border-accent/30 transition disabled:opacity-50">
+            <RefreshCw size={12} className={loading ? "animate-spin" : ""} />
+          </button>
+        </div>
       </div>
 
       {error && (
@@ -313,156 +333,89 @@ export default function ServerPicker() {
         </div>
       )}
 
-      {/* Toolbar — regions, status filter, and actions all in one compact bar */}
-      <div className="bg-bg-card border border-border rounded-lg p-3 mb-4">
-        <div className="flex items-center justify-between gap-3 flex-wrap">
-          {/* Region pills */}
-          <div className="flex items-center gap-1.5 flex-wrap flex-1">
-            {ALL_REGIONS.map((region) => {
-              const isSelected = selectedRegions.has(region);
-              const count = groupedPops[region]?.length ?? 0;
-              if (count === 0) return null;
-              return (
-                <button key={region} onClick={() => toggleRegion(region)}
-                  className={`px-2 py-1 text-[10px] rounded border transition ${
-                    isSelected ? "bg-accent/15 border-accent/40 text-accent" : "border-border text-text-muted/50 hover:text-text-muted"
-                  }`}>
-                  {region} <span className="opacity-60">{count}</span>
-                </button>
-              );
-            })}
-            <span className="text-border mx-1">|</span>
-            {/* Status filter inline */}
-            {(["all", "allowed", "blocked"] as const).map((f) => (
-              <button key={f} onClick={() => setStatusFilter(f)}
-                className={`px-2 py-1 text-[10px] rounded border transition ${
-                  statusFilter === f
-                    ? f === "blocked" ? "bg-danger/15 border-danger/40 text-danger" : f === "allowed" ? "bg-success/15 border-success/40 text-success" : "bg-accent/10 border-accent/30 text-accent"
-                    : "border-border text-text-muted/50 hover:text-text-muted"
-                }`}>
-                {f === "all" ? "All" : f === "allowed" ? `✓ ${allowedCount}` : `✗ ${blockedCount}`}
-              </button>
-            ))}
-          </div>
-
-          {/* Action buttons — compact */}
-          <div className="flex items-center gap-1.5">
-            <button onClick={blockAllVisible} disabled={bulkBlocking}
-              className="flex items-center gap-1 px-2.5 py-1 bg-danger/10 border border-danger/25 text-danger text-[10px] rounded hover:bg-danger/20 transition disabled:opacity-50">
-              <Lock size={10} /> {bulkBlocking ? "..." : "Block All"}
+      {/* Region Tabs */}
+      <div className="flex gap-1 mb-4 border-b border-border overflow-x-auto">
+        {availableRegions.map((region) => {
+          const count = groupedPops[region]?.length ?? 0;
+          const regionBlocked = (groupedPops[region] || []).filter(p => blockedRegions.has(p.code)).length;
+          return (
+            <button key={region} onClick={() => setActiveRegion(region)}
+              className={`px-4 py-2.5 text-xs font-medium whitespace-nowrap border-b-2 transition -mb-px ${
+                activeRegion === region
+                  ? "border-accent text-accent"
+                  : "border-transparent text-text-muted hover:text-text hover:border-border"
+              }`}>
+              {region}
+              <span className="ml-1.5 opacity-60">{count}</span>
+              {regionBlocked > 0 && (
+                <span className="ml-1 text-danger text-[9px]">({regionBlocked}✗)</span>
+              )}
             </button>
-            <button onClick={allowAll} disabled={bulkAllowing}
-              className="flex items-center gap-1 px-2.5 py-1 bg-success/10 border border-success/25 text-success text-[10px] rounded hover:bg-success/20 transition disabled:opacity-50">
-              <Unlock size={10} /> {bulkAllowing ? "..." : "Allow All"}
-            </button>
-          </div>
-        </div>
+          );
+        })}
       </div>
 
       {/* Loading skeleton */}
       {loading && (
-        <div className="space-y-6">
-          {[1, 2, 3].map((i) => (
-            <div key={i}>
-              <div className="h-5 w-32 bg-border/40 rounded mb-3 animate-pulse" />
-              <div className="grid grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2">
-                {[1, 2, 3, 4].map((j) => (
-                  <div
-                    key={j}
-                    className="h-24 bg-border/20 rounded-lg animate-pulse"
-                  />
-                ))}
-              </div>
-            </div>
+        <div className="grid grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2">
+          {[1, 2, 3, 4, 5, 6, 7, 8].map((j) => (
+            <div key={j} className="h-16 bg-border/20 rounded-lg animate-pulse" />
           ))}
         </div>
       )}
 
-      {/* PoPs by Region */}
-      {!loading &&
-        sdrConfig &&
-        ALL_REGIONS.filter((r) => selectedRegions.has(r) && groupedPops[r])
-          .map((region) => (
-          <div key={region} className="mb-8">
-            <div className="flex items-center gap-2 mb-3">
-              <Globe size={16} className="text-accent" />
-              <h2 className="text-base font-semibold">{region}</h2>
-              <span className="text-xs text-text-muted">
-                ({groupedPops[region].length} PoPs)
-              </span>
-            </div>
-            <div className="grid grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2">
-              {groupedPops[region]
-                .filter((pop) => {
-                  if (statusFilter === "blocked") return blockedRegions.has(pop.code);
-                  if (statusFilter === "allowed") return !blockedRegions.has(pop.code);
-                  return true;
-                })
-                .map((pop) => {
-                const hasPing = pingResults.size > 0;
-                const ping = pop.ping;
-                const isBlocked = blockedRegions.has(pop.code);
-                const isToggling = blockingPop === pop.code;
+      {/* PoP Cards for active region */}
+      {!loading && sdrConfig && (
+        <div className="grid grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2">
+          {currentPops.map((pop) => {
+            const hasPing = pingResults.size > 0;
+            const ping = pop.ping;
+            const isBlocked = blockedRegions.has(pop.code);
+            const isToggling = blockingPop === pop.code;
 
-                return (
-                  <div key={pop.code}
-                    onClick={() => !isToggling && toggleBlock(pop)}
-                    className={`rounded-lg border p-3 transition cursor-pointer select-none ${
-                      isBlocked ? "bg-danger/5 border-danger/30 opacity-50 hover:opacity-70"
-                        : hasPing && ping > 0 ? `${getPingBgColor(ping)} ${getPingBorderColor(ping)} hover:brightness-110`
-                        : "bg-bg-card border-border hover:border-accent/30"
-                    }`}
-                  >
-                    {/* Row: flag + info + ping + status */}
-                    <div className="flex items-center gap-2.5">
-                      {/* Flag */}
-                      {getPopFlag(pop.code) ? (
-                        <img src={`https://flagcdn.com/w40/${getPopFlag(pop.code)}.png`}
-                          alt="" className="w-7 h-5 rounded object-cover shrink-0 border border-border/50"
-                          onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
-                      ) : (
-                        <Globe size={16} className="text-text-muted shrink-0" />
-                      )}
-
-                      {/* Info */}
-                      <div className="flex-1 min-w-0">
-                        <div className="text-xs font-semibold truncate">
-                          {pop.desc || pop.code.toUpperCase()}
-                        </div>
-                        <div className="text-[10px] text-text-muted flex items-center gap-1">
-                          <span className="font-mono uppercase">{pop.code}</span>
-                          <span>·</span>
-                          <span>{pop.relays.length}r</span>
-                        </div>
-                      </div>
-
-                      {/* Ping */}
-                      {hasPing && (
-                        <span className={`text-xs font-mono font-bold shrink-0 ${getPingColor(ping)}`}>
-                          {ping > 0 ? `${ping.toFixed(0)}ms` : "—"}
-                        </span>
-                      )}
-
-                      {/* Status icon */}
-                      <span className={`shrink-0 ${isBlocked ? "text-danger" : "text-text-muted/20"}`}>
-                        {isToggling ? <Loader size={12} className="animate-spin" />
-                          : isBlocked ? <Lock size={12} /> : <Unlock size={12} />}
-                      </span>
+            return (
+              <div key={pop.code}
+                onClick={() => !isToggling && toggleBlock(pop)}
+                className={`rounded-lg border p-3 transition cursor-pointer select-none ${
+                  isBlocked ? "bg-danger/5 border-danger/30 opacity-50 hover:opacity-70"
+                    : hasPing && ping > 0 ? `${getPingBgColor(ping)} ${getPingBorderColor(ping)} hover:brightness-110`
+                    : "bg-bg-card border-border hover:border-accent/30"
+                }`}
+              >
+                <div className="flex items-center gap-2.5">
+                  {getPopFlag(pop.code) ? (
+                    <img src={`https://flagcdn.com/w40/${getPopFlag(pop.code)}.png`}
+                      alt="" className="w-7 h-5 rounded object-cover shrink-0 border border-border/50"
+                      onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                  ) : (
+                    <Globe size={16} className="text-text-muted shrink-0" />
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <div className="text-xs font-semibold truncate">{pop.desc || pop.code.toUpperCase()}</div>
+                    <div className="text-[10px] text-text-muted flex items-center gap-1">
+                      <span className="font-mono uppercase">{pop.code}</span>
+                      <span>·</span>
+                      <span>{pop.relays.length}r</span>
                     </div>
                   </div>
-                );
-              })}
+                  {hasPing && (
+                    <span className={`text-xs font-mono font-bold shrink-0 ${getPingColor(ping)}`}>
+                      {ping > 0 ? `${ping.toFixed(0)}ms` : "—"}
+                    </span>
+                  )}
+                  <span className={`shrink-0 ${isBlocked ? "text-danger" : "text-text-muted/20"}`}>
+                    {isToggling ? <Loader size={12} className="animate-spin" />
+                      : isBlocked ? <Lock size={12} /> : <Unlock size={12} />}
+                  </span>
+                </div>
+              </div>
+            );
+          })}
+          {currentPops.length === 0 && (
+            <div className="col-span-full text-center py-8 text-text-muted text-sm">
+              No {statusFilter !== "all" ? statusFilter : ""} PoPs in {activeRegion}
             </div>
-          </div>
-        ))}
-
-      {/* No results message */}
-      {!loading && sdrConfig && selectedRegions.size === 0 && (
-        <div className="bg-bg-card border border-border rounded-lg p-8 text-center">
-          <Globe size={32} className="mx-auto mb-3 text-text-muted" />
-          <p className="text-text-muted text-sm">
-            No regions selected. Use the filter above to show PoPs.
-          </p>
+          )}
         </div>
       )}
     </div>
