@@ -558,6 +558,24 @@ app.get('/api/clients', (req, res) => {
 });
 
 // ══════════════════════════════════════════
+// ── PRO PLAYER SETTINGS
+// ══════════════════════════════════════════
+
+app.get('/api/pro-settings', (req, res) => {
+  const settings = loadJson('pro_settings.json');
+  res.json({ players: settings, total: settings.length });
+});
+
+app.post('/api/pro-settings', (req, res) => {
+  const { api_key, players } = req.body;
+  if (api_key !== process.env.HQ_API_KEY && api_key !== 'cs2pt-dev-key') {
+    return res.status(401).json({ error: 'Invalid API key' });
+  }
+  saveJson('pro_settings.json', players);
+  res.json({ success: true, total: players.length });
+});
+
+// ══════════════════════════════════════════
 // ── TOKEN MANAGEMENT (auth for the app)
 // ══════════════════════════════════════════
 
