@@ -31,6 +31,32 @@ jobs:
         working-directory: app
         run: npm ci
 
+      - name: Download WireGuard binaries for bundling
+        shell: pwsh
+        run: |
+          $wgDir = "app/src-tauri/resources/wireguard"
+          New-Item -ItemType Directory -Force -Path $wgDir | Out-Null
+
+          # Download wintun (MIT licensed TUN driver)
+          Invoke-WebRequest -Uri "https://www.wintun.net/builds/wintun-0.14.1.zip" -OutFile wintun.zip
+          Expand-Archive -Path wintun.zip -DestinationPath wintun-extract
+          Copy-Item "wintun-extract/wintun/bin/amd64/wintun.dll" "$wgDir/wintun.dll"
+          Remove-Item -Recurse wintun.zip, wintun-extract
+
+          # Install WireGuard to get the binaries
+          $msiUrl = "https://download.wireguard.com/windows-client/wireguard-amd64-0.5.3.msi"
+          Invoke-WebRequest -Uri $msiUrl -OutFile wireguard.msi
+          Start-Process msiexec.exe -ArgumentList "/i", "wireguard.msi", "/qn" -Wait
+          Start-Sleep -Seconds 3
+
+          # Copy from installed location
+          Copy-Item "C:\Program Files\WireGuard\wg.exe" "$wgDir/wg.exe"
+          Copy-Item "C:\Program Files\WireGuard\wireguard.exe" "$wgDir/wireguard.exe"
+          Remove-Item wireguard.msi -ErrorAction SilentlyContinue
+
+          # Verify all files present
+          Get-ChildItem "$wgDir" | ForEach-Object { Write-Host "$($_.Name): $($_.Length) bytes" }
+
       - name: Build Tauri app
         uses: tauri-apps/tauri-action@v0
         env:
