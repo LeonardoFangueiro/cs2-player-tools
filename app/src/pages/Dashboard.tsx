@@ -80,9 +80,9 @@ function StatCard({
 }
 
 function getBarColor(ms: number): string {
-  if (ms < 50) return "#55efc4";
-  if (ms < 100) return "#fdcb6e";
-  return "#fd79a8";
+  if (ms < 50) return "#2ecc71";
+  if (ms < 100) return "#f1c40f";
+  return "#e74c3c";
 }
 
 export default function Dashboard() {
@@ -395,22 +395,22 @@ export default function Dashboard() {
                     <BarChart data={chartData}>
                       <XAxis
                         dataKey="code"
-                        tick={{ fill: "#8888a0", fontSize: 11 }}
-                        axisLine={{ stroke: "#2a2a3a" }}
+                        tick={{ fill: "#8a8070", fontSize: 11 }}
+                        axisLine={{ stroke: "#2a2620" }}
                         tickLine={false}
                       />
                       <YAxis
-                        tick={{ fill: "#8888a0", fontSize: 11 }}
-                        axisLine={{ stroke: "#2a2a3a" }}
+                        tick={{ fill: "#8a8070", fontSize: 11 }}
+                        axisLine={{ stroke: "#2a2620" }}
                         tickLine={false}
                         unit="ms"
                       />
                       <Tooltip
                         contentStyle={{
-                          background: "#12121a",
-                          border: "1px solid #2a2a3a",
+                          background: "#131210",
+                          border: "1px solid #2a2620",
                           borderRadius: 8,
-                          color: "#e0e0e8",
+                          color: "#e8e4dc",
                           fontSize: 12,
                         }}
                         formatter={(value) => [

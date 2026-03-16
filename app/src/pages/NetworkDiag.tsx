@@ -480,33 +480,33 @@ export default function NetworkDiag() {
                 <LineChart data={chartData}>
                   <CartesianGrid
                     strokeDasharray="3 3"
-                    stroke="#2a2a3a"
+                    stroke="#2a2620"
                   />
                   <XAxis
                     dataKey="seq"
-                    tick={{ fill: "#8888a0", fontSize: 11 }}
-                    axisLine={{ stroke: "#2a2a3a" }}
+                    tick={{ fill: "#8a8070", fontSize: 11 }}
+                    axisLine={{ stroke: "#2a2620" }}
                     tickLine={false}
                     label={{
                       value: "Sequence",
                       position: "insideBottom",
                       offset: -5,
-                      fill: "#8888a0",
+                      fill: "#8a8070",
                       fontSize: 10,
                     }}
                   />
                   <YAxis
-                    tick={{ fill: "#8888a0", fontSize: 11 }}
-                    axisLine={{ stroke: "#2a2a3a" }}
+                    tick={{ fill: "#8a8070", fontSize: 11 }}
+                    axisLine={{ stroke: "#2a2620" }}
                     tickLine={false}
                     unit="ms"
                   />
                   <Tooltip
                     contentStyle={{
-                      background: "#12121a",
-                      border: "1px solid #2a2a3a",
+                      background: "#131210",
+                      border: "1px solid #2a2620",
                       borderRadius: 8,
-                      color: "#e0e0e8",
+                      color: "#e8e4dc",
                       fontSize: 12,
                     }}
                     formatter={(value) =>
@@ -518,10 +518,10 @@ export default function NetworkDiag() {
                   <Line
                     type="monotone"
                     dataKey="latency"
-                    stroke="#6c5ce7"
+                    stroke="#e67e22"
                     strokeWidth={2}
-                    dot={{ fill: "#6c5ce7", r: 3 }}
-                    activeDot={{ fill: "#00cec9", r: 5 }}
+                    dot={{ fill: "#e67e22", r: 3 }}
+                    activeDot={{ fill: "#f39c12", r: 5 }}
                     connectNulls={false}
                   />
                 </LineChart>

@@ -166,7 +166,7 @@ function WorldMap({
           {/* Glow filter for server dots */}
           <filter id="glow-purple" x="-50%" y="-50%" width="200%" height="200%">
             <feGaussianBlur stdDeviation="4" result="blur" />
-            <feFlood floodColor="#6c5ce7" floodOpacity="0.6" result="color" />
+            <feFlood floodColor="#e67e22" floodOpacity="0.6" result="color" />
             <feComposite in="color" in2="blur" operator="in" result="shadow" />
             <feMerge>
               <feMergeNode in="shadow" />
@@ -175,7 +175,7 @@ function WorldMap({
           </filter>
           <filter id="glow-teal" x="-50%" y="-50%" width="200%" height="200%">
             <feGaussianBlur stdDeviation="4" result="blur" />
-            <feFlood floodColor="#00cec9" floodOpacity="0.6" result="color" />
+            <feFlood floodColor="#f39c12" floodOpacity="0.6" result="color" />
             <feComposite in="color" in2="blur" operator="in" result="shadow" />
             <feMerge>
               <feMergeNode in="shadow" />
@@ -184,7 +184,7 @@ function WorldMap({
           </filter>
           <filter id="glow-green" x="-50%" y="-50%" width="200%" height="200%">
             <feGaussianBlur stdDeviation="6" result="blur" />
-            <feFlood floodColor="#55efc4" floodOpacity="0.8" result="color" />
+            <feFlood floodColor="#2ecc71" floodOpacity="0.8" result="color" />
             <feComposite in="color" in2="blur" operator="in" result="shadow" />
             <feMerge>
               <feMergeNode in="shadow" />
@@ -193,9 +193,9 @@ function WorldMap({
           </filter>
           {/* Animated dash for connection line */}
           <linearGradient id="line-gradient" x1="0%" y1="0%" x2="100%" y2="0%">
-            <stop offset="0%" stopColor="#00cec9" stopOpacity="0.3" />
-            <stop offset="50%" stopColor="#55efc4" stopOpacity="1" />
-            <stop offset="100%" stopColor="#6c5ce7" stopOpacity="0.3" />
+            <stop offset="0%" stopColor="#f39c12" stopOpacity="0.3" />
+            <stop offset="50%" stopColor="#2ecc71" stopOpacity="1" />
+            <stop offset="100%" stopColor="#e67e22" stopOpacity="0.3" />
           </linearGradient>
         </defs>
 
@@ -209,7 +209,7 @@ function WorldMap({
         ))}
 
         {/* World outline */}
-        <path d={WORLD_PATH} fill="#1a1a25" stroke="#2a2a3a" strokeWidth="1" opacity="0.8" />
+        <path d={WORLD_PATH} fill="#1a1a25" stroke="#2a2620" strokeWidth="1" opacity="0.8" />
 
         {/* Connection line */}
         {(isConnected || isConnecting) && userXY && selectedXY && (
@@ -238,7 +238,7 @@ function WorldMap({
             <g key={s.id}>
               {/* Pulse ring for active server */}
               {isActive && (
-                <circle cx={x} cy={y} r="8" fill="none" stroke="#55efc4" strokeWidth="1.5" opacity="0.4">
+                <circle cx={x} cy={y} r="8" fill="none" stroke="#2ecc71" strokeWidth="1.5" opacity="0.4">
                   <animate attributeName="r" from="8" to="20" dur="2s" repeatCount="indefinite" />
                   <animate attributeName="opacity" from="0.6" to="0" dur="2s" repeatCount="indefinite" />
                 </circle>
@@ -247,13 +247,13 @@ function WorldMap({
                 cx={x}
                 cy={y}
                 r={isSelected ? 6 : 4}
-                fill={isActive ? "#55efc4" : isSelected ? "#6c5ce7" : "#6c5ce7"}
+                fill={isActive ? "#2ecc71" : isSelected ? "#e67e22" : "#e67e22"}
                 filter={isActive ? "url(#glow-green)" : "url(#glow-purple)"}
                 opacity={isSelected ? 1 : 0.8}
               />
               {/* Label for selected server */}
               {isSelected && (
-                <text x={x} y={y - 12} textAnchor="middle" fill="#e0e0e8" fontSize="11" fontWeight="600">
+                <text x={x} y={y - 12} textAnchor="middle" fill="#e8e4dc" fontSize="11" fontWeight="600">
                   {s.flag} {s.name}
                 </text>
               )}
@@ -264,12 +264,12 @@ function WorldMap({
         {/* User location dot */}
         {userXY && (
           <g>
-            <circle cx={userXY.x} cy={userXY.y} r="5" fill="#00cec9" filter="url(#glow-teal)" />
-            <circle cx={userXY.x} cy={userXY.y} r="8" fill="none" stroke="#00cec9" strokeWidth="1" opacity="0.5">
+            <circle cx={userXY.x} cy={userXY.y} r="5" fill="#f39c12" filter="url(#glow-teal)" />
+            <circle cx={userXY.x} cy={userXY.y} r="8" fill="none" stroke="#f39c12" strokeWidth="1" opacity="0.5">
               <animate attributeName="r" from="8" to="16" dur="3s" repeatCount="indefinite" />
               <animate attributeName="opacity" from="0.5" to="0" dur="3s" repeatCount="indefinite" />
             </circle>
-            <text x={userXY.x} y={userXY.y - 12} textAnchor="middle" fill="#00cec9" fontSize="10" fontWeight="500">
+            <text x={userXY.x} y={userXY.y - 12} textAnchor="middle" fill="#f39c12" fontSize="10" fontWeight="500">
               You
             </text>
           </g>
@@ -277,12 +277,12 @@ function WorldMap({
 
         {/* Legend */}
         <g transform="translate(20, 460)">
-          <circle cx="0" cy="0" r="4" fill="#00cec9" />
-          <text x="10" y="4" fill="#8888a0" fontSize="10">Your location</text>
-          <circle cx="120" cy="0" r="4" fill="#6c5ce7" />
-          <text x="130" y="4" fill="#8888a0" fontSize="10">VPN Server</text>
-          <circle cx="230" cy="0" r="4" fill="#55efc4" />
-          <text x="240" y="4" fill="#8888a0" fontSize="10">Connected</text>
+          <circle cx="0" cy="0" r="4" fill="#f39c12" />
+          <text x="10" y="4" fill="#8a8070" fontSize="10">Your location</text>
+          <circle cx="120" cy="0" r="4" fill="#e67e22" />
+          <text x="130" y="4" fill="#8a8070" fontSize="10">VPN Server</text>
+          <circle cx="230" cy="0" r="4" fill="#2ecc71" />
+          <text x="240" y="4" fill="#8a8070" fontSize="10">Connected</text>
         </g>
       </svg>
     </div>
