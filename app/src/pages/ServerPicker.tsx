@@ -408,13 +408,14 @@ export default function ServerPicker() {
 
                 return (
                   <div key={pop.code}
-                    className={`rounded-lg border p-3 transition ${
-                      isBlocked ? "bg-danger/5 border-danger/30 opacity-50"
-                        : hasPing && ping > 0 ? `${getPingBgColor(ping)} ${getPingBorderColor(ping)}`
-                        : "bg-bg-card border-border hover:border-border/80"
+                    onClick={() => !isToggling && toggleBlock(pop)}
+                    className={`rounded-lg border p-3 transition cursor-pointer select-none ${
+                      isBlocked ? "bg-danger/5 border-danger/30 opacity-50 hover:opacity-70"
+                        : hasPing && ping > 0 ? `${getPingBgColor(ping)} ${getPingBorderColor(ping)} hover:brightness-110`
+                        : "bg-bg-card border-border hover:border-accent/30"
                     }`}
                   >
-                    {/* Row: flag + info + ping + action */}
+                    {/* Row: flag + info + ping + status */}
                     <div className="flex items-center gap-2.5">
                       {/* Flag */}
                       {getPopFlag(pop.code) ? (
@@ -444,14 +445,11 @@ export default function ServerPicker() {
                         </span>
                       )}
 
-                      {/* Block/Allow */}
-                      <button onClick={() => toggleBlock(pop)} disabled={isToggling}
-                        className={`shrink-0 p-1 rounded transition ${
-                          isBlocked ? "text-success hover:bg-success/15" : "text-text-muted/40 hover:text-danger hover:bg-danger/10"
-                        }`} title={isBlocked ? "Allow" : "Block"}>
+                      {/* Status icon */}
+                      <span className={`shrink-0 ${isBlocked ? "text-danger" : "text-text-muted/20"}`}>
                         {isToggling ? <Loader size={12} className="animate-spin" />
-                          : isBlocked ? <Unlock size={12} /> : <Lock size={12} />}
-                      </button>
+                          : isBlocked ? <Lock size={12} /> : <Unlock size={12} />}
+                      </span>
                     </div>
                   </div>
                 );
