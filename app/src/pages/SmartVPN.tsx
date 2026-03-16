@@ -13,7 +13,7 @@ import {
   Lock,
   ArrowDownUp,
   Timer,
-  MapPin,
+  Monitor,
   Users,
   Key,
   RefreshCw,
@@ -86,12 +86,6 @@ type ConnectionState = "disconnected" | "connecting" | "connected" | "disconnect
 
 // ── Helpers ──
 
-function latLngToXY(lat: number, lng: number): { x: number; y: number } {
-  const x = (lng + 180) * (1000 / 360);
-  const y = (90 - lat) * (500 / 180);
-  return { x, y };
-}
-
 function formatDuration(seconds: number): string {
   const h = Math.floor(seconds / 3600);
   const m = Math.floor((seconds % 3600) / 60);
@@ -115,30 +109,23 @@ function getPingColor(ms: number): string {
   return "text-danger";
 }
 
-// ── SVG World Map Paths -- Real continent outlines (equirectangular, viewBox 0 0 1000 500) ──
-const CONTINENTS = [
-  // North America
-  "M 40,80 55,72 70,70 90,72 115,68 140,62 170,58 190,55 205,58 215,62 225,72 230,80 228,88 218,95 210,100 205,105 195,115 188,125 180,130 172,128 168,120 160,118 148,120 135,125 125,130 118,128 110,120 100,115 90,108 82,100 75,95 65,92 55,88 45,85 Z",
-  // South America
-  "M 195,195 205,190 218,188 228,192 235,200 238,212 240,225 242,240 240,255 238,268 235,280 232,295 228,310 222,325 215,338 208,348 200,355 192,358 185,352 180,340 178,325 175,310 172,295 170,280 168,265 170,250 172,238 175,225 180,212 185,200 Z",
-  // Europe
-  "M 448,55 455,50 468,48 480,50 492,52 500,55 508,58 512,62 510,68 505,72 498,78 492,82 488,88 485,92 480,95 475,92 470,88 465,82 460,78 455,72 450,68 448,62 Z",
-  // Africa
-  "M 455,135 465,130 478,128 490,130 502,135 510,142 515,152 518,165 520,178 518,192 515,208 510,222 505,235 498,248 490,258 482,265 472,270 462,268 455,262 448,252 442,240 438,228 435,215 432,200 430,188 432,175 435,162 440,150 448,140 Z",
-  // Asia
-  "M 520,40 540,35 560,32 580,30 600,28 625,30 650,32 675,35 700,38 720,42 740,48 755,55 768,62 775,72 780,82 782,92 780,102 775,112 768,120 758,128 745,132 732,130 720,125 710,118 700,112 692,105 685,100 680,108 675,118 670,125 662,130 652,132 642,128 635,120 628,112 622,105 615,100 608,95 600,92 590,88 580,85 570,82 560,78 550,72 540,65 530,58 525,50 Z",
-  // India/SE Asia
-  "M 668,135 675,132 685,130 695,135 700,142 702,152 700,162 695,170 688,175 680,178 672,175 665,168 660,158 658,148 660,140 Z",
-  // Australia
-  "M 780,255 795,248 812,245 830,248 845,255 855,265 858,278 855,290 848,302 838,310 825,315 810,312 798,305 788,295 782,282 780,268 Z",
-  // UK/Ireland
-  "M 462,60 467,56 472,58 474,62 472,67 467,68 463,65 Z",
-  // Japan
-  "M 788,82 792,78 796,80 798,85 796,92 792,95 788,92 786,88 Z",
-  // Indonesia
-  "M 730,175 740,172 752,174 762,178 770,182 775,178 782,180 788,185 782,190 772,188 762,186 750,184 740,182 735,180 Z",
-];
-const WORLD_PATH = CONTINENTS.join(" ");
+function getContinent(country: string): string {
+  const EU = ['Germany','France','Netherlands','Spain','Sweden','Poland','Austria','Finland','UK','England','Romania','Turkey','Italy','Portugal','Belgium','Czech','Norway','Denmark','Ireland','Switzerland'];
+  const NA = ['United States','Canada','Mexico'];
+  const SA = ['Brazil','Chile','Argentina','Peru','Colombia'];
+  const AS = ['Singapore','Hong Kong','Japan','South Korea','India','China','UAE','Taiwan','Thailand','Indonesia','Malaysia','Philippines'];
+  const OC = ['Australia','New Zealand'];
+  const AF = ['South Africa','Nigeria','Egypt','Kenya'];
+
+  if (EU.some(c => country.includes(c))) return 'Europe';
+  if (NA.some(c => country.includes(c))) return 'North America';
+  if (SA.some(c => country.includes(c))) return 'South America';
+  if (AS.some(c => country.includes(c))) return 'Asia';
+  if (OC.some(c => country.includes(c))) return 'Oceania';
+  if (AF.some(c => country.includes(c))) return 'Africa';
+  return 'Global';
+}
+
 
 // ── Toast Notification System ──
 
@@ -282,151 +269,95 @@ function PreConnectModal({
   );
 }
 
-// ── World Map Component ──
+// ── Network Diagram Component ──
 
-function WorldMap({
-  servers,
-  selectedServer,
-  connectionState,
-  userLocation,
-}: {
+function NetworkDiagram({ servers, connectedServerId, connectionState }: {
   servers: VpnServer[];
-  selectedServer: VpnServer | null;
+  connectedServerId: string | null;
   connectionState: ConnectionState;
-  userLocation: { lat: number; lng: number } | null;
 }) {
+  const connectedServer = servers.find(s => s.id === connectedServerId);
   const isConnected = connectionState === "connected";
   const isConnecting = connectionState === "connecting";
 
-  const userXY = userLocation ? latLngToXY(userLocation.lat, userLocation.lng) : null;
-  const selectedXY = selectedServer ? latLngToXY(selectedServer.lat, selectedServer.lng) : null;
-
   return (
-    <div className="bg-bg-card border border-border rounded-lg p-4 mb-6 overflow-hidden">
-      <svg viewBox="0 0 1000 500" className="w-full h-auto" style={{ maxHeight: 320 }}>
-        <defs>
-          {/* Glow filter for server dots */}
-          <filter id="glow-purple" x="-50%" y="-50%" width="200%" height="200%">
-            <feGaussianBlur stdDeviation="4" result="blur" />
-            <feFlood floodColor="#e67e22" floodOpacity="0.6" result="color" />
-            <feComposite in="color" in2="blur" operator="in" result="shadow" />
-            <feMerge>
-              <feMergeNode in="shadow" />
-              <feMergeNode in="SourceGraphic" />
-            </feMerge>
-          </filter>
-          <filter id="glow-teal" x="-50%" y="-50%" width="200%" height="200%">
-            <feGaussianBlur stdDeviation="4" result="blur" />
-            <feFlood floodColor="#f39c12" floodOpacity="0.6" result="color" />
-            <feComposite in="color" in2="blur" operator="in" result="shadow" />
-            <feMerge>
-              <feMergeNode in="shadow" />
-              <feMergeNode in="SourceGraphic" />
-            </feMerge>
-          </filter>
-          <filter id="glow-green" x="-50%" y="-50%" width="200%" height="200%">
-            <feGaussianBlur stdDeviation="6" result="blur" />
-            <feFlood floodColor="#2ecc71" floodOpacity="0.8" result="color" />
-            <feComposite in="color" in2="blur" operator="in" result="shadow" />
-            <feMerge>
-              <feMergeNode in="shadow" />
-              <feMergeNode in="SourceGraphic" />
-            </feMerge>
-          </filter>
-          {/* Animated dash for connection line */}
-          <linearGradient id="line-gradient" x1="0%" y1="0%" x2="100%" y2="0%">
-            <stop offset="0%" stopColor="#f39c12" stopOpacity="0.3" />
-            <stop offset="50%" stopColor="#2ecc71" stopOpacity="1" />
-            <stop offset="100%" stopColor="#e67e22" stopOpacity="0.3" />
-          </linearGradient>
-        </defs>
+    <div className="bg-bg-card border border-border rounded-lg p-6 mb-6">
+      <div className="flex items-center justify-center gap-4">
+        {/* Your Device */}
+        <div className={`flex flex-col items-center gap-2 px-6 py-4 rounded-xl border-2 ${
+          isConnected ? 'border-success/50 bg-success/5' : 'border-border bg-bg'
+        }`}>
+          <Monitor size={32} className={isConnected ? 'text-success' : 'text-text-muted'} />
+          <span className="text-xs font-semibold">Your PC</span>
+        </div>
 
-        {/* Background grid */}
-        <rect width="1000" height="500" fill="#0a0a0f" rx="8" />
-        {Array.from({ length: 10 }, (_, i) => (
-          <line key={`vg-${i}`} x1={i * 100} y1="0" x2={i * 100} y2="500" stroke="#1a1a25" strokeWidth="0.5" />
-        ))}
-        {Array.from({ length: 5 }, (_, i) => (
-          <line key={`hg-${i}`} x1="0" y1={i * 100} x2="1000" y2={i * 100} stroke="#1a1a25" strokeWidth="0.5" />
-        ))}
+        {/* Connection Line 1 */}
+        <div className="flex items-center gap-1">
+          {isConnected || isConnecting ? (
+            <>
+              <div className="w-8 h-0.5 bg-success rounded" />
+              <div className={`w-8 h-0.5 bg-success rounded ${isConnecting ? 'animate-pulse' : ''}`} />
+              <div className="w-8 h-0.5 bg-success rounded" />
+            </>
+          ) : (
+            <>
+              <div className="w-8 h-0.5 bg-border rounded" />
+              <div className="w-8 h-0.5 bg-border rounded" />
+              <div className="w-8 h-0.5 bg-border rounded" />
+            </>
+          )}
+        </div>
 
-        {/* World outline */}
-        <path d={WORLD_PATH} fill="#1a1a25" stroke="#2a2620" strokeWidth="1" opacity="0.8" />
+        {/* VPN Server */}
+        <div className={`flex flex-col items-center gap-2 px-6 py-4 rounded-xl border-2 ${
+          isConnected ? 'border-accent/50 bg-accent/5' : 'border-border bg-bg'
+        }`}>
+          <Shield size={32} className={isConnected ? 'text-accent' : 'text-text-muted'} />
+          <span className="text-xs font-semibold">
+            {connectedServer ? `${connectedServer.flag} ${connectedServer.name}` : 'VPN Server'}
+          </span>
+          {isConnected && (
+            <span className="text-[10px] text-success font-mono">Encrypted</span>
+          )}
+        </div>
 
-        {/* Connection line */}
-        {(isConnected || isConnecting) && userXY && selectedXY && (
-          <line
-            x1={userXY.x}
-            y1={userXY.y}
-            x2={selectedXY.x}
-            y2={selectedXY.y}
-            stroke="url(#line-gradient)"
-            strokeWidth="2"
-            strokeDasharray={isConnecting ? "8 4" : "none"}
-            opacity={isConnecting ? 0.6 : 1}
-          >
-            {isConnecting && (
-              <animate attributeName="stroke-dashoffset" from="24" to="0" dur="1s" repeatCount="indefinite" />
-            )}
-          </line>
-        )}
+        {/* Connection Line 2 */}
+        <div className="flex items-center gap-1">
+          {isConnected ? (
+            <>
+              <div className="w-8 h-0.5 bg-accent rounded" />
+              <div className="w-8 h-0.5 bg-accent rounded" />
+              <div className="w-8 h-0.5 bg-accent rounded" />
+            </>
+          ) : (
+            <>
+              <div className="w-8 h-0.5 bg-border rounded" />
+              <div className="w-8 h-0.5 bg-border rounded" />
+              <div className="w-8 h-0.5 bg-border rounded" />
+            </>
+          )}
+        </div>
 
-        {/* Server dots */}
-        {servers.map((s) => {
-          const { x, y } = latLngToXY(s.lat, s.lng);
-          const isSelected = selectedServer?.id === s.id;
-          const isActive = isSelected && isConnected;
-          return (
-            <g key={s.id}>
-              {/* Pulse ring for active server */}
-              {isActive && (
-                <circle cx={x} cy={y} r="8" fill="none" stroke="#2ecc71" strokeWidth="1.5" opacity="0.4">
-                  <animate attributeName="r" from="8" to="20" dur="2s" repeatCount="indefinite" />
-                  <animate attributeName="opacity" from="0.6" to="0" dur="2s" repeatCount="indefinite" />
-                </circle>
-              )}
-              <circle
-                cx={x}
-                cy={y}
-                r={isSelected ? 6 : 4}
-                fill={isActive ? "#2ecc71" : "#e67e22"}
-                filter={isActive ? "url(#glow-green)" : "url(#glow-purple)"}
-                opacity={isSelected ? 1 : 0.8}
-              />
-              {/* Label for selected server */}
-              {isSelected && (
-                <text x={x} y={y - 12} textAnchor="middle" fill="#e8e4dc" fontSize="11" fontWeight="600">
-                  {s.flag} {s.name}
-                </text>
-              )}
-            </g>
-          );
-        })}
+        {/* Valve Servers */}
+        <div className={`flex flex-col items-center gap-2 px-6 py-4 rounded-xl border-2 ${
+          isConnected ? 'border-warning/50 bg-warning/5' : 'border-border bg-bg'
+        }`}>
+          <Globe size={32} className={isConnected ? 'text-warning' : 'text-text-muted'} />
+          <span className="text-xs font-semibold">Valve CS2</span>
+          {isConnected && (
+            <span className="text-[10px] text-warning font-mono">Low Latency</span>
+          )}
+        </div>
+      </div>
 
-        {/* User location dot */}
-        {userXY && (
-          <g>
-            <circle cx={userXY.x} cy={userXY.y} r="5" fill="#f39c12" filter="url(#glow-teal)" />
-            <circle cx={userXY.x} cy={userXY.y} r="8" fill="none" stroke="#f39c12" strokeWidth="1" opacity="0.5">
-              <animate attributeName="r" from="8" to="16" dur="3s" repeatCount="indefinite" />
-              <animate attributeName="opacity" from="0.5" to="0" dur="3s" repeatCount="indefinite" />
-            </circle>
-            <text x={userXY.x} y={userXY.y - 12} textAnchor="middle" fill="#f39c12" fontSize="10" fontWeight="500">
-              You
-            </text>
-          </g>
-        )}
-
-        {/* Legend */}
-        <g transform="translate(20, 460)">
-          <circle cx="0" cy="0" r="4" fill="#f39c12" />
-          <text x="10" y="4" fill="#8a8070" fontSize="10">Your location</text>
-          <circle cx="120" cy="0" r="4" fill="#e67e22" />
-          <text x="130" y="4" fill="#8a8070" fontSize="10">VPN Server</text>
-          <circle cx="230" cy="0" r="4" fill="#2ecc71" />
-          <text x="240" y="4" fill="#8a8070" fontSize="10">Connected</text>
-        </g>
-      </svg>
+      {/* Status text */}
+      <div className="text-center mt-4">
+        <span className={`text-xs ${isConnected ? 'text-success' : isConnecting ? 'text-accent animate-pulse' : 'text-text-muted'}`}>
+          {isConnected ? 'Connected — Traffic encrypted through VPN' :
+           isConnecting ? 'Connecting...' :
+           'Not connected — Select a server below'}
+        </span>
+      </div>
     </div>
   );
 }
@@ -471,12 +402,18 @@ function ServerCard({
       {/* Header */}
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-3">
-          <span className="text-2xl leading-none">{server.flag}</span>
+          <span className="text-3xl leading-none">{server.flag || '🌐'}</span>
           <div>
-            <div className="font-semibold text-sm">{server.name}</div>
-            <div className="text-xs text-text-muted flex items-center gap-1">
-              <MapPin size={10} />
-              {server.location}
+            <div className="font-semibold text-sm flex items-center gap-2">
+              {server.name}
+              {ping !== null && (
+                <span className={`text-sm font-mono font-bold ${getPingColor(ping)}`}>
+                  {Math.round(ping)}ms
+                </span>
+              )}
+            </div>
+            <div className="text-xs text-text-muted">
+              {server.location || server.country}
             </div>
           </div>
         </div>
@@ -518,7 +455,7 @@ function ServerCard({
         </div>
         <div className="flex items-center gap-1">
           <Globe size={12} />
-          <span>{server.country}</span>
+          <span>{getContinent(server.country)}</span>
         </div>
       </div>
 
@@ -657,7 +594,6 @@ export default function SmartVPN() {
   const [vpnIp, setVpnIp] = useState<string>("");
   const [vpnStatus, setVpnStatus] = useState<VpnStatus | null>(null);
   const [connectDuration, setConnectDuration] = useState(0);
-  const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [favoriteServerId, setFavoriteServerId] = useState<string | null>(
     localStorage.getItem("cs2pt_favorite_server")
   );
@@ -672,7 +608,6 @@ export default function SmartVPN() {
   const pendingConnectServerIdRef = useRef<string | null>(null);
 
   const connectedServer = servers.find((s) => s.id === connectedServerId) ?? null;
-  const selectedServer = servers.find((s) => s.id === selectedServerId) ?? connectedServer;
 
   // ── Toast helpers ──
 
@@ -706,21 +641,6 @@ export default function SmartVPN() {
       localStorage.setItem("cs2pt_favorite_server", serverId);
     }
   }
-
-  // ── Fetch user approximate location ──
-  useEffect(() => {
-    fetch("https://ipapi.co/json/")
-      .then((r) => r.json())
-      .then((data) => {
-        if (data.latitude && data.longitude) {
-          setUserLocation({ lat: data.latitude, lng: data.longitude });
-        }
-      })
-      .catch(() => {
-        // Default to Western Europe if geolocation fails
-        setUserLocation({ lat: 40.0, lng: -8.0 });
-      });
-  }, []);
 
   // ── Fetch server list ──
   const fetchServers = useCallback(async () => {
@@ -898,44 +818,31 @@ export default function SmartVPN() {
     setError(null);
 
     try {
-      // Step 1: Request connection config from HQ
-      const configResp = await fetch(
-        `${HQ_BASE}/vpn-servers/${serverId}/connect`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
-
-      if (!configResp.ok) {
-        const errBody = await configResp.text();
-        throw new Error(errBody || `Server returned ${configResp.status}`);
-      }
-
-      const config: VpnConnectResponse = await configResp.json();
-
-      // Step 2: Generate client keypair locally
+      // Step 1: Generate client keypair FIRST
       const keypair = await invoke<[string, string]>("vpn_generate_keypair");
       const clientPrivateKey = keypair[0];
       const clientPublicKey = keypair[1];
 
-      // Step 3: Register public key with HQ so the server knows us
-      await fetch(
-        `${HQ_BASE}/vpn-servers/${serverId}/register-key`,
+      // Step 2: Request connection from HQ (sends token + public key)
+      const configResp = await fetch(
+        `${HQ_BASE}/vpn-servers/${serverId}/connect`,
         {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({ public_key: clientPublicKey }),
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            token: token,
+            client_public_key: clientPublicKey,
+          }),
         }
       );
 
-      // Step 4: Save VPN profile locally
+      const configData = await configResp.json();
+      if (!configData.success) {
+        throw new Error(configData.error || "Connection refused by server");
+      }
+      const config: VpnConnectResponse = configData.config;
+
+      // Step 3: Save VPN profile locally
       const profileName = `smartvpn-${serverId}`;
       await invoke("vpn_save_profile", {
         profile: {
@@ -1145,12 +1052,11 @@ export default function SmartVPN() {
         </div>
       )}
 
-      {/* World Map */}
-      <WorldMap
+      {/* Network Diagram */}
+      <NetworkDiagram
         servers={servers}
-        selectedServer={selectedServer}
+        connectedServerId={connectedServerId}
         connectionState={connectionState}
-        userLocation={userLocation}
       />
 
       {/* Server List */}

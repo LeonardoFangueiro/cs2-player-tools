@@ -313,6 +313,76 @@ export async function checkServerStatus({ ip, port = 22, username = 'root', pass
 }
 
 /**
+ * Uninstall WireGuard and cleanup when deleting a VPN server
+ * - Stop WireGuard
+ * - Disable from startup
+ * - Remove config
+ * - Reset firewall rules
+ * - Uninstall WireGuard
+ */
+export async function uninstallVpnServer({ ip, port = 22, username = 'root', password }) {
+  const log = [];
+  const push = (msg) => { log.push(msg); console.log(`[VPN Uninstall ${ip}] ${msg}`); };
+
+  return new Promise((resolve) => {
+    const conn = new Client();
+    const timeout = setTimeout(() => { conn.end(); resolve({ success: false, log, error: 'timeout' }); }, 30000);
+
+    conn.on('error', (err) => {
+      clearTimeout(timeout);
+      push(`Cannot reach server: ${err.message}`);
+      resolve({ success: false, log, error: err.message });
+    });
+
+    conn.on('ready', async () => {
+      push('SSH connected — starting cleanup...');
+      try {
+        // 1. Stop WireGuard
+        push('Stopping WireGuard...');
+        await exec(conn, 'wg-quick down wg0 2>/dev/null || true');
+        await exec(conn, 'systemctl stop wg-quick@wg0 2>/dev/null || true');
+
+        // 2. Disable from startup
+        push('Disabling WireGuard from startup...');
+        await exec(conn, 'systemctl disable wg-quick@wg0 2>/dev/null || true');
+
+        // 3. Remove config
+        push('Removing WireGuard config...');
+        await exec(conn, 'rm -f /etc/wireguard/wg0.conf');
+        await exec(conn, 'rm -f /opt/cs2pt-monitor.sh');
+
+        // 4. Reset firewall (remove our rules, reset to defaults)
+        push('Resetting firewall...');
+        await exec(conn, 'ufw --force reset 2>/dev/null || true');
+        await exec(conn, 'ufw default deny incoming 2>/dev/null || true');
+        await exec(conn, 'ufw default allow outgoing 2>/dev/null || true');
+        const sshPort = port;
+        await exec(conn, `ufw allow ${sshPort}/tcp comment "SSH" 2>/dev/null || true`);
+        await exec(conn, 'echo "y" | ufw enable 2>/dev/null || true');
+
+        // 5. Uninstall WireGuard
+        push('Uninstalling WireGuard...');
+        await exec(conn, 'DEBIAN_FRONTEND=noninteractive apt-get remove -y -qq wireguard wireguard-tools 2>/dev/null || true');
+        await exec(conn, 'DEBIAN_FRONTEND=noninteractive apt-get autoremove -y -qq 2>/dev/null || true');
+
+        push('Cleanup complete — server restored to clean state');
+        clearTimeout(timeout);
+        conn.end();
+        resolve({ success: true, log });
+      } catch (err) {
+        clearTimeout(timeout);
+        push(`Error during cleanup: ${err.message}`);
+        conn.end();
+        resolve({ success: false, log, error: err.message });
+      }
+    });
+
+    push(`Connecting to ${username}@${ip}:${port}...`);
+    conn.connect({ host: ip, port, username, password, readyTimeout: 15000 });
+  });
+}
+
+/**
  * Detect server location from IP
  */
 export async function detectLocation(ip) {

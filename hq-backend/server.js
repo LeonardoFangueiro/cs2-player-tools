@@ -4,7 +4,7 @@ import { readFileSync, writeFileSync, existsSync, mkdirSync, readdirSync, statSy
 import { join, dirname, extname } from 'path';
 import { fileURLToPath } from 'url';
 import { execSync } from 'child_process';
-import { deployVpnServer, checkServerStatus, addPeer, removePeer, listPeers, detectLocation, allocateClientIp, getValveAllowedIps } from './vpn-deploy.js';
+import { deployVpnServer, checkServerStatus, addPeer, removePeer, listPeers, detectLocation, allocateClientIp, getValveAllowedIps, uninstallVpnServer } from './vpn-deploy.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -786,11 +786,25 @@ app.get('/api/vpn-servers/admin', (req, res) => {
 });
 
 // Delete VPN server
-app.delete('/api/vpn-servers/:id', (req, res) => {
+app.delete('/api/vpn-servers/:id', async (req, res) => {
   const servers = loadJson('vpn_servers.json');
+  const server = servers.find(s => s.id === req.params.id);
+
+  let cleanupLog = [];
+  // Try to SSH and uninstall WireGuard if we have credentials
+  if (server && server._ssh_pass) {
+    const result = await uninstallVpnServer({
+      ip: server.ip,
+      port: server.ssh_port || 22,
+      username: server.ssh_user || 'root',
+      password: server._ssh_pass,
+    });
+    cleanupLog = result.log || [];
+  }
+
   const filtered = servers.filter(s => s.id !== req.params.id);
   saveJson('vpn_servers.json', filtered);
-  res.json({ success: true });
+  res.json({ success: true, cleanup_log: cleanupLog });
 });
 
 // Toggle server active/inactive
