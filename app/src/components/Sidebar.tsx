@@ -110,28 +110,37 @@ export default function Sidebar() {
   }
 
   async function checkVpn() {
+    // Use localStorage as primary source of truth (set by SmartVPN page)
+    const isConnected = localStorage.getItem("cs2pt_vpn_connected") === "true";
+    const savedIp = localStorage.getItem("cs2pt_vpn_ip");
+    const savedServerId = localStorage.getItem("cs2pt_vpn_server_id");
+
+    if (!isConnected) {
+      setVpnStatus(null);
+      setVpnIp(null);
+      return;
+    }
+
+    // We know we should be connected — try to get live status
     try {
-      // Try to get status of any active VPN profile
-      const profiles = await invoke<string[]>("vpn_list_profiles");
-      for (const name of profiles) {
-        const status = await invoke<VpnStatus>("vpn_get_status", { profileName: name });
-        if (status.active) {
-          setVpnStatus(status);
-          // Try to get the VPN IP (client address from profile)
-          try {
-            const profile = await invoke<{ client_address: string }>("vpn_load_profile", { profileName: name });
-            setVpnIp(profile.client_address?.split('/')[0] || null);
-          } catch {
-            setVpnIp(null);
-          }
-          return;
-        }
+      const profileName = `smartvpn-${savedServerId}`;
+      const status = await invoke<VpnStatus>("vpn_get_status", { profileName });
+      if (status.active) {
+        setVpnStatus(status);
+        setVpnIp(savedIp || null);
+      } else {
+        // Tunnel went down — update localStorage
+        localStorage.removeItem("cs2pt_vpn_connected");
+        localStorage.removeItem("cs2pt_vpn_server_id");
+        localStorage.removeItem("cs2pt_vpn_ip");
+        localStorage.removeItem("cs2pt_vpn_connect_time");
+        setVpnStatus(null);
+        setVpnIp(null);
       }
-      setVpnStatus(null);
-      setVpnIp(null);
     } catch {
-      setVpnStatus(null);
-      setVpnIp(null);
+      // Can't check — still show as connected based on localStorage
+      setVpnStatus({ active: true, profile_name: savedServerId, endpoint: null, transfer_rx: null, transfer_tx: null, latest_handshake: null, error: null });
+      setVpnIp(savedIp || null);
     }
   }
 
