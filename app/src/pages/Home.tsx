@@ -33,20 +33,21 @@ interface MenuButton {
 }
 
 const menuButtons: MenuButton[] = [
-  { to: "/dashboard", icon: LayoutDashboard, label: "Dashboard", desc: "Overview & Valve infra", color: "from-accent/20 to-accent/5 border-accent/30 hover:border-accent/60", category: "Networking" },
-  { to: "/network", icon: Network, label: "Diagnostics", desc: "Ping, traceroute, DNS", color: "from-accent2/20 to-accent2/5 border-accent2/30 hover:border-accent2/60", category: "Networking" },
-  { to: "/vpn", icon: Shield, label: "Smart VPN", desc: "One-click gaming VPN", color: "from-success/20 to-success/5 border-success/30 hover:border-success/60", category: "Networking" },
-  { to: "/servers", icon: Globe, label: "Server Picker", desc: "Block & allow regions", color: "from-warning/20 to-warning/5 border-warning/30 hover:border-warning/60", category: "Networking" },
-  { to: "/cs2config", icon: FileCode, label: "CS2 Config", desc: "Autoexec & pro settings", color: "from-danger/20 to-danger/5 border-danger/30 hover:border-danger/60", category: "Gameplay" },
-  { to: "/optimizer", icon: Settings2, label: "Windows", desc: "Network optimizations", color: "from-orange/20 to-orange/5 border-orange/30 hover:border-orange/60", category: "Booster" },
-  { to: "/history", icon: BarChart3, label: "History", desc: "Connection quality log", color: "from-accent/15 to-accent/5 border-accent/20 hover:border-accent/50", category: "Gameplay" },
-  { to: "/settings", icon: Settings, label: "Settings", desc: "App configuration", color: "from-text-muted/10 to-text-muted/5 border-border hover:border-text-muted/40", category: "Personal" },
+  { to: "/dashboard", icon: LayoutDashboard, label: "DASHBOARD", desc: "Overview & Valve infra", color: "accent", category: "Networking" },
+  { to: "/network", icon: Network, label: "DIAGNOSTICS", desc: "Ping, traceroute, DNS", color: "accent2", category: "Networking" },
+  { to: "/vpn", icon: Shield, label: "SMART VPN", desc: "One-click gaming VPN", color: "success", category: "Networking" },
+  { to: "/servers", icon: Globe, label: "SERVER PICKER", desc: "Block & allow regions", color: "warning", category: "Networking" },
+  { to: "/cs2config", icon: FileCode, label: "CS2 CONFIG", desc: "Autoexec & pro settings", color: "danger", category: "Gameplay" },
+  { to: "/optimizer", icon: Settings2, label: "WINDOWS", desc: "Network optimizations", color: "orange", category: "Booster" },
+  { to: "/history", icon: BarChart3, label: "HISTORY", desc: "Connection quality log", color: "accent", category: "Gameplay" },
+  { to: "/settings", icon: Settings, label: "SETTINGS", desc: "App configuration", color: "accent2", category: "Personal" },
 ];
 
 export default function Home() {
   const navigate = useNavigate();
   const [cs2Status, setCs2Status] = useState<Cs2Status>({ running: false, pid: null });
   const [vpnConnected, setVpnConnected] = useState(false);
+  const [vpnDetails, setVpnDetails] = useState<{ server: string; ip: string; rx: string; tx: string } | null>(null);
   const [update, setUpdate] = useState<{ version: string; url: string | null } | null>(null);
 
   useEffect(() => {
@@ -57,9 +58,30 @@ export default function Home() {
     }, 5000);
 
     // VPN status from localStorage
-    const checkVpn = () => {
+    const checkVpn = async () => {
       const connected = localStorage.getItem("cs2pt_vpn_connected") === "true";
       setVpnConnected(connected);
+      if (connected) {
+        const serverId = localStorage.getItem("cs2pt_vpn_server_id") || "";
+        const ip = localStorage.getItem("cs2pt_vpn_ip") || "";
+        try {
+          const resp = await fetch("https://cs2-player-tools.maltinha.club/api/vpn-servers");
+          const data = await resp.json();
+          const srv = (data.servers || []).find((s: { id: string }) => s.id === serverId);
+          const profileName = `smartvpn-${serverId}`;
+          const status = await invoke<{ transfer_rx: string | null; transfer_tx: string | null }>("vpn_get_status", { profileName }).catch(() => ({ transfer_rx: null, transfer_tx: null }));
+          setVpnDetails({
+            server: srv ? `${srv.flag || ""} ${srv.name} — ${srv.location}` : serverId,
+            ip,
+            rx: status.transfer_rx || "0 B",
+            tx: status.transfer_tx || "0 B",
+          });
+        } catch {
+          setVpnDetails({ server: serverId, ip, rx: "—", tx: "—" });
+        }
+      } else {
+        setVpnDetails(null);
+      }
     };
     checkVpn();
     const vpnInt = setInterval(checkVpn, 2000);
@@ -81,19 +103,53 @@ export default function Home() {
         <img src="/logo.png" alt="CS2 Player Tools" className="h-64 w-auto mx-auto" />
       </div>
 
-      {/* Menu Grid */}
+      {/* Menu Grid — Gaming Style */}
       <div className="grid grid-cols-4 gap-3 w-full max-w-3xl mb-6">
-        {menuButtons.map((btn) => (
-          <button
-            key={btn.to}
-            onClick={() => navigate(btn.to)}
-            className={`group relative flex flex-col items-center justify-center gap-2 p-5 rounded-xl border bg-gradient-to-b transition-all duration-200 hover:scale-[1.03] hover:shadow-lg active:scale-[0.98] ${btn.color}`}
-          >
-            <btn.icon size={28} className="text-text group-hover:text-accent transition" />
-            <span className="text-sm font-semibold text-text">{btn.label}</span>
-            <span className="text-[10px] text-text-muted leading-tight text-center">{btn.desc}</span>
-          </button>
-        ))}
+        {menuButtons.map((btn) => {
+          const c = btn.color;
+          return (
+            <button
+              key={btn.to}
+              onClick={() => navigate(btn.to)}
+              className="group relative overflow-hidden transition-all duration-200 hover:scale-[1.04] active:scale-[0.97]"
+            >
+              {/* Clipped corner shape */}
+              <div className={`
+                relative flex flex-col items-center justify-center gap-1.5 py-5 px-3
+                bg-gradient-to-b from-bg-card to-bg
+                border border-border
+                clip-gaming
+                group-hover:border-${c}/60
+                group-hover:shadow-[0_0_20px_rgba(230,126,34,0.15)]
+                transition-all duration-200
+              `}>
+                {/* Top accent line */}
+                <div className={`absolute top-0 left-[10%] right-[10%] h-[2px] bg-${c} opacity-40 group-hover:opacity-100 transition`} />
+
+                {/* Glow bg on hover */}
+                <div className={`absolute inset-0 bg-${c}/0 group-hover:bg-${c}/8 transition duration-300`} />
+
+                {/* Icon */}
+                <div className={`relative z-10 p-2 rounded-lg bg-${c}/10 group-hover:bg-${c}/20 transition`}>
+                  <btn.icon size={24} className={`text-${c} drop-shadow-[0_0_6px_currentColor]`} />
+                </div>
+
+                {/* Label */}
+                <span className="relative z-10 text-xs font-bold tracking-wider text-text group-hover:text-white transition">
+                  {btn.label}
+                </span>
+
+                {/* Description */}
+                <span className="relative z-10 text-[9px] text-text-muted/60 leading-tight text-center">
+                  {btn.desc}
+                </span>
+
+                {/* Bottom scan line */}
+                <div className={`absolute bottom-0 left-0 right-0 h-[1px] bg-gradient-to-r from-transparent via-${c}/30 to-transparent`} />
+              </div>
+            </button>
+          );
+        })}
       </div>
 
       {/* Status Bar */}
@@ -111,7 +167,12 @@ export default function Home() {
           {vpnConnected ? (
             <>
               <Wifi size={12} className="text-success" />
-              <span className="text-success">VPN Connected</span>
+              <span className="text-success">VPN On</span>
+              {vpnDetails && (
+                <span className="text-text-muted font-mono text-[10px]">
+                  {vpnDetails.server} · {vpnDetails.ip} · ↓{vpnDetails.rx} ↑{vpnDetails.tx}
+                </span>
+              )}
             </>
           ) : (
             <>
